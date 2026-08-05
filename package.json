@@ -6,9 +6,14 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "seed:user": "node scripts/seed-default-user.js",
+    "seed:rooms": "node scripts/seed-rooms.js",
+    "seed:promos": "node scripts/seed-promos.js"
   },
   "dependencies": {
+    "bcryptjs": "^3.0.3",
+    "mongoose": "^9.8.1",
     "next": "16.2.12",
     "react": "19.2.4",
     "react-dom": "19.2.4"

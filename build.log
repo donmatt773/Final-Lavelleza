@@ -1,0 +1,26 @@
+
+> la-velezza-booking@0.1.0 build
+> next build
+
+▲ Next.js 16.2.12 (Turbopack)
+
+  Creating an optimized production build ...
+  Using external babel configuration from C:\Users\Xire Gi Galangque\Desktop\La_Velleza\la-velleza-booking\.babelrc
+⚠ It looks like there is a custom Babel configuration that can be removed.
+✓ Compiled successfully in 17.0s
+  Running TypeScript ...
+Failed to type check.
+
+./app/lib/Promo.ts:175:17
+Type error: No overload matches this call.
+  The last overload gave the following error.
+    Argument of type '"validate"' is not assignable to parameter of type 'RegExp | "createCollection"'.
+
+  [90m173 |[0m );
+  [90m174 |[0m
+[31m[1m>[0m [90m175 |[0m promoSchema.pre([32m'validate'[0m, [36mfunction[0m normalizePromoData(next: (err?: [33mError[0m) => [36mvoid[0m) {
+  [90m    |[0m                 [31m[1m^[0m
+  [90m176 |[0m   [36mif[0m ([36mthis[0m.code) {
+  [90m177 |[0m     [36mthis[0m.codeNormalized = [36mthis[0m.code.trim().toUpperCase();
+  [90m178 |[0m   }
+Next.js build worker exited with code: 1 and signal: null

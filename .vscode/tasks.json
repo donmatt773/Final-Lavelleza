@@ -1,0 +1,46 @@
+{
+	"version": "2.0.0",
+	"tasks": [
+		{
+			"label": "lint-and-build",
+			"type": "shell",
+			"command": "npm run lint && npm run build",
+			"isBackground": false,
+			"problemMatcher": [
+				"$tsc"
+			],
+			"group": "build"
+		},
+		{
+			"label": "build-verification",
+			"type": "shell",
+			"command": "npm run build",
+			"isBackground": false,
+			"problemMatcher": [
+				"$tsc"
+			],
+			"group": "build"
+		},
+		{
+			"label": "build-verification",
+			"type": "shell",
+			"command": "npm run build",
+			"isBackground": false,
+			"problemMatcher": [
+				"$tsc"
+			],
+			"group": "build"
+		},
+		{
+			"label": "clean-and-lint",
+			"type": "shell",
+			"command": "cmd",
+			"args": [
+				"/d",
+				"/c",
+				"cd /d C:\\Users\\Xire Gi Galangque\\Desktop\\La_Velleza\\la-velleza-booking && for /f \"tokens=2 delims==\" %I in ('wmic process where \"name like 'node.exe' or name like 'next.exe' or name like 'npm.exe'\" get processid /format:list 2^>nul ^| findstr /r /c:\"ProcessId=\"') do @taskkill /F /PID %I >nul 2>&1 && if exist .next rmdir /s /q .next && npm.cmd run lint"
+			],
+			"problemMatcher": []
+		}
+	]
+}

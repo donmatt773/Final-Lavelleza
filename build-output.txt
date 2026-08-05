@@ -1,0 +1,25 @@
+
+> la-velezza-booking@0.1.0 build
+> next build
+
+▲ Next.js 16.2.12 (Turbopack)
+
+  Creating an optimized production build ...
+  Using external babel configuration from C:\Users\Xire Gi Galangque\Desktop\La_Velleza\la-velleza-booking\.babelrc
+⚠ It looks like there is a custom Babel configuration that can be removed.
+✓ Compiled successfully in 19.4s
+  Running TypeScript ...
+Failed to type check.
+
+./app/lib/Promo.ts:196:3
+Type error: This expression is not callable.
+  Type 'Record<string, any>' has no call signatures.
+
+  [90m194 |[0m   [36mthis[0m.includedRoomIds = merged.map((roomId) => [36mnew[0m [33mTypes[0m.[33mObjectId[0m(roomId));
+  [90m195 |[0m
+[31m[1m>[0m [90m196 |[0m   next();
+  [90m    |[0m   [31m[1m^[0m
+  [90m197 |[0m });
+  [90m198 |[0m
+  [90m199 |[0m promoSchema.index({ codeNormalized: [35m1[0m }, { unique: [36mtrue[0m });
+Next.js build worker exited with code: 1 and signal: null
