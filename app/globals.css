@@ -13,30 +13,6 @@
   --font-serif: var(--font-fraunces);
 }
 
-/*
-  Site-wide color override, sampled from app/icons/logo.jpg
-  (sunset gold/orange/coral, ocean navy/royal/sky, caramel wordmark).
-
-  This redefines Tailwind's built-in color scales in place, so every
-  existing bg-emerald-600 / text-slate-400 / border-rose-500/20 class
-  already used across the dashboard, login, and reservation flow picks
-  up the new palette automatically — no component files need editing.
-
-  Mapping:
-    emerald -> sunset/gold (primary brand accent, was green)
-    rose    -> coral       (danger / destructive actions)
-    amber   -> gold        (warnings)
-    sky     -> royal blue  (info / secondary links)
-    cyan    -> light wave blue (GCash-related badges)
-    fuchsia -> muted plum  (rare states: no-show, refunded)
-    slate   -> navy neutral (all backgrounds/borders/muted text)
-    blue    -> royal blue  (staff dashboard role badge)
-    zinc    -> navy neutral (login page gradient)
-
-  Not overridden on purpose: Tailwind's default "orange" (used for cash-payment
-  stats on the reservation dashboard) already sits close to the sunset hue,
-  so it reads as on-brand without needing a redefinition.
-*/
 @theme {
   /* emerald -> sunset/gold brand accent */
   --color-emerald-50: #FEF8F3;
