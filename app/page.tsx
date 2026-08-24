@@ -216,9 +216,9 @@ export default async function Home() {
             <div className="mt-10 grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
               {promos.map((promo) => (
                 <div key={promo._id} className="overflow-hidden rounded-2xl border" style={{ borderColor: `${theme.ink}1A`, backgroundColor: theme.sand }}>
-                  <div className="relative h-36 w-full" style={{ backgroundColor: `${theme.sunset}33` }}>
+                  <div className="relative h-48 w-full" style={{ backgroundColor: `${theme.sunset}1F` }}>
                     {promo.bannerUrl ? (
-                      <Image src={promo.bannerUrl} alt={promo.bannerAlt || promo.name} fill unoptimized className="object-cover" />
+                      <Image src={promo.bannerUrl} alt={promo.bannerAlt || promo.name} fill unoptimized className="object-contain p-4" />
                     ) : (
                       <div className="flex h-full w-full items-center justify-center text-xs uppercase tracking-[0.3em]" style={{ color: `${theme.ink}99` }}>
                         {promo.code}
