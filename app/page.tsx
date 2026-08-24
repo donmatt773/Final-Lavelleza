@@ -6,31 +6,12 @@ import Promo from '@/app/lib/Promo';
 import RateSettings from '@/app/lib/RateSettings';
 import DayNightDivider from '@/app/components/landing/DayNightDivider';
 import SiteNav from '@/app/components/landing/SiteNav';
+import RoomsShowcase from '@/app/components/landing/RoomsShowcase';
 import { theme } from '@/app/lib/landingTheme';
+import { peso } from '@/app/lib/landingFormat';
+import type { FeaturedRoom, FeaturedPromo } from '@/app/lib/landingTypes';
 
 export const revalidate = 300; // refresh featured content every 5 minutes
-
-type FeaturedRoom = {
-  _id: string;
-  name: string;
-  code: string;
-  description?: string;
-  maxGuests: number;
-  nightlyRate: number;
-  primaryImage?: string;
-  primaryImageAlt?: string;
-};
-
-type FeaturedPromo = {
-  _id: string;
-  name: string;
-  code: string;
-  description?: string;
-  packagePrice: number;
-  includedPax?: number;
-  bannerUrl?: string;
-  bannerAlt?: string;
-};
 
 async function loadLandingData() {
   try {
@@ -42,7 +23,7 @@ async function loadLandingData() {
       Room.find({ isArchived: false, status: 'AVAILABLE' })
         .select('name code description maxGuests nightlyRate images')
         .sort({ nightlyRate: -1 })
-        .limit(4)
+        .limit(60) // all rooms for a resort this size; RoomsShowcase paginates client-side
         .lean(),
       Promo.find({
         isArchived: false,
@@ -102,9 +83,6 @@ async function loadLandingData() {
   }
 }
 
-const peso = (value: number) =>
-  new Intl.NumberFormat('en-PH', { style: 'currency', currency: 'PHP', maximumFractionDigits: 0 }).format(value || 0);
-
 export default async function Home() {
   const { rooms, promos, rateSettings } = await loadLandingData();
 
@@ -158,49 +136,8 @@ export default async function Home() {
         halfDayCutoffTime={rateSettings.halfDayCutoffTime}
       />
 
-      {/* ROOMS */}
-      <section id="rooms" className="mx-auto max-w-6xl px-6 py-20">
-        <div className="mb-10 flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
-          <div>
-            <p className="text-xs font-semibold uppercase tracking-[0.3em]" style={{ color: theme.royal }}>
-              Rooms &amp; Houses
-            </p>
-            <h2 className="mt-2 font-serif text-3xl" style={{ color: theme.caramel }}>
-              Where you'll actually sleep
-            </h2>
-          </div>
-          <Link href="/reservation" className="text-sm font-semibold underline underline-offset-4" style={{ color: theme.royal }}>
-            View all &amp; book →
-          </Link>
-        </div>
-
-        {rooms.length === 0 ? (
-          <div className="rounded-2xl border border-dashed p-10 text-center text-sm" style={{ borderColor: `${theme.ink}33`, color: `${theme.ink}99` }}>
-            Rooms will appear here once they're published from the admin dashboard.
-          </div>
-        ) : (
-          <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-4">
-            {rooms.map((room) => (
-              <div key={room._id} className="overflow-hidden rounded-2xl border" style={{ borderColor: `${theme.ink}1A`, backgroundColor: '#ffffff' }}>
-                <div className="relative h-40 w-full" style={{ backgroundColor: `${theme.royal}1A` }}>
-                  {room.primaryImage ? (
-                    <Image src={room.primaryImage} alt={room.primaryImageAlt || room.name} fill unoptimized className="object-cover" />
-                  ) : (
-                    <div className="flex h-full w-full items-center justify-center text-xs uppercase tracking-[0.3em]" style={{ color: `${theme.royal}99` }}>
-                      {room.code}
-                    </div>
-                  )}
-                </div>
-                <div className="p-4">
-                  <h3 className="font-serif text-lg" style={{ color: theme.caramel }}>{room.name}</h3>
-                  <p className="mt-1 text-xs" style={{ color: `${theme.ink}99` }}>Up to {room.maxGuests} guests</p>
-                  <p className="mt-3 text-sm font-semibold" style={{ color: theme.royal }}>{peso(room.nightlyRate)} / night</p>
-                </div>
-              </div>
-            ))}
-          </div>
-        )}
-      </section>
+      {/* ROOMS (paginated grid + full gallery modal, both client-side) */}
+      <RoomsShowcase rooms={rooms} />
 
       {/* PROMOS */}
       {promos.length > 0 ? (
