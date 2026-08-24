@@ -1,8 +1,8 @@
 @import "tailwindcss";
 
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  --background: #FBF3E4;
+  --foreground: #17263A;
 }
 
 @theme inline {
@@ -13,11 +13,148 @@
   --font-serif: var(--font-fraunces);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+/*
+  Site-wide color override, sampled from app/icons/logo.jpg
+  (sunset gold/orange/coral, ocean navy/royal/sky, caramel wordmark).
+
+  This redefines Tailwind's built-in color scales in place, so every
+  existing bg-emerald-600 / text-slate-400 / border-rose-500/20 class
+  already used across the dashboard, login, and reservation flow picks
+  up the new palette automatically — no component files need editing.
+
+  Mapping:
+    emerald -> sunset/gold (primary brand accent, was green)
+    rose    -> coral       (danger / destructive actions)
+    amber   -> gold        (warnings)
+    sky     -> royal blue  (info / secondary links)
+    cyan    -> light wave blue (GCash-related badges)
+    fuchsia -> muted plum  (rare states: no-show, refunded)
+    slate   -> navy neutral (all backgrounds/borders/muted text)
+    blue    -> royal blue  (staff dashboard role badge)
+    zinc    -> navy neutral (login page gradient)
+
+  Not overridden on purpose: Tailwind's default "orange" (used for cash-payment
+  stats on the reservation dashboard) already sits close to the sunset hue,
+  so it reads as on-brand without needing a redefinition.
+*/
+@theme {
+  /* emerald -> sunset/gold brand accent */
+  --color-emerald-50: #FEF8F3;
+  --color-emerald-100: #FCF0E5;
+  --color-emerald-200: #F9DFC7;
+  --color-emerald-300: #F5C499;
+  --color-emerald-400: #EFA461;
+  --color-emerald-500: #EB8933;
+  --color-emerald-600: #DA7116;
+  --color-emerald-700: #B55E12;
+  --color-emerald-800: #904B0E;
+  --color-emerald-900: #6B370B;
+  --color-emerald-950: #412206;
+
+  /* rose -> coral (danger / destructive) */
+  --color-rose-50: #FDF5F4;
+  --color-rose-100: #FBEAE7;
+  --color-rose-200: #F6D1CA;
+  --color-rose-300: #EFAB9F;
+  --color-rose-400: #E77D6A;
+  --color-rose-500: #E0563E;
+  --color-rose-600: #CE3B22;
+  --color-rose-700: #AB311C;
+  --color-rose-800: #882716;
+  --color-rose-900: #651D10;
+  --color-rose-950: #3D120A;
+
+  /* amber -> gold (warnings) */
+  --color-amber-50: #FEFBF3;
+  --color-amber-100: #FCF6E5;
+  --color-amber-200: #F9EBC7;
+  --color-amber-300: #F5DB99;
+  --color-amber-400: #EFC761;
+  --color-amber-500: #EBB733;
+  --color-amber-600: #DAA216;
+  --color-amber-700: #B58712;
+  --color-amber-800: #906B0E;
+  --color-amber-900: #6B4F0B;
+  --color-amber-950: #413006;
+
+  /* sky -> royal blue (info / secondary links) */
+  --color-sky-50: #F5F8FC;
+  --color-sky-100: #EAF0F8;
+  --color-sky-200: #D1DFF0;
+  --color-sky-300: #ABC4E3;
+  --color-sky-400: #7DA4D4;
+  --color-sky-500: #5789C7;
+  --color-sky-600: #3C72B4;
+  --color-sky-700: #325E95;
+  --color-sky-800: #284B77;
+  --color-sky-900: #1D3858;
+  --color-sky-950: #122236;
+
+  /* cyan -> light wave blue (GCash-related badges) */
+  --color-cyan-50: #F5FAFC;
+  --color-cyan-100: #E9F4F9;
+  --color-cyan-200: #D0E7F1;
+  --color-cyan-300: #A8D3E6;
+  --color-cyan-400: #79BBD8;
+  --color-cyan-500: #51A7CD;
+  --color-cyan-600: #3692BA;
+  --color-cyan-700: #2D799A;
+  --color-cyan-800: #24607B;
+  --color-cyan-900: #1A485B;
+  --color-cyan-950: #102C37;
+
+  /* fuchsia -> muted plum (rare states: no-show, refunded) */
+  --color-fuchsia-50: #FBF6F8;
+  --color-fuchsia-100: #F7EBEF;
+  --color-fuchsia-200: #EDD4DD;
+  --color-fuchsia-300: #DDB0C1;
+  --color-fuchsia-400: #CB869F;
+  --color-fuchsia-500: #BC6283;
+  --color-fuchsia-600: #A8486B;
+  --color-fuchsia-700: #8B3C59;
+  --color-fuchsia-800: #6F2F47;
+  --color-fuchsia-900: #522334;
+  --color-fuchsia-950: #321520;
+
+  /* slate -> navy neutral, matched to Tailwind's real lightness curve
+     so contrast/depth in the dark dashboard is preserved */
+  --color-slate-50: #F9FAFB;
+  --color-slate-100: #F0F2F5;
+  --color-slate-200: #DEE4ED;
+  --color-slate-300: #BDC9DB;
+  --color-slate-400: #8199BB;
+  --color-slate-500: #506D95;
+  --color-slate-600: #3B506D;
+  --color-slate-700: #2B3A50;
+  --color-slate-800: #1B2432;
+  --color-slate-900: #10161E;
+  --color-slate-950: #070A0D;
+
+  /* blue -> royal blue (matches sky; used on the staff dashboard role badge) */
+  --color-blue-50: #F5F8FC;
+  --color-blue-100: #EAF0F8;
+  --color-blue-200: #D1DFF0;
+  --color-blue-300: #ABC4E3;
+  --color-blue-400: #7DA4D4;
+  --color-blue-500: #5789C7;
+  --color-blue-600: #3C72B4;
+  --color-blue-700: #325E95;
+  --color-blue-800: #284B77;
+  --color-blue-900: #1D3858;
+  --color-blue-950: #122236;
+
+  /* zinc -> same navy neutral as slate (login page gradient uses zinc-900) */
+  --color-zinc-50: #F9FAFB;
+  --color-zinc-100: #F0F2F5;
+  --color-zinc-200: #DEE4ED;
+  --color-zinc-300: #BDC9DB;
+  --color-zinc-400: #8199BB;
+  --color-zinc-500: #506D95;
+  --color-zinc-600: #3B506D;
+  --color-zinc-700: #2B3A50;
+  --color-zinc-800: #1B2432;
+  --color-zinc-900: #10161E;
+  --color-zinc-950: #070A0D;
 }
 
 body {
