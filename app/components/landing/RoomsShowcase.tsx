@@ -6,6 +6,7 @@ import { theme } from '@/app/lib/landingTheme';
 import { peso } from '@/app/lib/landingFormat';
 import type { FeaturedRoom } from '@/app/lib/landingTypes';
 import AllRoomsModal from '@/app/components/landing/AllRoomsModal';
+import RoomDetailModal from '@/app/components/landing/RoomdetailModal';
 
 const PAGE_SIZE = 4;
 
@@ -16,6 +17,7 @@ type Props = {
 export default function RoomsShowcase({ rooms }: Props) {
   const [page, setPage] = useState(1);
   const [galleryOpen, setGalleryOpen] = useState(false);
+  const [selectedRoom, setSelectedRoom] = useState<FeaturedRoom | null>(null);
 
   const totalPages = Math.max(1, Math.ceil(rooms.length / PAGE_SIZE));
   const safePage = Math.min(page, totalPages);
@@ -56,7 +58,13 @@ export default function RoomsShowcase({ rooms }: Props) {
         <>
           <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-4">
             {pagedRooms.map((room) => (
-              <div key={room._id} className="overflow-hidden rounded-2xl border" style={{ borderColor: `${theme.ink}1A`, backgroundColor: '#ffffff' }}>
+              <button
+                key={room._id}
+                type="button"
+                onClick={() => setSelectedRoom(room)}
+                className="overflow-hidden rounded-2xl border text-left transition hover:-translate-y-1 hover:shadow-lg"
+                style={{ borderColor: `${theme.ink}1A`, backgroundColor: '#ffffff' }}
+              >
                 <div className="relative h-40 w-full" style={{ backgroundColor: `${theme.royal}1A` }}>
                   {room.primaryImage ? (
                     <Image src={room.primaryImage} alt={room.primaryImageAlt || room.name} fill unoptimized className="object-cover" />
@@ -71,7 +79,7 @@ export default function RoomsShowcase({ rooms }: Props) {
                   <p className="mt-1 text-xs" style={{ color: `${theme.ink}99` }}>Up to {room.maxGuests} guests</p>
                   <p className="mt-3 text-sm font-semibold" style={{ color: theme.royal }}>{peso(room.nightlyRate)} / night</p>
                 </div>
-              </div>
+              </button>
             ))}
           </div>
 
@@ -104,6 +112,7 @@ export default function RoomsShowcase({ rooms }: Props) {
       )}
 
       <AllRoomsModal open={galleryOpen} onClose={() => setGalleryOpen(false)} rooms={rooms} />
+      <RoomDetailModal room={selectedRoom} open={selectedRoom !== null} onClose={() => setSelectedRoom(null)} />
     </section>
   );
 }
