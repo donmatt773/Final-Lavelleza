@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useEffect, useState } from 'react';
+import React, { useState } from 'react';
 import Image from 'next/image';
 import { theme } from '@/app/lib/landingTheme';
 import { peso } from '@/app/lib/landingFormat';
@@ -21,10 +21,6 @@ export default function RoomsShowcase({ rooms }: Props) {
 
   const totalPages = Math.max(1, Math.ceil(rooms.length / PAGE_SIZE));
   const safePage = Math.min(page, totalPages);
-
-  useEffect(() => {
-    if (page > totalPages) setPage(1);
-  }, [page, totalPages]);
 
   const pagedRooms = rooms.slice((safePage - 1) * PAGE_SIZE, safePage * PAGE_SIZE);
 

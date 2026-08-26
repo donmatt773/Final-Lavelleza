@@ -454,8 +454,8 @@ export default function PromoManagementPanel({ active }: Props) {
                         <div className="flex h-12 w-20 items-center justify-center overflow-hidden rounded-lg border border-slate-800 bg-slate-900">
                           {showBanner ? (
                             <Image
-                              src={promo.banner.fileUrl}
-                              alt={promo.banner.altText || promo.name}
+                              src={bannerUrl}
+                              alt={promo.banner?.altText || promo.name}
                               width={400}
                               height={300}
                               unoptimized

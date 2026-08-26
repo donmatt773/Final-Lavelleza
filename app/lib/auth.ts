@@ -50,7 +50,7 @@ export function verifySessionCookieValue(value: string | null | undefined): Auth
   if (expectedBuffer.length !== providedBuffer.length) return null;
 
   try {
-    timingSafeEqual(expectedBuffer, providedBuffer);
+    if (!timingSafeEqual(expectedBuffer, providedBuffer)) return null;
   } catch {
     return null;
   }

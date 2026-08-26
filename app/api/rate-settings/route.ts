@@ -106,15 +106,25 @@ export async function PUT(request: Request) {
       return NextResponse.json({ success: false, message: 'Invalid settings payload.', errors }, { status: 400 });
     }
 
+    const input = body as {
+  checkInTime: string;
+  checkOutTime: string;
+  extraPersonRate: number;
+  childExemptionAge: number;
+  extraSingleBedRate: number;
+  extraDoubleBedRate: number;
+  halfDayCutoffTime: string;
+};
+
     const payload = {
       key: 'default',
-      checkInTime: body.checkInTime.trim().toUpperCase(),
-      checkOutTime: body.checkOutTime.trim().toUpperCase(),
-      extraPersonRate: body.extraPersonRate,
-      childExemptionAge: body.childExemptionAge,
-      extraSingleBedRate: body.extraSingleBedRate,
-      extraDoubleBedRate: body.extraDoubleBedRate,
-      halfDayCutoffTime: body.halfDayCutoffTime.trim().toUpperCase(),
+      checkInTime: input.checkInTime.trim().toUpperCase(),
+      checkOutTime: input.checkOutTime.trim().toUpperCase(),
+      extraPersonRate: input.extraPersonRate,
+      childExemptionAge: input.childExemptionAge,
+      extraSingleBedRate: input.extraSingleBedRate,
+      extraDoubleBedRate: input.extraDoubleBedRate,
+      halfDayCutoffTime: input.halfDayCutoffTime.trim().toUpperCase(),
       beforeCutoffRateType: 'HALF_DAY',
       afterCutoffRateType: 'WHOLE_DAY',
     };

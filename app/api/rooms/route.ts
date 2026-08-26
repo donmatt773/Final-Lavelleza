@@ -101,7 +101,7 @@ async function resolveReferences(features: unknown, amenities: unknown, beds: un
         continue;
       }
 
-      let bedTypeDoc: Awaited<ReturnType<typeof BedType.findById>> | null = null;
+      let bedTypeDoc: { _id: mongoose.Types.ObjectId } | null = null;
       if (isValidObjectId(bedTypeValue)) {
         bedTypeDoc = await BedType.findById(bedTypeValue);
       } else {
@@ -250,22 +250,22 @@ export async function POST(request: Request) {
     }
 
     const room = await Room.create({
-      name: typeof input.name === 'string' ? input.name.trim() : '',
-      code: typeof input.code === 'string' ? input.code.trim().toUpperCase() : '',
-      description: typeof input.description === 'string' ? input.description.trim() : '',
-      maxGuests: input.maxGuests,
-      status: input.status,
-      nightlyRate: input.nightlyRate,
-      halfDayRate: input.halfDayRate,
-      wholeDayRate: input.wholeDayRate,
-      beds: referenceData.resolvedBeds,
-      features: referenceData.resolvedFeatures,
-      amenities: referenceData.resolvedAmenities,
-      images: Array.isArray(input.images) ? input.images : [],
-      primaryImageId: typeof input.primaryImageId === 'string' ? input.primaryImageId : null,
-      isArchived: false,
-      archivedAt: null,
-    });
+  name: typeof input.name === 'string' ? input.name.trim() : '',
+  code: typeof input.code === 'string' ? input.code.trim().toUpperCase() : '',
+  description: typeof input.description === 'string' ? input.description.trim() : '',
+  maxGuests: input.maxGuests as number,
+  status: input.status as 'AVAILABLE' | 'MAINTENANCE' | 'INACTIVE',
+  nightlyRate: input.nightlyRate as number,
+  halfDayRate: input.halfDayRate as number,
+  wholeDayRate: input.wholeDayRate as number,
+  beds: referenceData.resolvedBeds,
+  features: referenceData.resolvedFeatures,
+  amenities: referenceData.resolvedAmenities,
+  images: Array.isArray(input.images) ? input.images : [],
+  primaryImageId: typeof input.primaryImageId === 'string' ? input.primaryImageId : null,
+  isArchived: false,
+  archivedAt: null,
+});
 
     return NextResponse.json({ success: true, room }, { status: 201 });
   } catch (error: unknown) {

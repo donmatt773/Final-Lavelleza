@@ -32,8 +32,7 @@ export async function POST(request: Request) {
       role: Number(body.role ?? 1),
     });
 
-    const responseUser = user.toObject();
-    delete responseUser.password;
+    const { password: _password, ...responseUser } = user.toObject();
     return NextResponse.json({ success: true, user: responseUser }, { status: 201 });
   } catch {
     return NextResponse.json({ success: false, message: 'Failed to create user' }, { status: 500 });

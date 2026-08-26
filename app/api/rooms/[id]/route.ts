@@ -100,7 +100,7 @@ async function resolveReferences(features: unknown, amenities: unknown, beds: un
         continue;
       }
 
-      let bedTypeDoc: Awaited<ReturnType<typeof BedType.findById>> | null = null;
+      let bedTypeDoc: { _id: mongoose.Types.ObjectId } | null = null;
       if (isValidObjectId(bedTypeValue)) {
         bedTypeDoc = await BedType.findById(bedTypeValue);
       } else {

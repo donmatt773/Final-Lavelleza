@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server';
 import mongoose from 'mongoose';
 import { connectDB } from '@/app/lib/db';
 import Reservation from '@/app/lib/Reservation';
-import Payment from '@/app/lib/Payment';
+import Payment, { IPayment } from '@/app/lib/Payment';
 import { getSessionFromRequest, requireOwnerOrStaff } from '@/app/lib/auth';
 import { computeReservationPaymentRollup, generatePaymentNumber, generateReceiptNumber, syncReservationPaymentStatus } from '@/app/lib/paymentTracking';
 
@@ -172,26 +172,26 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
         paymentType,
         paymentStatus,
         paymentMethod,
-      } as any,
+      } as Pick<IPayment, 'amountPaid' | 'paymentType' | 'paymentStatus' | 'paymentMethod'>,
     ];
 
     const projectedRollup = computeReservationPaymentRollup(totalDue, projectedPayments);
     const paymentNumber = await generatePaymentNumber();
 
     const payment = await Payment.create({
-      paymentNumber,
-      reservation: id,
-      paymentDate,
-      paymentMethod,
-      referenceNumber: referenceNumber || undefined,
-      amountPaid,
-      balanceRemaining: projectedRollup.outstandingBalance,
-      paymentType,
-      paymentStatus,
-      receivedBy,
-      notes: notes || undefined,
-      proofOfPaymentUrl: proofOfPaymentUrl || undefined,
-    });
+  paymentNumber,
+  reservation: id,
+  paymentDate: paymentDate as Date,
+  paymentMethod: paymentMethod as 'CASH_ON_ARRIVAL' | 'GCASH',
+  referenceNumber: referenceNumber || undefined,
+  amountPaid,
+  balanceRemaining: projectedRollup.outstandingBalance,
+  paymentType: paymentType as 'RESERVATION_DEPOSIT' | 'PARTIAL_PAYMENT' | 'FULL_PAYMENT' | 'REFUND',
+  paymentStatus: paymentStatus as 'UNPAID' | 'PENDING_VERIFICATION' | 'PARTIALLY_PAID' | 'PAID' | 'REFUNDED',
+  receivedBy,
+  notes: notes || undefined,
+  proofOfPaymentUrl: proofOfPaymentUrl || undefined,
+});
 
     const { rollup } = await syncReservationPaymentStatus(id);
 

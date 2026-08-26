@@ -32,8 +32,7 @@ export async function PUT(request: Request, { params }: { params: Promise<{ id: 
       return NextResponse.json({ success: false, message: 'User not found' }, { status: 404 });
     }
 
-    const responseUser = updated.toObject();
-    delete responseUser.password;
+    const { password: _password, ...responseUser } = updated.toObject();
     return NextResponse.json({ success: true, user: responseUser });
   } catch {
     return NextResponse.json({ success: false, message: 'Failed to update user' }, { status: 500 });

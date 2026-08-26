@@ -400,25 +400,18 @@ export async function POST(request: Request) {
       promo: promoId || null,
       adults: Math.floor(adults),
       children: Math.floor(children),
-      checkIn,
-      checkOut,
+      checkIn: checkIn as Date,
+      checkOut: checkOut as Date,
       specialRequests: specialRequests || undefined,
       reservationStatus,
       paymentStatus: initialReservationPaymentStatus,
       reservationSource,
       checkInAt: reservationStatus === 'CHECKED_IN' ? new Date() : null,
       checkedInBy: reservationStatus === 'CHECKED_IN' ? actingStaffMember : null,
-      statusHistory: [
-        {
-          fromStatus: null,
-          toStatus: reservationStatus,
-          changedAt: new Date(),
-          staffMember: reservationSource === 'WALK_IN' ? actingStaffMember : 'PUBLIC',
-        },
-      ],
+      statusHistory: [/* unchanged */],
       pricingSummary,
       createdBy: reservationSource === 'WALK_IN' ? actingStaffMember : 'PUBLIC',
-    });
+      });
 
     if (isOnlineGcash) {
       try {

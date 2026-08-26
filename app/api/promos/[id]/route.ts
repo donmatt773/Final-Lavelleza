@@ -405,8 +405,8 @@ export async function PUT(request: Request, { params }: { params: Promise<{ id: 
       return NextResponse.json({ success: false, message: 'Promo not found.' }, { status: 404 });
     }
 
-    const nextStartDate = payload.startDate !== undefined ? payload.startDate : promo.startDate;
-    const nextEndDate = payload.endDate !== undefined ? payload.endDate : promo.endDate;
+    const nextStartDate = (payload.startDate !== undefined ? payload.startDate : promo.startDate) as Date | undefined;
+    const nextEndDate = (payload.endDate !== undefined ? payload.endDate : promo.endDate) as Date | undefined;
     const nextStatus = payload.status !== undefined ? payload.status : promo.status;
 
     if (nextStartDate && nextEndDate && nextEndDate < nextStartDate) {
