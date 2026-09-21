@@ -102,6 +102,13 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
       return NextResponse.json({ success: false, message: 'Request body must be a JSON object.' }, { status: 400 });
     }
 
+    if (existingReservation.reservationStatus === 'CHECKED_OUT') {
+      return NextResponse.json({
+        success: false,
+        message: 'Checked-out reservations are locked and cannot be edited.',
+      }, { status: 409 });
+    }
+
     const updatePayload: Record<string, unknown> = {};
     const errors: string[] = [];
 

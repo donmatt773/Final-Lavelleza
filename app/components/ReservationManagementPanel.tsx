@@ -1326,6 +1326,13 @@ export default function ReservationManagementPanel({ active }: Props) {
               </button>
             </div>
 
+            {editingReservation.reservationStatus === 'CHECKED_OUT' ? (
+              <div className="mb-4 rounded-lg border border-amber-700/40 bg-amber-500/10 px-3 py-2 text-sm text-amber-200">
+                This reservation is checked out and locked. Its details are read-only.
+              </div>
+            ) : null}
+
+            <fieldset disabled={editingReservation.reservationStatus === 'CHECKED_OUT'}>
             <div className="grid gap-3 md:grid-cols-2">
               <input value={editForm.guestName} onChange={(event) => setEditForm((current) => ({ ...current, guestName: event.target.value }))} placeholder="Guest Name" className="rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-white outline-none focus:border-emerald-500" />
               <input value={editForm.email} onChange={(event) => setEditForm((current) => ({ ...current, email: event.target.value }))} placeholder="Email" className="rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-white outline-none focus:border-emerald-500" />
@@ -1607,6 +1614,7 @@ export default function ReservationManagementPanel({ active }: Props) {
                 Save Changes
               </button>
             </div>
+            </fieldset>
           </div>
         </div>
       ) : null}
