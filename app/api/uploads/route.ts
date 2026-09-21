@@ -1,8 +1,10 @@
 import { NextResponse } from 'next/server';
-import { promises as fs } from 'fs';
-import path from 'path';
-import { randomUUID } from 'crypto';
 import { requireOwner } from '@/app/lib/auth';
+import { uploadRoomImage } from '@/app/lib/cloudinary';
+
+export const runtime = 'nodejs';
+
+const MAX_IMAGE_SIZE = 4 * 1024 * 1024;
 
 function isFile(value: FormDataEntryValue | null): value is File {
   return value instanceof File;
@@ -20,20 +22,23 @@ export async function POST(request: Request) {
       return NextResponse.json({ success: false, message: 'No files were provided.' }, { status: 400 });
     }
 
-    const uploadsDir = path.join(process.cwd(), 'public', 'uploads', 'rooms');
-    await fs.mkdir(uploadsDir, { recursive: true });
-
     const uploadedImages = [] as Array<{ fileUrl: string; storageKey: string; altText: string }>;
 
     for (const file of files) {
-      const safeName = `${Date.now()}-${randomUUID()}-${file.name.replace(/[^a-zA-Z0-9.-]/g, '_')}`;
-      const filePath = path.join(uploadsDir, safeName);
+      if (!file.type.startsWith('image/')) {
+        return NextResponse.json({ success: false, message: `${file.name} is not a supported image file.` }, { status: 400 });
+      }
+
+      if (file.size > MAX_IMAGE_SIZE) {
+        return NextResponse.json({ success: false, message: `${file.name} is larger than the 4 MB upload limit.` }, { status: 400 });
+      }
+
       const buffer = Buffer.from(await file.arrayBuffer());
-      await fs.writeFile(filePath, buffer);
+      const uploadedImage = await uploadRoomImage(buffer, file.name);
 
       uploadedImages.push({
-        fileUrl: `/uploads/rooms/${safeName}`,
-        storageKey: safeName,
+        fileUrl: uploadedImage.secureUrl,
+        storageKey: uploadedImage.publicId,
         altText: file.name,
       });
     }
