@@ -46,3 +46,13 @@ CLOUDINARY_API_SECRET=your_api_secret
 ```
 
 The room image upload endpoint accepts image files up to 4 MB and stores their Cloudinary secure URL and public ID in the room record.
+
+### Seed the production database
+
+Vercel should only run `npm run build` during deployment. Run the initial database seed separately from your local terminal after adding the production `MONGODB_URI` to your local `.env`:
+
+```bash
+npm run seed:all
+```
+
+The seed scripts upsert the default user, lookup records, rooms, promos, and add-ons. Do not put `npm run seed:all` in the Vercel build command, since builds can run repeatedly.
