@@ -12,7 +12,7 @@ import { theme } from '@/app/lib/landingTheme';
 import { peso } from '@/app/lib/landingFormat';
 import type { FeaturedRoom, FeaturedPromo } from '@/app/lib/landingTypes';
 
-export const revalidate = 300; // refresh featured content every 5 minutes
+export const dynamic = 'force-dynamic';
 
 async function loadLandingData() {
   try {
@@ -75,7 +75,8 @@ async function loadLandingData() {
         halfDayCutoffTime: rateSettingsRaw?.halfDayCutoffTime || '6:00 PM',
       },
     };
-  } catch {
+  } catch (error) {
+    console.error('LANDING DATA ERROR:', error);
     return {
       rooms: [] as FeaturedRoom[],
       promos: [] as FeaturedPromo[],
