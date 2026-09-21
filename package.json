@@ -7,10 +7,10 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
-    "seed:user": "node scripts/seed-default-user.js",
-    "seed:rooms": "node scripts/seed-rooms.js",
-    "seed:promos": "node scripts/seed-promos.js",
-    "seed:add-ons": "node scripts/seed-add-ons.js",
+    "seed:user": "node --env-file=.env scripts/seed-default-user.js",
+    "seed:rooms": "node --env-file=.env scripts/seed-rooms.js",
+    "seed:promos": "node --env-file=.env scripts/seed-promos.js",
+    "seed:add-ons": "node --env-file=.env scripts/seed-add-ons.js",
     "seed:all": "npm run seed:user && npm run seed:rooms && npm run seed:promos && npm run seed:add-ons"
   },
   "dependencies": {
