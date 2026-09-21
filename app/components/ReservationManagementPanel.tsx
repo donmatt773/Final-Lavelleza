@@ -191,6 +191,7 @@ export default function ReservationManagementPanel({ active }: Props) {
   const [extendingReservation, setExtendingReservation] = useState<ReservationRecord | null>(null);
   const [extensionCheckOut, setExtensionCheckOut] = useState('');
   const [extensionPricing, setExtensionPricing] = useState<ReservationPricingSummary | null>(null);
+  const [extensionCurrentPricing, setExtensionCurrentPricing] = useState<ReservationPricingSummary | null>(null);
   const [extensionPricingLoading, setExtensionPricingLoading] = useState(false);
   const [extensionSaving, setExtensionSaving] = useState(false);
   const [checkoutWarningOpen, setCheckoutWarningOpen] = useState(false);
@@ -282,6 +283,7 @@ export default function ReservationManagementPanel({ active }: Props) {
     setExtendingReservation(reservation);
     setExtensionCheckOut(getNextDateInputValue(reservation.checkOut));
     setExtensionPricing(null);
+    setExtensionCurrentPricing(null);
   };
 
   const previewExtensionPricing = async () => {
@@ -290,7 +292,7 @@ export default function ReservationManagementPanel({ active }: Props) {
     setExtensionPricingLoading(true);
     setMessage(null);
     try {
-      const response = await fetch('/api/reservations/pricing', {
+      const pricingRequest = (checkOut: string) => fetch('/api/reservations/pricing', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'same-origin',
@@ -298,17 +300,27 @@ export default function ReservationManagementPanel({ active }: Props) {
           room: extendingReservation.room?._id,
           promo: extendingReservation.promo?._id || null,
           checkIn: extendingReservation.checkIn,
-          checkOut: extensionCheckOut,
+          checkOut,
           adults: extendingReservation.adults,
           children: extendingReservation.children,
           addOns: (extendingReservation.addOns || []).map((addOn) => ({ addOnId: addOn.addOnId, quantity: addOn.quantity })),
         }),
       });
-      const data = await response.json().catch(() => null);
-      if (!response.ok || !data?.success) {
+
+      const [currentResponse, extensionResponse] = await Promise.all([
+        pricingRequest(new Date(extendingReservation.checkOut).toISOString().slice(0, 10)),
+        pricingRequest(extensionCheckOut),
+      ]);
+      const [currentData, extensionData] = await Promise.all([
+        currentResponse.json().catch(() => null),
+        extensionResponse.json().catch(() => null),
+      ]);
+      if (!currentResponse.ok || !currentData?.success || !extensionResponse.ok || !extensionData?.success) {
+        const data = !currentResponse.ok || !currentData?.success ? currentData : extensionData;
         throw new Error(typeof data?.message === 'string' ? data.message : 'Unable to calculate the extended stay price.');
       }
-      setExtensionPricing(data.pricingSummary as ReservationPricingSummary);
+      setExtensionCurrentPricing(currentData.pricingSummary as ReservationPricingSummary);
+      setExtensionPricing(extensionData.pricingSummary as ReservationPricingSummary);
     } catch (error) {
       setExtensionPricing(null);
       setMessage(error instanceof Error ? error.message : 'Unable to calculate the extended stay price.');
@@ -338,6 +350,7 @@ export default function ReservationManagementPanel({ active }: Props) {
 
       setExtendingReservation(null);
       setExtensionPricing(null);
+      setExtensionCurrentPricing(null);
       setMessage('Reservation stay extended successfully.');
       setMessageType('success');
       await loadReservations();
@@ -1265,7 +1278,7 @@ export default function ReservationManagementPanel({ active }: Props) {
                 <div className="mt-3 grid gap-2 sm:grid-cols-2">
                   <p>New room total: <span className="font-semibold text-white">{formatMoney(extensionPricing.roomRate)}</span></p>
                   <p>New grand total: <span className="font-semibold text-emerald-300">{formatMoney(extensionPricing.grandTotal)}</span></p>
-                  <p className="sm:col-span-2">Additional amount: <span className="font-semibold text-amber-300">{formatMoney(extensionPricing.grandTotal - Number(extendingReservation.pricingSummary?.grandTotal || 0))}</span></p>
+                  <p className="sm:col-span-2">Additional amount: <span className="font-semibold text-amber-300">{formatMoney(extensionPricing.grandTotal - Number(extensionCurrentPricing?.grandTotal || 0))}</span></p>
                 </div>
               </div>
             ) : null}
