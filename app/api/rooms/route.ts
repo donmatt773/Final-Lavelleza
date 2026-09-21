@@ -7,6 +7,7 @@ import Feature from '@/app/lib/Feature';
 import Amenity from '@/app/lib/Amenity';
 import { requireOwner } from '@/app/lib/auth';
 import { getRoomAvailabilityLabels } from '@/app/lib/reservationAvailability';
+import { triggerDashboardUpdate } from '@/app/lib/pusher-server';
 
 const VALID_STATUSES = ['AVAILABLE', 'MAINTENANCE', 'INACTIVE'];
 
@@ -266,6 +267,11 @@ export async function POST(request: Request) {
   isArchived: false,
   archivedAt: null,
 });
+
+    await triggerDashboardUpdate('dashboard-updated', {
+      type: 'room-created',
+      roomId: String(room._id),
+    });
 
     return NextResponse.json({ success: true, room }, { status: 201 });
   } catch (error: unknown) {

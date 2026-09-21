@@ -2,11 +2,14 @@ import { NextResponse } from 'next/server';
 import mongoose from 'mongoose';
 import { connectDB } from '@/app/lib/db';
 import Reservation from '@/app/lib/Reservation';
+import Payment from '@/app/lib/Payment';
 import Room from '@/app/lib/Room';
 import { getSessionFromRequest, requireOwnerOrStaff } from '@/app/lib/auth';
 import { findConflictingReservation, hasValidDateRange } from '@/app/lib/reservationAvailability';
 import { calculateReservationPricing } from '@/app/lib/reservationPricing';
+import { computeReservationPaymentRollup } from '@/app/lib/paymentTracking';
 import { validateSelectedPromoEligibility } from '@/app/lib/promoEligibility';
+import { triggerReservationUpdate } from '@/app/lib/pusher-server';
 
 const VALID_RESERVATION_STATUSES = ['PENDING', 'CONFIRMED', 'CANCELLED', 'NO_SHOW', 'CHECKED_IN', 'CHECKED_OUT'] as const;
 const VALID_PAYMENT_STATUSES = ['UNPAID', 'PENDING_VERIFICATION', 'PARTIALLY_PAID', 'PAID', 'REFUNDED'] as const;
@@ -243,6 +246,26 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
       || body.room !== undefined
       || body.checkIn !== undefined
       || body.checkOut !== undefined;
+    const candidateAddOns = Array.isArray(body.addOns)
+      ? body.addOns.filter((item): item is { addOnId: string; quantity: number } => isRecord(item) && typeof item.addOnId === 'string')
+          .map((item) => ({ addOnId: item.addOnId, quantity: Number(item.quantity) }))
+      : (Array.isArray(existingReservation.addOns)
+        ? existingReservation.addOns.map((item) => ({ addOnId: String(item.addOnId), quantity: Number(item.quantity) }))
+        : []);
+
+    if (candidateStatus === 'CHECKED_OUT' && currentStatus !== 'CHECKED_OUT') {
+      const payments = await Payment.find({ reservation: id })
+        .select('amountPaid paymentType paymentStatus paymentMethod')
+        .lean();
+      const paymentRollup = computeReservationPaymentRollup(
+        Number(existingReservation.pricingSummary?.grandTotal || 0),
+        payments
+      );
+
+      if (paymentRollup.outstandingBalance > 0.01) {
+        errors.push(`Cannot check out this reservation while an outstanding balance of ${paymentRollup.outstandingBalance.toFixed(2)} remains.`);
+      }
+    }
 
     if (candidateRoomId && hasValidDateRange({ checkIn: candidateCheckIn, checkOut: candidateCheckOut }) && candidateStatus !== 'CANCELLED' && candidateStatus !== 'CHECKED_OUT') {
       const conflictingReservation = await findConflictingReservation({
@@ -282,8 +305,10 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
         checkOut: candidateCheckOut,
         adults: Number(updatePayload.adults ?? existingReservation.adults),
         children: Number(updatePayload.children ?? existingReservation.children),
+        addOns: candidateAddOns,
       });
       updatePayload.pricingSummary = pricingSummary;
+      updatePayload.addOns = pricingSummary.addOns;
 
       if (updatePayload.reservationStatus !== undefined && currentStatus !== candidateStatus) {
         const transitionTimestamp = new Date();
@@ -329,6 +354,12 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
     if (!updated) {
       return NextResponse.json({ success: false, message: 'Reservation not found.' }, { status: 404 });
     }
+
+    await triggerReservationUpdate(id, {
+      type: 'reservation-updated',
+      reservationStatus: updated.reservationStatus,
+      paymentStatus: updated.paymentStatus,
+    });
 
     return NextResponse.json({ success: true, reservation: updated }, { status: 200 });
   } catch {

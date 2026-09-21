@@ -4,6 +4,7 @@ import { connectDB } from '@/app/lib/db';
 import Promo, { getPromoEffectiveStatus, resolvePromoStatus } from '@/app/lib/Promo';
 import Room from '@/app/lib/Room';
 import { requireOwner } from '@/app/lib/auth';
+import { triggerDashboardUpdate } from '@/app/lib/pusher-server';
 
 const VALID_STATUSES = ['DRAFT', 'ACTIVE', 'INACTIVE', 'EXPIRED'] as const;
 
@@ -441,6 +442,11 @@ export async function PUT(request: Request, { params }: { params: Promise<{ id: 
       .populate('inclusions.roomId', 'name code status')
       .populate('additionalRoomDiscount.appliesToRoomIds', 'name code status');
 
+    await triggerDashboardUpdate('dashboard-updated', {
+      type: 'promo-updated',
+      promoId: String(updatedPromo?._id || id),
+    });
+
     return NextResponse.json({ success: true, promo: updatedPromo }, { status: 200 });
   } catch (error: unknown) {
     const errorWithDetails = error as { code?: unknown; name?: unknown; message?: string };
@@ -520,6 +526,11 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
 
     await promo.save();
 
+    await triggerDashboardUpdate('dashboard-updated', {
+      type: 'promo-updated',
+      promoId: String(promo._id),
+    });
+
     return NextResponse.json({ success: true, promo }, { status: 200 });
   } catch {
     return NextResponse.json({ success: false, message: 'Failed to update promo status.' }, { status: 500 });
@@ -542,6 +553,11 @@ export async function DELETE(request: Request, { params }: { params: Promise<{ i
     if (!deletedPromo) {
       return NextResponse.json({ success: false, message: 'Promo not found.' }, { status: 404 });
     }
+
+    await triggerDashboardUpdate('dashboard-updated', {
+      type: 'promo-deleted',
+      promoId: String(deletedPromo._id),
+    });
 
     return NextResponse.json({ success: true, message: 'Promo permanently deleted.' }, { status: 200 });
   } catch {

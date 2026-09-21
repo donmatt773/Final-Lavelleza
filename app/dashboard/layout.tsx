@@ -7,9 +7,11 @@ import RoomManagementPanel from '@/app/components/RoomManagementPanel';
 import RoomRateSettingsPanel from '@/app/components/RoomRateSettingsPanel';
 import PromoManagementPanel from '@/app/components/PromoManagementPanel';
 import ReservationManagementPanel from '@/app/components/ReservationManagementPanel';
+import ReservationDashboardPanel from '@/app/components/ReservationDashboardPanel';
 import PaymentReportsPanel from '@/app/components/PaymentReportsPanel';
+import AddOnManagementPanel from '@/app/components/AddOnManagementPanel';
 
-type DashboardTab = 'overview' | 'users' | 'rooms' | 'promos' | 'reservations' | 'reports' | 'rate-settings';
+type DashboardTab = 'overview' | 'users' | 'rooms' | 'promos' | 'add-ons' | 'reservations' | 'reports' | 'rate-settings';
 
 export default function DashboardLayout({
   children,
@@ -18,7 +20,19 @@ export default function DashboardLayout({
 }) {
   const router = useRouter();
   const pathname = usePathname();
-  const [activeTab, setActiveTab] = useState<DashboardTab>('users');
+  const [activeTab, setActiveTab] = useState<DashboardTab>('reservations');
+  const [isOwner, setIsOwner] = useState(false);
+
+  React.useEffect(() => {
+    const timeoutId = window.setTimeout(() => {
+      const role = Number(localStorage.getItem('auth_role'));
+      const owner = role === 0;
+      setIsOwner(owner);
+      if (!owner) setActiveTab('reservations');
+    }, 0);
+
+    return () => window.clearTimeout(timeoutId);
+  }, []);
 
   const handleLogout = async () => {
     try {
@@ -52,7 +66,7 @@ export default function DashboardLayout({
               onClick={() => setActiveTab('overview')}
               className={`w-full text-left font-medium text-xs px-3 py-2.5 rounded-lg transition-all ${activeTab === 'overview' ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20' : 'text-slate-400 hover:bg-slate-800/30 hover:text-white'}`}
             >
-              🎛️ Owner Overview
+              🎛️ {isOwner ? 'Owner Overview' : 'Overview'}
             </button>
             <button
               type="button"
@@ -61,27 +75,42 @@ export default function DashboardLayout({
             >
               📋 Reservation Management
             </button>
-            <button
-              type="button"
-              onClick={() => setActiveTab('users')}
-              className={`w-full text-left font-medium text-xs px-3 py-2.5 rounded-lg transition-all ${activeTab === 'users' ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20' : 'text-slate-400 hover:bg-slate-800/30 hover:text-white'}`}
-            >
-              👤 User Management
-            </button>
-            <button
+            {isOwner ? (
+              <button
+                type="button"
+                onClick={() => setActiveTab('users')}
+                className={`w-full text-left font-medium text-xs px-3 py-2.5 rounded-lg transition-all ${activeTab === 'users' ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20' : 'text-slate-400 hover:bg-slate-800/30 hover:text-white'}`}
+              >
+                👤 User Management
+              </button>
+            ) : null}
+            {isOwner ? (
+              <button
               type="button"
               onClick={() => setActiveTab('rooms')}
               className={`w-full text-left font-medium text-xs px-3 py-2.5 rounded-lg transition-all ${activeTab === 'rooms' ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20' : 'text-slate-400 hover:bg-slate-800/30 hover:text-white'}`}
-            >
-              🛏️ Room Management
-            </button>
-            <button
+              >
+                🛏️ Room Management
+              </button>
+            ) : null}
+            {isOwner ? (
+              <button
               type="button"
               onClick={() => setActiveTab('promos')}
               className={`w-full text-left font-medium text-xs px-3 py-2.5 rounded-lg transition-all ${activeTab === 'promos' ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20' : 'text-slate-400 hover:bg-slate-800/30 hover:text-white'}`}
-            >
-              🎁 Promo Management
-            </button>
+              >
+                🎁 Promo Management
+              </button>
+            ) : null}
+            {isOwner ? (
+              <button
+              type="button"
+              onClick={() => setActiveTab('add-ons')}
+              className={`w-full text-left font-medium text-xs px-3 py-2.5 rounded-lg transition-all ${activeTab === 'add-ons' ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20' : 'text-slate-400 hover:bg-slate-800/30 hover:text-white'}`}
+              >
+                🧺 Add-On Management
+              </button>
+            ) : null}
             <button
               type="button"
               onClick={() => setActiveTab('reports')}
@@ -89,13 +118,15 @@ export default function DashboardLayout({
             >
               📊 Payment Reports
             </button>
-            <button
+            {isOwner ? (
+              <button
               type="button"
               onClick={() => setActiveTab('rate-settings')}
               className={`w-full text-left font-medium text-xs px-3 py-2.5 rounded-lg transition-all ${activeTab === 'rate-settings' ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20' : 'text-slate-400 hover:bg-slate-800/30 hover:text-white'}`}
-            >
-              ⚙️ Rate Settings
-            </button>
+              >
+                ⚙️ Rate Settings
+              </button>
+            ) : null}
           </nav>
         </div>
 
@@ -113,14 +144,14 @@ export default function DashboardLayout({
       {/* Main Core Component Viewport Area */}
       <div className="flex-1 overflow-y-auto">
         <div className="p-8">
-          {pathname?.includes('/dashboard/owner') ? (
+          {pathname?.includes('/dashboard/owner') || pathname?.includes('/dashboard/staff') ? (
             <div className="mt-2">
-              {activeTab === 'users' ? <UserManagementPanel active={true} /> : activeTab === 'rooms' ? <RoomManagementPanel active={true} /> : activeTab === 'promos' ? <PromoManagementPanel active={true} /> : activeTab === 'reservations' ? <ReservationManagementPanel active={true} /> : activeTab === 'reports' ? <PaymentReportsPanel active={true} /> : activeTab === 'rate-settings' ? <RoomRateSettingsPanel active={true} /> : (
+              {activeTab === 'users' && isOwner ? <UserManagementPanel active={true} /> : activeTab === 'rooms' && isOwner ? <RoomManagementPanel active={true} /> : activeTab === 'promos' && isOwner ? <PromoManagementPanel active={true} /> : activeTab === 'add-ons' && isOwner ? <AddOnManagementPanel active={true} /> : activeTab === 'reservations' ? <ReservationManagementPanel active={true} /> : activeTab === 'reports' ? <PaymentReportsPanel active={true} /> : activeTab === 'rate-settings' && isOwner ? <RoomRateSettingsPanel active={true} /> : (
                 <>
-                  {children}
+                  {isOwner ? children : <ReservationDashboardPanel />}
                   <div className="mt-6 rounded-3xl border border-slate-800 bg-slate-900/80 p-6 text-slate-300">
-                    <h2 className="text-xl font-semibold text-white">Owner Overview</h2>
-                    <p className="mt-2 text-sm text-slate-400">This is the main owner workspace view. Switch tabs to manage users, rooms, promos, reservations, or rate settings.</p>
+                    <h2 className="text-xl font-semibold text-white">{isOwner ? 'Owner Overview' : 'Staff Overview'}</h2>
+                    <p className="mt-2 text-sm text-slate-400">{isOwner ? 'This is the main owner workspace view. Switch tabs to manage users, rooms, promos, reservations, or rate settings.' : 'Use the tabs to switch between the overview, reservations, and payment reports.'}</p>
                   </div>
                 </>
               )}

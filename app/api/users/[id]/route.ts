@@ -2,9 +2,12 @@ import { NextResponse } from 'next/server';
 import { connectDB } from '@/app/lib/db';
 import User from '@/app/lib/User';
 import { hashPassword } from '@/app/lib/password';
+import { requireOwner } from '@/app/lib/auth';
 
 export async function PUT(request: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
+    const authError = requireOwner(request);
+    if (authError) return authError;
     await connectDB();
     const { id } = await params;
     const body = await request.json();
@@ -39,8 +42,10 @@ export async function PUT(request: Request, { params }: { params: Promise<{ id: 
   }
 }
 
-export async function DELETE(_request: Request, { params }: { params: Promise<{ id: string }> }) {
+export async function DELETE(request: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
+    const authError = requireOwner(request);
+    if (authError) return authError;
     await connectDB();
     const { id } = await params;
     const deleted = await User.findByIdAndDelete(id);

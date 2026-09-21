@@ -5,6 +5,7 @@ import Reservation from '@/app/lib/Reservation';
 import Payment, { IPayment } from '@/app/lib/Payment';
 import { getSessionFromRequest, requireOwnerOrStaff } from '@/app/lib/auth';
 import { computeReservationPaymentRollup, generatePaymentNumber, generateReceiptNumber, syncReservationPaymentStatus } from '@/app/lib/paymentTracking';
+import { triggerReservationUpdate } from '@/app/lib/pusher-server';
 
 const VALID_PAYMENT_METHODS = ['CASH_ON_ARRIVAL', 'GCASH'] as const;
 const VALID_PAYMENT_TYPES = ['RESERVATION_DEPOSIT', 'PARTIAL_PAYMENT', 'FULL_PAYMENT', 'REFUND'] as const;
@@ -144,8 +145,12 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     const totalDue = Number(reservation?.pricingSummary?.grandTotal || 0);
     const currentRollup = computeReservationPaymentRollup(totalDue, existingPayments);
 
-    if (paymentType !== 'REFUND' && amountPaid > currentRollup.outstandingBalance) {
-      errors.push('Payment amount cannot exceed outstanding balance.');
+    if (paymentMethod === 'GCASH' && paymentType !== 'REFUND' && amountPaid > currentRollup.outstandingBalance) {
+      errors.push('GCASH payment cannot exceed outstanding balance.');
+    }
+
+    if (paymentType === 'FULL_PAYMENT' && amountPaid + 0.01 < currentRollup.outstandingBalance) {
+      errors.push(`Full payment must be at least the outstanding balance of ${currentRollup.outstandingBalance.toFixed(2)}.`);
     }
 
     if (paymentType === 'REFUND' && amountPaid > Math.max(currentRollup.recognizedPaid, 0)) {
@@ -194,6 +199,12 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
 });
 
     const { rollup } = await syncReservationPaymentStatus(id);
+
+    await triggerReservationUpdate(id, {
+      type: 'reservation-payment-updated',
+      reservationStatus: rollup.reservationPaymentStatus,
+      paymentStatus: rollup.reservationPaymentStatus,
+    });
 
     return NextResponse.json(
       {

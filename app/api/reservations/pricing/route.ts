@@ -94,6 +94,10 @@ export async function POST(request: Request) {
       checkOut: checkOut as Date,
       adults,
       children,
+      addOns: Array.isArray(body.addOns)
+        ? body.addOns.filter((item): item is { addOnId: string; quantity: number } => isRecord(item) && typeof item.addOnId === 'string')
+            .map((item) => ({ addOnId: item.addOnId, quantity: Number(item.quantity) }))
+        : [],
     });
 
     return NextResponse.json({ success: true, pricingSummary }, { status: 200 });

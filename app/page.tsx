@@ -7,6 +7,7 @@ import RateSettings from '@/app/lib/RateSettings';
 import DayNightDivider from '@/app/components/landing/DayNightDivider';
 import SiteNav from '@/app/components/landing/SiteNav';
 import RoomsShowcase from '@/app/components/landing/RoomsShowcase';
+import RealtimeLandingRefresh from '@/components/RealtimeLandingRefresh';
 import { theme } from '@/app/lib/landingTheme';
 import { peso } from '@/app/lib/landingFormat';
 import type { FeaturedRoom, FeaturedPromo } from '@/app/lib/landingTypes';
@@ -88,6 +89,7 @@ export default async function Home() {
 
   return (
     <main style={{ backgroundColor: theme.sand, color: theme.ink }} className="font-sans">
+      <RealtimeLandingRefresh />
       <SiteNav />
 
       {/* HERO */}

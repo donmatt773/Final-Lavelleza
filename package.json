@@ -9,12 +9,15 @@
     "lint": "eslint",
     "seed:user": "node scripts/seed-default-user.js",
     "seed:rooms": "node scripts/seed-rooms.js",
-    "seed:promos": "node scripts/seed-promos.js"
+    "seed:promos": "node scripts/seed-promos.js",
+    "seed:add-ons": "node scripts/seed-add-ons.js"
   },
   "dependencies": {
     "bcryptjs": "^3.0.3",
     "mongoose": "^9.9.2",
     "next": "16.2.12",
+    "pusher": "^5.3.4",
+    "pusher-js": "^8.6.0",
     "react": "19.2.4",
     "react-dom": "19.2.4"
   },

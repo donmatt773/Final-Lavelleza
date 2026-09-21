@@ -18,6 +18,15 @@ export interface IReservation {
   checkIn: Date;
   checkOut: Date;
   specialRequests?: string;
+  addOns?: Array<{
+    addOnId: Types.ObjectId | string;
+    quantity: number;
+    name: string;
+    description?: string;
+    category?: string;
+    unitPrice: number;
+    totalPrice: number;
+  }>;
   reservationStatus: ReservationStatus;
   paymentStatus: PaymentStatus;
   reservationSource?: ReservationSource;
@@ -61,6 +70,23 @@ const reservationSchema = new Schema<IReservation>(
     checkIn: { type: Date, required: true },
     checkOut: { type: Date, required: true },
     specialRequests: { type: String, trim: true },
+    addOns: {
+      type: [
+        new Schema(
+          {
+            addOnId: { type: Schema.Types.ObjectId, ref: 'AddOn', required: true },
+            quantity: { type: Number, required: true, min: 1 },
+            name: { type: String, required: true, trim: true },
+            description: { type: String, trim: true },
+            category: { type: String, trim: true, uppercase: true },
+            unitPrice: { type: Number, required: true, min: 0 },
+            totalPrice: { type: Number, required: true, min: 0 },
+          },
+          { _id: false }
+        ),
+      ],
+      default: [],
+    },
     reservationStatus: {
       type: String,
       required: true,
@@ -111,6 +137,8 @@ const reservationSchema = new Schema<IReservation>(
       numberOfNights: { type: Number, default: 1, min: 1 },
       extraPersonFee: { type: Number, default: 0, min: 0 },
       extraBedFee: { type: Number, default: 0, min: 0 },
+      addOnTotal: { type: Number, default: 0, min: 0 },
+      addOns: { type: [Schema.Types.Mixed], default: [] },
       promoDiscount: { type: Number, default: 0, min: 0 },
       additionalRoomDiscount: { type: Number, default: 0, min: 0 },
       subtotal: { type: Number, default: 0, min: 0 },
@@ -130,7 +158,6 @@ reservationSchema.pre('validate', function validateReservationDates() {
   }
 });
 
-reservationSchema.index({ reservationNumber: 1 }, { unique: true });
 reservationSchema.index({ room: 1, checkIn: 1, checkOut: 1 });
 reservationSchema.index({ reservationStatus: 1, paymentStatus: 1, createdAt: -1 });
 reservationSchema.index({ checkInAt: 1, checkOutAt: 1 });

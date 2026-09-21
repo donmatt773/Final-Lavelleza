@@ -62,7 +62,11 @@ export default function UserManagementPanel({ active }: Props) {
   };
 
   const generateEmployeeId = () => {
-    const nextNumber = users.length + 1;
+    const usedNumbers = users
+      .map((user) => /^USER-(\d+)$/.exec(user.employeeId)?.[1])
+      .filter((value): value is string => Boolean(value))
+      .map((value) => Number(value));
+    const nextNumber = usedNumbers.length > 0 ? Math.max(...usedNumbers) + 1 : 1;
     return `USER-${String(nextNumber).padStart(3, '0')}`;
   };
 
@@ -111,7 +115,7 @@ export default function UserManagementPanel({ active }: Props) {
         throw new Error(data.message || 'Unable to save user');
       }
 
-      setMessage(editingId ? 'User updated successfully.' : 'User created successfully.');
+      setMessage(editingId ? 'User updated successfully.' : `User created successfully. Employee ID: ${employeeId}`);
       resetForm();
       loadUsers();
     } catch (error) {
@@ -196,7 +200,10 @@ export default function UserManagementPanel({ active }: Props) {
             <div className="grid gap-3 md:grid-cols-2">
               <div className="rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-slate-400">
                 <div className="text-[11px] uppercase tracking-wider text-slate-500">Auto-generated ID</div>
-                <div className="mt-1 font-medium text-white">{editingId ? 'Locked for existing user' : generateEmployeeId()}</div>
+                <div className="mt-1 font-medium text-white">
+                  {editingId ? users.find((user) => user._id === editingId)?.employeeId || 'Unavailable' : generateEmployeeId()}
+                </div>
+                <div className="mt-1 text-[11px] text-slate-500">Read-only</div>
               </div>
               <input
                 value={form.username}

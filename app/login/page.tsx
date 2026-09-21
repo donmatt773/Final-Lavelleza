@@ -93,14 +93,14 @@ export default function LoginPage() {
           ) : null}
 
           <div>
-            <label className="block text-xs font-semibold uppercase tracking-wider text-slate-300 mb-2">Employee ID</label>
+            <label className="block text-xs font-semibold uppercase tracking-wider text-slate-300 mb-2">Employee ID or Username</label>
             <input 
               type="text" 
               required
               disabled={loading}
               value={employeeId}
               onChange={(e) => setEmployeeId(e.target.value)}
-              placeholder="OWNER-01 or STAFF-01"
+              placeholder="ADMIN, USER-001, or username"
               className="w-full rounded-lg border border-slate-700 bg-slate-950 px-4 py-2.5 text-sm text-white placeholder-slate-600 transition-all focus:border-emerald-500 focus:outline-none focus:ring-1 focus:ring-emerald-500 disabled:opacity-50"
             />
           </div>

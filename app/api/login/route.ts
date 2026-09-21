@@ -4,12 +4,30 @@ import User from '@/app/lib/User';
 import { buildSessionCookie } from '@/app/lib/auth';
 import { hashPassword, isPasswordHash, verifyPassword } from '@/app/lib/password';
 
+function escapeRegExp(value: string) {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
 export async function POST(request: Request) {
   try {
     await connectDB();
-    const { employeeId, password } = await request.json();
+    const body = await request.json();
+    const loginId = typeof body?.employeeId === 'string' ? body.employeeId.trim() : '';
+    const password = typeof body?.password === 'string' ? body.password : '';
 
-    const userMatch = await User.findOne({ employeeId: employeeId.toUpperCase() });
+    if (!loginId || !password) {
+      return NextResponse.json(
+        { success: false, message: 'Employee ID or username and password are required.' },
+        { status: 400 }
+      );
+    }
+
+    const userMatch = await User.findOne({
+      $or: [
+        { employeeId: { $regex: `^${escapeRegExp(loginId)}$`, $options: 'i' } },
+        { username: { $regex: `^${escapeRegExp(loginId)}$`, $options: 'i' } },
+      ],
+    });
 
     if (!userMatch) {
       return NextResponse.json(
@@ -49,7 +67,8 @@ export async function POST(request: Request) {
     }));
 
     return response;
-  } catch {
+  } catch (error) {
+    console.error('LOGIN API ERROR:', error);
     return NextResponse.json(
       { success: false, message: 'Database Connection Error' },
       { status: 500 }

@@ -9,6 +9,7 @@ import { findConflictingReservation, hasValidDateRange } from '@/app/lib/reserva
 import { calculateReservationPricing } from '@/app/lib/reservationPricing';
 import { validateSelectedPromoEligibility } from '@/app/lib/promoEligibility';
 import { generatePaymentNumber } from '@/app/lib/paymentTracking';
+import { triggerReservationUpdate } from '@/app/lib/pusher-server';
 
 const VALID_RESERVATION_STATUSES = ['PENDING', 'CONFIRMED', 'CANCELLED', 'NO_SHOW', 'CHECKED_IN', 'CHECKED_OUT'] as const;
 const VALID_PAYMENT_STATUSES = ['UNPAID', 'PENDING_VERIFICATION', 'PARTIALLY_PAID', 'PAID', 'REFUNDED'] as const;
@@ -379,6 +380,10 @@ export async function POST(request: Request) {
       checkOut: checkOut as Date,
       adults,
       children,
+      addOns: Array.isArray(body.addOns)
+        ? body.addOns.filter((item): item is { addOnId: string; quantity: number } => isRecord(item) && typeof item.addOnId === 'string')
+            .map((item) => ({ addOnId: item.addOnId, quantity: Number(item.quantity) }))
+        : [],
     });
 
     const totalDue = Number(pricingSummary.grandTotal || 0);
@@ -403,6 +408,7 @@ export async function POST(request: Request) {
       checkIn: checkIn as Date,
       checkOut: checkOut as Date,
       specialRequests: specialRequests || undefined,
+      addOns: pricingSummary.addOns,
       reservationStatus,
       paymentStatus: initialReservationPaymentStatus,
       reservationSource,
@@ -437,6 +443,12 @@ export async function POST(request: Request) {
         return NextResponse.json({ success: false, message: 'Failed to record GCash payment. Please try again.' }, { status: 500 });
       }
     }
+
+    await triggerReservationUpdate(String(reservation._id), {
+      type: 'reservation-created',
+      reservationStatus: reservation.reservationStatus,
+      paymentStatus: reservation.paymentStatus,
+    });
 
     return NextResponse.json(
       {

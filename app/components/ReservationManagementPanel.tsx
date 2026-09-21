@@ -3,6 +3,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import ReservationCalendar from '@/app/components/ReservationCalendar';
 import ReservationForm from '@/app/components/ReservationForm';
+import { useDashboardReservationRealtime } from '@/hooks/useDashboardReservationRealtime';
 
 type ReservationStatus = 'PENDING' | 'CONFIRMED' | 'CANCELLED' | 'NO_SHOW' | 'CHECKED_IN' | 'CHECKED_OUT';
 
@@ -42,6 +43,14 @@ type ReservationPricingSummary = {
   numberOfNights: number;
   extraPersonFee: number;
   extraBedFee: number;
+  addOnTotal: number;
+  addOns: Array<{
+    addOnId: string;
+    quantity: number;
+    name: string;
+    unitPrice: number;
+    totalPrice: number;
+  }>;
   promoDiscount: number;
   additionalRoomDiscount: number;
   subtotal: number;
@@ -111,6 +120,13 @@ type ReservationRecord = {
   adults: number;
   children: number;
   specialRequests?: string;
+  addOns?: Array<{
+    addOnId: string;
+    quantity: number;
+    name: string;
+    unitPrice: number;
+    totalPrice: number;
+  }>;
   reservationSource?: ReservationSource;
   reservationStatus: ReservationStatus;
   paymentStatus: ReservationPaymentStatus;
@@ -132,6 +148,7 @@ type RoomOption = {
 };
 
 const PAGE_SIZE = 8;
+const SEEN_RESERVATION_NOTIFICATIONS_KEY = 'lavelleza-seen-reservation-notifications';
 
 const normalizeReservationSource = (value?: string | null): ReservationSource => (value === 'WALK_IN' ? 'WALK_IN' : 'ONLINE');
 
@@ -150,6 +167,13 @@ const formatMoney = (value: number) =>
     maximumFractionDigits: 2,
   }).format(Number.isFinite(value) ? value : 0);
 
+const getNextDateInputValue = (value: string) => {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return '';
+  date.setUTCDate(date.getUTCDate() + 1);
+  return date.toISOString().slice(0, 10);
+};
+
 export default function ReservationManagementPanel({ active }: Props) {
   const [reservations, setReservations] = useState<ReservationRecord[]>([]);
   const [loading, setLoading] = useState(false);
@@ -164,10 +188,19 @@ export default function ReservationManagementPanel({ active }: Props) {
   const [message, setMessage] = useState<string | null>(null);
   const [messageType, setMessageType] = useState<'success' | 'error' | 'info'>('info');
   const [editingReservation, setEditingReservation] = useState<ReservationRecord | null>(null);
+  const [extendingReservation, setExtendingReservation] = useState<ReservationRecord | null>(null);
+  const [extensionCheckOut, setExtensionCheckOut] = useState('');
+  const [extensionPricing, setExtensionPricing] = useState<ReservationPricingSummary | null>(null);
+  const [extensionPricingLoading, setExtensionPricingLoading] = useState(false);
+  const [extensionSaving, setExtensionSaving] = useState(false);
+  const [checkoutWarningOpen, setCheckoutWarningOpen] = useState(false);
+  const [checkoutWarningBalance, setCheckoutWarningBalance] = useState<number | null>(null);
   const [viewMode, setViewMode] = useState<'list' | 'calendar'>('list');
   const [walkInOpen, setWalkInOpen] = useState(false);
   const [walkInLoading, setWalkInLoading] = useState(false);
   const [walkInRooms, setWalkInRooms] = useState<RoomOption[]>([]);
+  const [notificationsOpen, setNotificationsOpen] = useState(false);
+  const [seenReservationIds, setSeenReservationIds] = useState<string[]>([]);
   const [paymentsLoading, setPaymentsLoading] = useState(false);
   const [paymentsSaving, setPaymentsSaving] = useState(false);
   const [paymentActionId, setPaymentActionId] = useState<string | null>(null);
@@ -189,7 +222,6 @@ export default function ReservationManagementPanel({ active }: Props) {
     phone: '',
     address: '',
     reservationStatus: 'PENDING' as ReservationStatus,
-    paymentStatus: 'UNPAID' as ReservationPaymentStatus,
     checkIn: '',
     checkOut: '',
     adults: '1',
@@ -227,7 +259,6 @@ export default function ReservationManagementPanel({ active }: Props) {
       phone: reservation.phone || '',
       address: reservation.address || '',
       reservationStatus: reservation.reservationStatus,
-      paymentStatus: reservation.paymentStatus,
       checkIn: reservation.checkIn ? new Date(reservation.checkIn).toISOString().slice(0, 10) : '',
       checkOut: reservation.checkOut ? new Date(reservation.checkOut).toISOString().slice(0, 10) : '',
       adults: String(reservation.adults ?? 1),
@@ -245,6 +276,77 @@ export default function ReservationManagementPanel({ active }: Props) {
     });
 
     void loadReservationPayments(reservation._id);
+  };
+
+  const openExtendStay = (reservation: ReservationRecord) => {
+    setExtendingReservation(reservation);
+    setExtensionCheckOut(getNextDateInputValue(reservation.checkOut));
+    setExtensionPricing(null);
+  };
+
+  const previewExtensionPricing = async () => {
+    if (!extendingReservation || !extensionCheckOut) return;
+
+    setExtensionPricingLoading(true);
+    setMessage(null);
+    try {
+      const response = await fetch('/api/reservations/pricing', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'same-origin',
+        body: JSON.stringify({
+          room: extendingReservation.room?._id,
+          promo: extendingReservation.promo?._id || null,
+          checkIn: extendingReservation.checkIn,
+          checkOut: extensionCheckOut,
+          adults: extendingReservation.adults,
+          children: extendingReservation.children,
+          addOns: (extendingReservation.addOns || []).map((addOn) => ({ addOnId: addOn.addOnId, quantity: addOn.quantity })),
+        }),
+      });
+      const data = await response.json().catch(() => null);
+      if (!response.ok || !data?.success) {
+        throw new Error(typeof data?.message === 'string' ? data.message : 'Unable to calculate the extended stay price.');
+      }
+      setExtensionPricing(data.pricingSummary as ReservationPricingSummary);
+    } catch (error) {
+      setExtensionPricing(null);
+      setMessage(error instanceof Error ? error.message : 'Unable to calculate the extended stay price.');
+      setMessageType('error');
+    } finally {
+      setExtensionPricingLoading(false);
+    }
+  };
+
+  const saveExtension = async () => {
+    if (!extendingReservation || !extensionCheckOut) return;
+
+    setExtensionSaving(true);
+    setMessage(null);
+    try {
+      const response = await fetch(`/api/reservations/${extendingReservation._id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'same-origin',
+        body: JSON.stringify({ checkOut: extensionCheckOut }),
+      });
+      const data = await response.json().catch(() => null);
+      if (!response.ok) {
+        const errors = Array.isArray(data?.errors) ? ` ${data.errors.join(' ')}` : '';
+        throw new Error(`${typeof data?.message === 'string' ? data.message : 'Unable to extend the reservation.'}${errors}`.trim());
+      }
+
+      setExtendingReservation(null);
+      setExtensionPricing(null);
+      setMessage('Reservation stay extended successfully.');
+      setMessageType('success');
+      await loadReservations();
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : 'Unable to extend the reservation.');
+      setMessageType('error');
+    } finally {
+      setExtensionSaving(false);
+    }
   };
 
   const loadReservations = React.useCallback(async () => {
@@ -279,6 +381,24 @@ export default function ReservationManagementPanel({ active }: Props) {
     }
   }, [search, reservationStatusFilter, paymentStatusFilter, sourceFilter, startDateFilter, endDateFilter]);
 
+  useDashboardReservationRealtime(loadReservations);
+
+  useEffect(() => {
+    const timeoutId = window.setTimeout(() => {
+      try {
+        const stored = window.localStorage.getItem(SEEN_RESERVATION_NOTIFICATIONS_KEY);
+        const parsed = stored ? JSON.parse(stored) : [];
+        if (Array.isArray(parsed)) {
+          setSeenReservationIds(parsed.filter((id): id is string => typeof id === 'string'));
+        }
+      } catch {
+        setSeenReservationIds([]);
+      }
+    }, 0);
+
+    return () => window.clearTimeout(timeoutId);
+  }, []);
+
   useEffect(() => {
     if (!active) return;
 
@@ -294,6 +414,31 @@ export default function ReservationManagementPanel({ active }: Props) {
     if (sourceFilter === 'ALL') return reservations;
     return reservations.filter((reservation) => normalizeReservationSource(reservation.reservationSource) === sourceFilter);
   }, [reservations, sourceFilter]);
+
+  const unseenReservations = useMemo(
+    () => reservations.filter((reservation) => (
+      reservation.reservationStatus === 'PENDING'
+      && normalizeReservationSource(reservation.reservationSource) === 'ONLINE'
+      && !seenReservationIds.includes(reservation._id)
+    )),
+    [reservations, seenReservationIds]
+  );
+
+  const markReservationNotificationSeen = (reservationId: string) => {
+    setSeenReservationIds((current) => {
+      if (current.includes(reservationId)) return current;
+
+      const next = [...current, reservationId];
+      window.localStorage.setItem(SEEN_RESERVATION_NOTIFICATIONS_KEY, JSON.stringify(next));
+      return next;
+    });
+  };
+
+  const openReservationNotification = (reservation: ReservationRecord) => {
+    markReservationNotificationSeen(reservation._id);
+    setNotificationsOpen(false);
+    openEditForm(reservation);
+  };
 
   const totalPages = Math.max(1, Math.ceil(filteredReservations.length / PAGE_SIZE));
   const safePage = Math.min(page, totalPages);
@@ -380,13 +525,18 @@ export default function ReservationManagementPanel({ active }: Props) {
   const handleSaveEdit = async () => {
     if (!editingReservation) return;
 
+    if (editForm.reservationStatus === 'CHECKED_OUT' && (!paymentSummary || paymentSummary.outstandingBalance > 0.01)) {
+      setCheckoutWarningBalance(paymentSummary?.outstandingBalance ?? null);
+      setCheckoutWarningOpen(true);
+      return;
+    }
+
     await patchReservation(editingReservation._id, {
       guestName: editForm.guestName,
       email: editForm.email,
       phone: editForm.phone,
       address: editForm.address,
       reservationStatus: editForm.reservationStatus,
-      paymentStatus: editForm.paymentStatus,
       checkIn: editForm.checkIn,
       checkOut: editForm.checkOut,
       adults: Number(editForm.adults),
@@ -438,8 +588,12 @@ export default function ReservationManagementPanel({ active }: Props) {
       const outstandingBalance = Number(paymentSummary?.outstandingBalance || 0);
       const recognizedPaid = Number(paymentSummary?.recognizedPaid || 0);
 
-      if (paymentForm.paymentType !== 'REFUND' && amount > outstandingBalance) {
-        throw new Error('Payment amount cannot exceed outstanding balance.');
+      if (paymentForm.paymentMethod === 'GCASH' && paymentForm.paymentType !== 'REFUND' && amount > outstandingBalance) {
+        throw new Error('GCash payment cannot exceed the outstanding balance.');
+      }
+
+      if (paymentForm.paymentType === 'FULL_PAYMENT' && amount + 0.01 < outstandingBalance) {
+        throw new Error(`Full payment must be at least the outstanding balance of ${formatMoney(outstandingBalance)}.`);
       }
 
       if (paymentForm.paymentType === 'REFUND' && amount > Math.max(recognizedPaid, 0)) {
@@ -533,6 +687,23 @@ export default function ReservationManagementPanel({ active }: Props) {
     const reservationNumber = editingReservation.reservationNumber || 'N/A';
     const guestName = editingReservation.guestName || 'N/A';
     const receiptDate = payment.receiptDate ? formatDate(payment.receiptDate) : formatDate(payment.paymentDate);
+    const receiptPayments = payments.some((item) => item._id === payment._id) ? payments : [...payments, payment];
+    const totalPaid = Number(paymentSummary?.recognizedPaid || 0);
+    const totalDue = Number(paymentSummary?.totalDue || editingReservation.pricingSummary?.grandTotal || 0);
+    const changeDue = Math.max(totalPaid - totalDue, 0);
+    const addOnRows = (editingReservation.pricingSummary?.addOns || []).map((addOn) => `
+      <tr><td>${addOn.quantity}x ${addOn.name}</td><td>${formatMoney(Number(addOn.totalPrice || 0))}</td></tr>
+    `).join('');
+    const paymentRows = receiptPayments.map((item) => `
+      <tr>
+        <td>${item.paymentNumber || '—'}</td>
+        <td>${formatDate(item.paymentDate)}</td>
+        <td>${item.paymentMethod}</td>
+        <td>${item.paymentType}</td>
+        <td>${formatMoney(Number(item.amountPaid || 0))}</td>
+        <td>${item.paymentStatus}</td>
+      </tr>
+    `).join('');
 
     return `
       <!DOCTYPE html>
@@ -547,6 +718,9 @@ export default function ReservationManagementPanel({ active }: Props) {
             .section { border: 1px solid #d1d5db; border-radius: 8px; padding: 12px; margin-top: 12px; }
             .label { color: #4b5563; font-size: 12px; text-transform: uppercase; letter-spacing: 0.05em; }
             .value { font-weight: 600; font-size: 15px; }
+            table { width: 100%; border-collapse: collapse; margin-top: 8px; font-size: 12px; }
+            th, td { border-bottom: 1px solid #e5e7eb; padding: 7px 4px; text-align: left; }
+            th { color: #4b5563; font-size: 10px; text-transform: uppercase; }
           </style>
         </head>
         <body>
@@ -567,12 +741,20 @@ export default function ReservationManagementPanel({ active }: Props) {
             <p class="value">${reservationNumber}</p>
             <p class="label">Guest Name</p>
             <p class="value">${guestName}</p>
-            <p class="label">Payment Number</p>
-            <p class="value">${payment.paymentNumber}</p>
-            <p class="label">Payment Method</p>
-            <p class="value">${payment.paymentMethod}</p>
-            <p class="label">Amount</p>
-            <p class="value">${formatMoney(Number(payment.amountPaid || 0))}</p>
+            <p class="label">All Payment Transactions</p>
+            <table>
+              <thead><tr><th>Payment No.</th><th>Date</th><th>Method</th><th>Type</th><th>Amount</th><th>Status</th></tr></thead>
+              <tbody>${paymentRows}</tbody>
+            </table>
+            ${addOnRows ? `<p class="label">Reservation Add-Ons</p><table><thead><tr><th>Item</th><th>Total</th></tr></thead><tbody>${addOnRows}</tbody></table>` : ''}
+            <p class="label">Total Due</p>
+            <p class="value">${formatMoney(totalDue)}</p>
+            <p class="label">Total Recognized Paid</p>
+            <p class="value">${formatMoney(totalPaid)}</p>
+            <p class="label">Change Due</p>
+            <p class="value">${formatMoney(changeDue)}</p>
+            <p class="label">Remaining Balance</p>
+            <p class="value">${formatMoney(Math.max(totalDue - totalPaid, 0))}</p>
           </div>
         </body>
       </html>
@@ -703,6 +885,15 @@ export default function ReservationManagementPanel({ active }: Props) {
     }
   };
 
+  const receiptPayments = selectedReceipt && payments.some((payment) => payment._id === selectedReceipt._id)
+    ? payments
+    : selectedReceipt
+      ? [...payments, selectedReceipt]
+      : payments;
+  const receiptTotalDue = Number(paymentSummary?.totalDue || editingReservation?.pricingSummary?.grandTotal || 0);
+  const receiptTotalPaid = Number(paymentSummary?.recognizedPaid || 0);
+  const receiptChangeDue = Math.max(receiptTotalPaid - receiptTotalDue, 0);
+
   if (!active) return null;
 
   if (viewMode === 'calendar') {
@@ -737,6 +928,53 @@ export default function ReservationManagementPanel({ active }: Props) {
           >
             Walk-In Booking
           </button>
+          <div className="relative">
+            <button
+              type="button"
+              aria-label="Reservation notifications"
+              aria-expanded={notificationsOpen}
+              title="Reservation notifications"
+              onClick={() => setNotificationsOpen((current) => !current)}
+              className="relative inline-flex h-10 w-10 items-center justify-center rounded-lg border border-slate-700 bg-slate-950/70 text-lg text-slate-200 hover:bg-slate-800"
+            >
+              <span aria-hidden="true">🔔</span>
+              {unseenReservations.length > 0 ? (
+                <span className="absolute -right-1 -top-1 min-w-5 rounded-full bg-rose-500 px-1 text-center text-[10px] font-bold leading-5 text-white">
+                  {unseenReservations.length > 99 ? '99+' : unseenReservations.length}
+                </span>
+              ) : null}
+            </button>
+
+            {notificationsOpen ? (
+              <div className="absolute right-0 top-12 z-40 w-80 rounded-xl border border-slate-700 bg-slate-900 p-2 shadow-2xl shadow-black/40">
+                <div className="flex items-center justify-between px-2 py-2">
+                  <p className="text-sm font-semibold text-white">New reservation requests</p>
+                  <span className="text-xs text-slate-400">{unseenReservations.length} unseen</span>
+                </div>
+                {unseenReservations.length === 0 ? (
+                  <p className="px-2 py-5 text-center text-xs text-slate-400">No unseen reservation requests.</p>
+                ) : (
+                  <div className="max-h-80 space-y-1 overflow-y-auto">
+                    {unseenReservations.map((reservation) => (
+                      <button
+                        type="button"
+                        key={reservation._id}
+                        onClick={() => openReservationNotification(reservation)}
+                        className="w-full rounded-lg border border-slate-800 bg-slate-950/70 px-3 py-2 text-left hover:border-emerald-500/50 hover:bg-slate-800"
+                      >
+                        <div className="flex items-start justify-between gap-2">
+                          <span className="font-semibold text-white">{reservation.room?.name || 'Room request'}</span>
+                          <span className="text-[10px] font-semibold uppercase text-amber-300">Pending</span>
+                        </div>
+                        <p className="mt-1 text-xs text-slate-300">{reservation.guestName}</p>
+                        <p className="text-xs text-slate-500">{reservation.reservationNumber}</p>
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+            ) : null}
+          </div>
           <button
             type="button"
             onClick={() => setViewMode('calendar')}
@@ -910,6 +1148,15 @@ export default function ReservationManagementPanel({ active }: Props) {
                         >
                           Manage
                         </button>
+                        {reservation.reservationStatus !== 'CANCELLED' && reservation.reservationStatus !== 'CHECKED_OUT' ? (
+                          <button
+                            type="button"
+                            onClick={() => openExtendStay(reservation)}
+                            className="rounded-lg border border-amber-700/50 px-2 py-1 text-xs text-amber-300 hover:bg-amber-900/20"
+                          >
+                            Extend Stay
+                          </button>
+                        ) : null}
                       </div>
                     </td>
                   </tr>
@@ -947,6 +1194,111 @@ export default function ReservationManagementPanel({ active }: Props) {
         </>
       )}
 
+      {checkoutWarningOpen ? (
+        <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/70 p-4">
+          <div className="w-full max-w-md rounded-2xl border border-amber-700/50 bg-slate-900 p-5 shadow-2xl">
+            <p className="text-xs font-semibold uppercase tracking-[0.2em] text-amber-300">Checkout blocked</p>
+            <h3 className="mt-2 text-xl font-semibold text-white">Outstanding balance remains</h3>
+            <p className="mt-3 text-sm text-slate-300">
+              {checkoutWarningBalance === null
+                ? 'Payment information is still loading. Please wait and try again.'
+                : `This reservation still has an outstanding balance of ${formatMoney(checkoutWarningBalance)}. Record or verify the remaining payment before checking out.`}
+            </p>
+            {editingReservation ? (
+              <p className="mt-3 text-xs text-slate-500">{editingReservation.reservationNumber} · {editingReservation.guestName}</p>
+            ) : null}
+            <div className="mt-5 flex justify-end">
+              <button
+                type="button"
+                onClick={() => {
+                  setCheckoutWarningOpen(false);
+                  setCheckoutWarningBalance(null);
+                }}
+                className="rounded-lg bg-amber-600 px-4 py-2 text-sm font-semibold text-slate-950 hover:bg-amber-500"
+              >
+                Return to payment section
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
+
+      {extendingReservation ? (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4">
+          <div className="w-full max-w-lg rounded-2xl border border-slate-800 bg-slate-900 p-5 shadow-2xl">
+            <div className="mb-4 flex items-start justify-between gap-4">
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-[0.2em] text-amber-300">Extend Stay</p>
+                <h3 className="mt-1 text-lg font-semibold text-white">{extendingReservation.reservationNumber}</h3>
+                <p className="mt-1 text-sm text-slate-400">{extendingReservation.guestName} · {extendingReservation.room?.name || 'Room unavailable'}</p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setExtendingReservation(null)}
+                className="rounded-lg border border-slate-700 px-2 py-1 text-xs text-slate-300 hover:bg-slate-800"
+              >
+                Close
+              </button>
+            </div>
+
+            <div className="rounded-xl border border-slate-800 bg-slate-950/70 p-4">
+              <p className="text-sm text-slate-300">
+                Current check-out: <span className="font-semibold text-white">{formatDate(extendingReservation.checkOut)}</span>
+              </p>
+              <label className="mt-4 block text-xs font-semibold uppercase tracking-wider text-slate-400">New check-out date</label>
+              <input
+                type="date"
+                min={getNextDateInputValue(extendingReservation.checkOut)}
+                value={extensionCheckOut}
+                onChange={(event) => {
+                  setExtensionCheckOut(event.target.value);
+                  setExtensionPricing(null);
+                }}
+                className="mt-1 w-full rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-white outline-none focus:border-amber-500"
+              />
+              <p className="mt-2 text-xs text-slate-500">The new date must be later than the current check-out date and available for this room.</p>
+            </div>
+
+            {extensionPricing ? (
+              <div className="mt-4 rounded-xl border border-emerald-500/20 bg-emerald-500/5 p-4 text-sm text-slate-300">
+                <p className="text-xs font-semibold uppercase tracking-[0.2em] text-emerald-400">Updated Pricing</p>
+                <div className="mt-3 grid gap-2 sm:grid-cols-2">
+                  <p>New room total: <span className="font-semibold text-white">{formatMoney(extensionPricing.roomRate)}</span></p>
+                  <p>New grand total: <span className="font-semibold text-emerald-300">{formatMoney(extensionPricing.grandTotal)}</span></p>
+                  <p className="sm:col-span-2">Additional amount: <span className="font-semibold text-amber-300">{formatMoney(extensionPricing.grandTotal - Number(extendingReservation.pricingSummary?.grandTotal || 0))}</span></p>
+                </div>
+              </div>
+            ) : null}
+
+            <div className="mt-4 flex justify-end gap-2">
+              <button
+                type="button"
+                onClick={() => setExtendingReservation(null)}
+                className="rounded-lg border border-slate-700 px-3 py-2 text-sm text-slate-300 hover:bg-slate-800"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                disabled={!extensionCheckOut || extensionPricingLoading || extensionSaving}
+                onClick={() => { void previewExtensionPricing(); }}
+                className="rounded-lg border border-amber-700/50 px-3 py-2 text-sm font-semibold text-amber-300 hover:bg-amber-900/20 disabled:opacity-40"
+              >
+                {extensionPricingLoading ? 'Checking...' : 'Check Price'}
+              </button>
+              <button
+                type="button"
+                disabled={!extensionPricing || extensionSaving}
+                onClick={() => { void saveExtension(); }}
+                className="rounded-lg bg-amber-600 px-3 py-2 text-sm font-semibold text-slate-950 hover:bg-amber-500 disabled:opacity-40"
+              >
+                {extensionSaving ? 'Saving...' : 'Confirm Extension'}
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
+
       {editingReservation ? (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
           <div className="w-full max-w-5xl max-h-[90vh] overflow-y-auto rounded-2xl border border-slate-800 bg-slate-900 p-5">
@@ -966,56 +1318,6 @@ export default function ReservationManagementPanel({ active }: Props) {
               <input value={editForm.email} onChange={(event) => setEditForm((current) => ({ ...current, email: event.target.value }))} placeholder="Email" className="rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-white outline-none focus:border-emerald-500" />
               <input value={editForm.phone} onChange={(event) => setEditForm((current) => ({ ...current, phone: event.target.value }))} placeholder="Phone" className="rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-white outline-none focus:border-emerald-500" />
               <input value={editForm.address} onChange={(event) => setEditForm((current) => ({ ...current, address: event.target.value }))} placeholder="Address" className="rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-white outline-none focus:border-emerald-500" />
-              <select
-                value={editForm.reservationStatus}
-                onChange={(event) => {
-                  const value = event.target.value;
-                  if (
-                    value === 'PENDING' ||
-                    value === 'CONFIRMED' ||
-                    value === 'CHECKED_IN' ||
-                    value === 'CHECKED_OUT' ||
-                    value === 'NO_SHOW' ||
-                    value === 'CANCELLED'
-                  ) {
-                    setEditForm((current) => ({ ...current, reservationStatus: value }));
-                  }
-                }}
-                className="rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-white outline-none focus:border-emerald-500"
-              >
-                {(editingReservation
-                  ? [editingReservation.reservationStatus, ...STATUS_TRANSITIONS[editingReservation.reservationStatus]]
-                  : ['PENDING', 'CONFIRMED', 'CHECKED_IN', 'CHECKED_OUT', 'NO_SHOW', 'CANCELLED']
-                )
-                  .filter((status, index, list) => list.indexOf(status) === index)
-                  .map((status) => (
-                    <option key={status} value={status}>
-                      {status.replace('_', ' ')}
-                    </option>
-                  ))}
-              </select>
-              <select
-                value={editForm.paymentStatus}
-                onChange={(event) => {
-                  const value = event.target.value;
-                  if (
-                    value === 'UNPAID' ||
-                    value === 'PENDING_VERIFICATION' ||
-                    value === 'PARTIALLY_PAID' ||
-                    value === 'PAID' ||
-                    value === 'REFUNDED'
-                  ) {
-                    setEditForm((current) => ({ ...current, paymentStatus: value }));
-                  }
-                }}
-                className="rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-white outline-none focus:border-emerald-500"
-              >
-                <option value="UNPAID">Unpaid</option>
-                <option value="PENDING_VERIFICATION">Pending Verification</option>
-                <option value="PARTIALLY_PAID">Partially Paid</option>
-                <option value="PAID">Paid</option>
-                <option value="REFUNDED">Refunded</option>
-              </select>
               <input type="date" value={editForm.checkIn} onChange={(event) => setEditForm((current) => ({ ...current, checkIn: event.target.value }))} className="rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-white outline-none focus:border-emerald-500" />
               <input type="date" value={editForm.checkOut} onChange={(event) => setEditForm((current) => ({ ...current, checkOut: event.target.value }))} className="rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-white outline-none focus:border-emerald-500" />
               <input type="number" min={1} value={editForm.adults} onChange={(event) => setEditForm((current) => ({ ...current, adults: event.target.value }))} placeholder="Adults" className="rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-white outline-none focus:border-emerald-500" />
@@ -1031,16 +1333,44 @@ export default function ReservationManagementPanel({ active }: Props) {
                   <p>Room Rate ({editingReservation.pricingSummary.numberOfNights} night{editingReservation.pricingSummary.numberOfNights === 1 ? '' : 's'}): <span className="text-white">PHP {editingReservation.pricingSummary.roomRate.toFixed(2)}</span></p>
                   <p>Extra Person Fee: <span className="text-white">PHP {editingReservation.pricingSummary.extraPersonFee.toFixed(2)}</span></p>
                   <p>Extra Bed Fee: <span className="text-white">PHP {editingReservation.pricingSummary.extraBedFee.toFixed(2)}</span></p>
+                  <p>Add-On Total: <span className="text-white">PHP {Number(editingReservation.pricingSummary.addOnTotal || 0).toFixed(2)}</span></p>
                   <p>Promo Discount: <span className="text-emerald-300">- PHP {editingReservation.pricingSummary.promoDiscount.toFixed(2)}</span></p>
                   <p>Additional Room Discount: <span className="text-emerald-300">- PHP {editingReservation.pricingSummary.additionalRoomDiscount.toFixed(2)}</span></p>
                   <p>Subtotal: <span className="text-white">PHP {editingReservation.pricingSummary.subtotal.toFixed(2)}</span></p>
                   <p className="sm:col-span-2 text-base font-semibold">Grand Total: <span className="text-emerald-300">PHP {editingReservation.pricingSummary.grandTotal.toFixed(2)}</span></p>
                 </div>
+                {editingReservation.pricingSummary.addOns?.length > 0 ? (
+                  <ul className="mt-3 space-y-1 border-t border-slate-800 pt-3 text-sm text-slate-300">
+                    {editingReservation.pricingSummary.addOns.map((addOn) => <li key={addOn.addOnId}>{addOn.quantity}x {addOn.name} - PHP {addOn.totalPrice.toFixed(2)}</li>)}
+                  </ul>
+                ) : null}
               </div>
             ) : null}
 
             <div className="mt-4 rounded-xl border border-slate-800 bg-slate-950/70 p-4 text-sm text-slate-300">
               <p className="text-xs font-semibold uppercase tracking-[0.2em] text-emerald-400">Check-In / Check-Out Audit</p>
+              <label className="mt-3 block text-xs uppercase tracking-wider text-slate-400">Reservation Status</label>
+              <select
+                value={editForm.reservationStatus}
+                onChange={(event) => {
+                  const nextStatus = event.target.value as ReservationStatus;
+                  if (nextStatus === 'CHECKED_OUT' && (!paymentSummary || paymentSummary.outstandingBalance > 0.01)) {
+                    setCheckoutWarningBalance(paymentSummary?.outstandingBalance ?? null);
+                    setCheckoutWarningOpen(true);
+                    return;
+                  }
+                  setEditForm((current) => ({ ...current, reservationStatus: nextStatus }));
+                }}
+                className="mt-1 w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-white outline-none focus:border-emerald-500"
+              >
+                {[editingReservation.reservationStatus, ...STATUS_TRANSITIONS[editingReservation.reservationStatus]]
+                  .filter((status, index, list) => list.indexOf(status) === index)
+                  .map((status) => (
+                    <option key={status} value={status}>
+                      {status.replace('_', ' ')}
+                    </option>
+                  ))}
+              </select>
               <p className="mt-2">Check-In Timestamp: <span className="text-white">{editingReservation.checkInAt ? formatDate(editingReservation.checkInAt) : '—'}</span></p>
               <p>Checked-In By: <span className="text-white">{editingReservation.checkedInBy || '—'}</span></p>
               <p className="mt-2">Check-Out Timestamp: <span className="text-white">{editingReservation.checkOutAt ? formatDate(editingReservation.checkOutAt) : '—'}</span></p>
@@ -1070,7 +1400,7 @@ export default function ReservationManagementPanel({ active }: Props) {
               <div className="mt-3 grid gap-2 text-sm text-slate-300 sm:grid-cols-2">
                 <p>Total Due: <span className="text-white">{formatMoney(Number(editingReservation.pricingSummary?.grandTotal || paymentSummary?.totalDue || 0))}</span></p>
                 <p>Recognized Paid: <span className="text-emerald-300">{formatMoney(Number(paymentSummary?.recognizedPaid || 0))}</span></p>
-                <p>Outstanding Balance: <span className="text-amber-300">{formatMoney(Number(paymentSummary?.outstandingBalance || editingReservation.pricingSummary?.grandTotal || 0))}</span></p>
+                <p>Outstanding Balance: <span className="text-amber-300">{formatMoney(Number(paymentSummary?.outstandingBalance ?? editingReservation.pricingSummary?.grandTotal ?? 0))}</span></p>
                 <p>Pending Verifications: <span className="text-sky-300">{Number(paymentSummary?.pendingCount || 0)}</span></p>
               </div>
 
@@ -1290,10 +1620,44 @@ export default function ReservationManagementPanel({ active }: Props) {
               <hr className="border-slate-800" />
               <p>Reservation Number: <span className="text-white">{editingReservation.reservationNumber}</span></p>
               <p>Guest Name: <span className="text-white">{editingReservation.guestName}</span></p>
-              <p>Payment Number: <span className="text-white">{selectedReceipt.paymentNumber}</span></p>
-              <p>Payment Method: <span className="text-white">{selectedReceipt.paymentMethod}</span></p>
-              <p>Payment Status: <span className="text-white">{selectedReceipt.paymentStatus}</span></p>
-              <p>Amount: <span className="text-emerald-300">{formatMoney(Number(selectedReceipt.amountPaid || 0))}</span></p>
+              <div className="overflow-x-auto rounded-lg border border-slate-800">
+                <table className="min-w-full text-left text-xs text-slate-300">
+                  <thead className="bg-slate-900/70 uppercase tracking-wider text-slate-500">
+                    <tr>
+                      <th className="px-2 py-2">Payment No.</th>
+                      <th className="px-2 py-2">Date</th>
+                      <th className="px-2 py-2">Method</th>
+                      <th className="px-2 py-2">Type</th>
+                      <th className="px-2 py-2">Amount</th>
+                      <th className="px-2 py-2">Status</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-800">
+                    {receiptPayments.map((payment) => (
+                      <tr key={payment._id}>
+                        <td className="px-2 py-2 text-white">{payment.paymentNumber}</td>
+                        <td className="px-2 py-2">{formatDate(payment.paymentDate)}</td>
+                        <td className="px-2 py-2">{payment.paymentMethod}</td>
+                        <td className="px-2 py-2">{payment.paymentType}</td>
+                        <td className="px-2 py-2 text-emerald-300">{formatMoney(Number(payment.amountPaid || 0))}</td>
+                        <td className="px-2 py-2">{payment.paymentStatus}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+              {editingReservation.pricingSummary?.addOns && editingReservation.pricingSummary.addOns.length > 0 ? (
+                <div>
+                  <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">Reservation Add-Ons</p>
+                  <ul className="mt-1 space-y-1">
+                    {editingReservation.pricingSummary.addOns.map((addOn) => <li key={addOn.addOnId}>{addOn.quantity}x {addOn.name}: <span className="text-emerald-300">{formatMoney(addOn.totalPrice)}</span></li>)}
+                  </ul>
+                </div>
+              ) : null}
+              <p>Total Due: <span className="text-white">{formatMoney(receiptTotalDue)}</span></p>
+              <p>Total Recognized Paid: <span className="text-emerald-300">{formatMoney(receiptTotalPaid)}</span></p>
+              <p>Change Due: <span className="text-amber-300">{formatMoney(receiptChangeDue)}</span></p>
+              <p>Remaining Balance: <span className="text-amber-300">{formatMoney(Math.max(receiptTotalDue - receiptTotalPaid, 0))}</span></p>
             </div>
 
             <div className="mt-4 flex justify-end gap-2">

@@ -2,9 +2,12 @@ import { NextResponse } from 'next/server';
 import { connectDB } from '@/app/lib/db';
 import User from '@/app/lib/User';
 import { hashPassword } from '@/app/lib/password';
+import { requireOwner } from '@/app/lib/auth';
 
-export async function GET() {
+export async function GET(request: Request) {
   try {
+    const authError = requireOwner(request);
+    if (authError) return authError;
     await connectDB();
     const users = await User.find({}).select('-password').sort({ createdAt: -1 }).lean();
     return NextResponse.json(users);
@@ -15,6 +18,8 @@ export async function GET() {
 
 export async function POST(request: Request) {
   try {
+    const authError = requireOwner(request);
+    if (authError) return authError;
     await connectDB();
     const body = await request.json();
 

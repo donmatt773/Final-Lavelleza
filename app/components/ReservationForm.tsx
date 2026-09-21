@@ -9,6 +9,15 @@ type RoomOption = {
   code: string;
 };
 
+type AddOnOption = {
+  _id: string;
+  name: string;
+  description?: string;
+  category?: string;
+  price: number;
+  stockQuantity?: number | null;
+};
+
 type PromoOption = {
   _id: string;
   name: string;
@@ -31,6 +40,14 @@ type PricingSummary = {
   numberOfNights: number;
   extraPersonFee: number;
   extraBedFee: number;
+  addOnTotal: number;
+  addOns: Array<{
+    addOnId: string;
+    quantity: number;
+    name: string;
+    unitPrice: number;
+    totalPrice: number;
+  }>;
   promoDiscount: number;
   additionalRoomDiscount: number;
   subtotal: number;
@@ -60,6 +77,7 @@ type FormState = {
   gcashReferenceNumber: string;
   gcashProofOfPaymentUrl: string;
   specialRequests: string;
+  addOns: Record<string, number>;
 };
 
 const initialForm: FormState = {
@@ -78,6 +96,7 @@ const initialForm: FormState = {
   gcashReferenceNumber: '',
   gcashProofOfPaymentUrl: '',
   specialRequests: '',
+  addOns: {},
 };
 
 const emptyPromoSummary = { validPromos: 0, expiredPromos: 0, inactivePromos: 0, eligiblePromos: 0 };
@@ -96,6 +115,8 @@ export default function ReservationForm({ rooms, mode = 'public', onSuccess, onC
   const [eligiblePromos, setEligiblePromos] = useState<PromoOption[]>([]);
   const [promoSummary, setPromoSummary] = useState(emptyPromoSummary);
   const [promoLoading, setPromoLoading] = useState(false);
+  const [availableAddOns, setAvailableAddOns] = useState<AddOnOption[]>([]);
+  const [addOnsLoading, setAddOnsLoading] = useState(false);
 
   const todayMinDate = useMemo(() => {
     const now = new Date();
@@ -202,6 +223,7 @@ export default function ReservationForm({ rooms, mode = 'public', onSuccess, onC
           adults: Number(form.adults),
           children: Number(form.children),
           specialRequests: form.specialRequests.trim(),
+          addOns: Object.entries(form.addOns).filter(([, quantity]) => quantity > 0).map(([addOnId, quantity]) => ({ addOnId, quantity })),
           reservationSource: isWalkInMode ? 'WALK_IN' : 'ONLINE',
           reservationStatus: isWalkInMode ? walkInStatus : 'PENDING',
           paymentMethod: isWalkInMode ? undefined : form.paymentMethod,
@@ -238,6 +260,26 @@ export default function ReservationForm({ rooms, mode = 'public', onSuccess, onC
       setSubmitting(false);
     }
   };
+
+  useEffect(() => {
+    let cancelled = false;
+    const loadAddOns = async () => {
+      setAddOnsLoading(true);
+      try {
+        const response = await fetch('/api/add-ons');
+        const data = await response.json().catch(() => null);
+        if (!response.ok || !Array.isArray(data)) return;
+        if (!cancelled) setAvailableAddOns(data as AddOnOption[]);
+      } finally {
+        if (!cancelled) setAddOnsLoading(false);
+      }
+    };
+
+    void loadAddOns();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   useEffect(() => {
     if (!form.room || !form.checkIn || !form.checkOut) return;
@@ -297,6 +339,7 @@ export default function ReservationForm({ rooms, mode = 'public', onSuccess, onC
             checkOut: form.checkOut,
             adults: Number(form.adults),
             children: Number(form.children),
+            addOns: Object.entries(form.addOns).filter(([, quantity]) => quantity > 0).map(([addOnId, quantity]) => ({ addOnId, quantity })),
           }),
         });
 
@@ -317,7 +360,7 @@ export default function ReservationForm({ rooms, mode = 'public', onSuccess, onC
     return () => {
       window.clearTimeout(timeoutId);
     };
-  }, [canComputePricing, form.room, form.promo, form.checkIn, form.checkOut, form.adults, form.children]);
+  }, [canComputePricing, form.room, form.promo, form.checkIn, form.checkOut, form.adults, form.children, form.addOns]);
 
   if (success) {
     return (
@@ -477,6 +520,34 @@ export default function ReservationForm({ rooms, mode = 'public', onSuccess, onC
               required
             />
           </div>
+          <div className="md:col-span-2 rounded-xl border border-slate-800 bg-slate-950/70 p-4">
+            <p className="text-xs font-semibold uppercase tracking-[0.2em] text-emerald-400">Additional Items</p>
+            <p className="mt-1 text-xs text-slate-400">Optional extras are added to the reservation total.</p>
+            {addOnsLoading ? <p className="mt-3 text-sm text-slate-500">Loading additional items...</p> : availableAddOns.length === 0 ? <p className="mt-3 text-sm text-slate-500">No additional items are currently available.</p> : (
+              <div className="mt-3 grid gap-2 sm:grid-cols-2">
+                {availableAddOns.map((addOn) => {
+                  const quantity = form.addOns[addOn._id] || 0;
+                  return (
+                    <div key={addOn._id} className="flex items-center justify-between gap-3 rounded-lg border border-slate-800 bg-slate-900 px-3 py-2">
+                      <div>
+                        <p className="text-sm font-medium text-white">{addOn.name}</p>
+                        <p className="text-xs text-slate-400">PHP {Number(addOn.price || 0).toFixed(2)}{addOn.stockQuantity !== null && addOn.stockQuantity !== undefined ? ` · ${addOn.stockQuantity} available` : ''}</p>
+                      </div>
+                      <input
+                        type="number"
+                        min={0}
+                        max={addOn.stockQuantity ?? undefined}
+                        value={quantity}
+                        onChange={(event) => setForm((current) => ({ ...current, addOns: { ...current.addOns, [addOn._id]: Math.max(0, Number(event.target.value) || 0) } }))}
+                        className="w-20 rounded-lg border border-slate-700 bg-slate-950 px-2 py-1.5 text-center text-sm text-white outline-none focus:border-emerald-500"
+                        aria-label={`Quantity of ${addOn.name}`}
+                      />
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
           {isWalkInMode ? (
             <div>
               <label className="mb-1 block text-xs uppercase tracking-wider text-slate-400">Reservation Status</label>
@@ -584,6 +655,7 @@ export default function ReservationForm({ rooms, mode = 'public', onSuccess, onC
               <p>Room Rate ({pricingSummary.numberOfNights} night{pricingSummary.numberOfNights === 1 ? '' : 's'}): <span className="text-white">PHP {pricingSummary.roomRate.toFixed(2)}</span></p>
               <p>Extra Person Fee: <span className="text-white">PHP {pricingSummary.extraPersonFee.toFixed(2)}</span></p>
               <p>Extra Bed Fee: <span className="text-white">PHP {pricingSummary.extraBedFee.toFixed(2)}</span></p>
+              <p>Add-On Total: <span className="text-white">PHP {pricingSummary.addOnTotal.toFixed(2)}</span></p>
               <p>Promo Discount: <span className="text-emerald-300">- PHP {pricingSummary.promoDiscount.toFixed(2)}</span></p>
               <p>Additional Room Discount: <span className="text-emerald-300">- PHP {pricingSummary.additionalRoomDiscount.toFixed(2)}</span></p>
               <p>Subtotal: <span className="text-white">PHP {pricingSummary.subtotal.toFixed(2)}</span></p>
@@ -603,6 +675,15 @@ export default function ReservationForm({ rooms, mode = 'public', onSuccess, onC
                     {inclusion.description ? ` - ${inclusion.description}` : ''}
                   </li>
                 ))}
+              </ul>
+            </div>
+          ) : null}
+
+          {pricingSummary?.addOns && pricingSummary.addOns.length > 0 ? (
+            <div className="mt-4 rounded-lg border border-slate-800 bg-slate-900/70 p-3">
+              <p className="text-xs font-semibold uppercase tracking-[0.15em] text-emerald-400">Additional Items</p>
+              <ul className="mt-2 space-y-1 text-sm text-slate-300">
+                {pricingSummary.addOns.map((addOn) => <li key={addOn.addOnId}>{addOn.quantity}x {addOn.name} - PHP {addOn.totalPrice.toFixed(2)}</li>)}
               </ul>
             </div>
           ) : null}

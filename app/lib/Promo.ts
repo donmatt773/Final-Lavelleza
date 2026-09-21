@@ -60,10 +60,14 @@ export interface IPromo {
 
 export function getPromoEffectiveStatus(status: string | undefined, startDate?: Date | null, endDate?: Date | null): PromoStatus {
   const normalized = typeof status === 'string' ? status.toUpperCase() : 'DRAFT';
-  if (normalized === 'ACTIVE' && endDate && endDate < new Date()) {
+  if (normalized === 'ACTIVE' && endDate && endDate < endOfUtcDay(new Date())) {
     return 'EXPIRED';
   }
   return normalized as PromoStatus;
+}
+
+function endOfUtcDay(date: Date) {
+  return new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate(), 23, 59, 59, 999));
 }
 
 export function resolvePromoStatus(
@@ -216,7 +220,6 @@ promoSchema.pre('validate', function normalizePromoData() {
   this.includedRoomIds = merged.map((roomId) => new Types.ObjectId(roomId));
 });
 
-promoSchema.index({ codeNormalized: 1 }, { unique: true });
 promoSchema.index({ status: 1, isArchived: 1, startDate: 1, endDate: 1 });
 promoSchema.index({ includedRoomIds: 1 });
 promoSchema.index({ endDate: 1, status: 1 });

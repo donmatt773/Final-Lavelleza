@@ -2,6 +2,7 @@ import mongoose from 'mongoose';
 import Room from '@/app/lib/Room';
 import Promo from '@/app/lib/Promo';
 import RateSettings from '@/app/lib/RateSettings';
+import AddOn from '@/app/lib/AddOn';
 
 const DEFAULT_RATE_SETTINGS = {
   extraPersonRate: 150,
@@ -15,6 +16,16 @@ export type ReservationPricingSummary = {
   numberOfNights: number;
   extraPersonFee: number;
   extraBedFee: number;
+  addOnTotal: number;
+  addOns: Array<{
+    addOnId: string;
+    quantity: number;
+    name: string;
+    description?: string;
+    category?: string;
+    unitPrice: number;
+    totalPrice: number;
+  }>;
   promoDiscount: number;
   additionalRoomDiscount: number;
   subtotal: number;
@@ -28,6 +39,7 @@ type PricingInput = {
   checkOut: Date;
   adults: number;
   children: number;
+  addOns?: Array<{ addOnId: string; quantity: number }>;
 };
 
 function toStartOfLocalDay(date: Date) {
@@ -43,6 +55,10 @@ function getNumberOfNights(checkIn: Date, checkOut: Date) {
 
 function normalizeMoney(value: number) {
   return Math.max(0, Math.round(value * 100) / 100);
+}
+
+function toUtcDay(value: Date) {
+  return Date.UTC(value.getUTCFullYear(), value.getUTCMonth(), value.getUTCDate());
 }
 
 function isPromoApplicableToRoom(promo: {
@@ -91,6 +107,34 @@ export async function calculateReservationPricing(input: PricingInput): Promise<
   const singleBeds = overflowGuests % 2;
   const extraBedFee = normalizeMoney((doubleBeds * extraDoubleBedRate + singleBeds * extraSingleBedRate) * nights);
 
+  const requestedAddOns = Array.isArray(input.addOns) ? input.addOns : [];
+  const addOnIds = requestedAddOns.map((item) => String(item.addOnId));
+  const addOnDocs = addOnIds.length > 0
+    ? await AddOn.find({ _id: { $in: addOnIds }, isActive: true }).lean()
+    : [];
+  const addOnById = new Map(addOnDocs.map((addOn) => [String(addOn._id), addOn]));
+  const addOns = requestedAddOns.map((item) => {
+    const addOn = addOnById.get(String(item.addOnId));
+    const quantity = Math.floor(Number(item.quantity));
+    if (!addOn || !Number.isFinite(quantity) || quantity < 1) {
+      throw new Error('One or more selected add-ons are invalid or inactive.');
+    }
+    if (addOn.stockQuantity !== null && addOn.stockQuantity !== undefined && quantity > addOn.stockQuantity) {
+      throw new Error(`Insufficient stock for add-on: ${addOn.name}.`);
+    }
+    const unitPrice = normalizeMoney(Number(addOn.price || 0));
+    return {
+      addOnId: String(addOn._id),
+      quantity,
+      name: String(addOn.name || ''),
+      description: addOn.description || undefined,
+      category: addOn.category || undefined,
+      unitPrice,
+      totalPrice: normalizeMoney(unitPrice * quantity),
+    };
+  });
+  const addOnTotal = normalizeMoney(addOns.reduce((total, addOn) => total + addOn.totalPrice, 0));
+
   let promoDiscount = 0;
   let additionalRoomDiscount = 0;
 
@@ -100,8 +144,8 @@ export async function calculateReservationPricing(input: PricingInput): Promise<
       .lean();
 
     if (promoDoc && promoDoc.status === 'ACTIVE') {
-      const isWithinDateRange = (!promoDoc.startDate || promoDoc.startDate <= input.checkIn)
-        && (!promoDoc.endDate || promoDoc.endDate >= input.checkOut);
+      const isWithinDateRange = (!promoDoc.startDate || toUtcDay(input.checkIn) >= toUtcDay(promoDoc.startDate))
+        && (!promoDoc.endDate || toUtcDay(input.checkOut) <= toUtcDay(promoDoc.endDate));
 
       if (isWithinDateRange) {
         const applicability = isPromoApplicableToRoom(promoDoc, input.roomId);
@@ -128,7 +172,7 @@ export async function calculateReservationPricing(input: PricingInput): Promise<
     }
   }
 
-  const subtotal = normalizeMoney(roomRate + extraPersonFee + extraBedFee);
+  const subtotal = normalizeMoney(roomRate + extraPersonFee + extraBedFee + addOnTotal);
   const grandTotal = normalizeMoney(Math.max(subtotal - promoDiscount - additionalRoomDiscount, 0));
 
   return {
@@ -137,6 +181,8 @@ export async function calculateReservationPricing(input: PricingInput): Promise<
     numberOfNights: nights,
     extraPersonFee,
     extraBedFee,
+    addOnTotal,
+    addOns,
     promoDiscount,
     additionalRoomDiscount,
     subtotal,

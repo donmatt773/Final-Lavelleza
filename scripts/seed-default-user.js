@@ -11,14 +11,36 @@ async function seedDefaultUser() {
   const hashedPassword = await bcrypt.hash('admin123', 10);
 
   const defaultAdmin = {
-    employeeId: 'ADMIN',
+    employeeId: 'ADMIN-001',
     username: 'admin',
     name: 'Administrator',
     password: hashedPassword,
     role: 0
   };
 
-  const result = await usersCollection.updateOne(
+  const existingAdmin = await usersCollection.findOne({
+    $or: [
+      { employeeId: defaultAdmin.employeeId },
+      { employeeId: 'ADMIN' },
+      { username: defaultAdmin.username },
+    ],
+  });
+
+  const result = existingAdmin
+    ? await usersCollection.updateOne(
+      { _id: existingAdmin._id },
+      {
+        $set: {
+          employeeId: defaultAdmin.employeeId,
+          username: defaultAdmin.username,
+          name: defaultAdmin.name,
+          password: defaultAdmin.password,
+          role: defaultAdmin.role,
+          updatedAt: new Date(),
+        },
+      }
+    )
+    : await usersCollection.updateOne(
     { employeeId: defaultAdmin.employeeId },
     {
       $set: {
@@ -38,7 +60,7 @@ async function seedDefaultUser() {
   if (result.upsertedCount > 0) {
     console.log('Default admin user created.');
   } else {
-    console.log('Default admin user already existed and was updated.');
+    console.log('Default admin user migrated or updated. Employee ID: ADMIN-001');
   }
 }
 

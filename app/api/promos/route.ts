@@ -4,6 +4,7 @@ import { connectDB } from '@/app/lib/db';
 import Promo, { getPromoEffectiveStatus } from '@/app/lib/Promo';
 import Room from '@/app/lib/Room';
 import { requireOwner } from '@/app/lib/auth';
+import { triggerDashboardUpdate } from '@/app/lib/pusher-server';
 
 const VALID_STATUSES = ['DRAFT', 'ACTIVE', 'INACTIVE', 'EXPIRED'] as const;
 
@@ -439,6 +440,11 @@ export async function POST(request: Request) {
     }
 
     const promo = await Promo.create(payload);
+
+    await triggerDashboardUpdate('dashboard-updated', {
+      type: 'promo-created',
+      promoId: String(promo._id),
+    });
 
     return NextResponse.json({ success: true, promo }, { status: 201 });
   } catch (error: unknown) {

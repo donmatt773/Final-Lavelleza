@@ -6,6 +6,7 @@ import BedType from '@/app/lib/BedType';
 import Feature from '@/app/lib/Feature';
 import Amenity from '@/app/lib/Amenity';
 import { requireOwner } from '@/app/lib/auth';
+import { triggerDashboardUpdate } from '@/app/lib/pusher-server';
 
 const VALID_STATUSES = ['AVAILABLE', 'MAINTENANCE', 'INACTIVE'];
 
@@ -252,6 +253,11 @@ export async function PUT(request: Request, { params }: { params: Promise<{ id: 
       return NextResponse.json({ success: false, message: 'Room not found.' }, { status: 404 });
     }
 
+      await triggerDashboardUpdate('dashboard-updated', {
+        type: 'room-updated',
+        roomId: String(updatedRoom._id),
+      });
+
     return NextResponse.json({ success: true, room: updatedRoom }, { status: 200 });
   } catch (error: unknown) {
     const errorWithDetails = error as { code?: unknown; name?: unknown; message?: string };
@@ -334,6 +340,11 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
       return NextResponse.json({ success: false, message: 'Room not found.' }, { status: 404 });
     }
 
+    await triggerDashboardUpdate('dashboard-updated', {
+      type: 'room-updated',
+      roomId: String(updatedRoom._id),
+    });
+
     return NextResponse.json({ success: true, room: updatedRoom }, { status: 200 });
   } catch {
     return NextResponse.json({ success: false, message: 'Failed to update room status.' }, { status: 500 });
@@ -356,6 +367,11 @@ export async function DELETE(request: Request, { params }: { params: Promise<{ i
     if (!deletedRoom) {
       return NextResponse.json({ success: false, message: 'Room not found.' }, { status: 404 });
     }
+
+    await triggerDashboardUpdate('dashboard-updated', {
+      type: 'room-deleted',
+      roomId: String(deletedRoom._id),
+    });
 
     return NextResponse.json({ success: true, message: 'Room permanently deleted.' }, { status: 200 });
   } catch {

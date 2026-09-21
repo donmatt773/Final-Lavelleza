@@ -35,6 +35,10 @@ function toDate(value: unknown) {
   return Number.isNaN(date.getTime()) ? null : date;
 }
 
+function toUtcDay(value: Date) {
+  return Date.UTC(value.getUTCFullYear(), value.getUTCMonth(), value.getUTCDate());
+}
+
 function normalizePromoInclusions(inclusions: unknown): PromoInclusionSummary[] {
   if (!Array.isArray(inclusions)) return [];
   return inclusions.map((item) => {
@@ -52,7 +56,7 @@ function normalizePromoInclusions(inclusions: unknown): PromoInclusionSummary[] 
 
 function isPromoExpired(status: string, endDate: Date | null, now: Date) {
   if (status === 'EXPIRED') return true;
-  if (endDate && endDate < now) return true;
+  if (endDate && toUtcDay(endDate) < toUtcDay(now)) return true;
   return false;
 }
 
@@ -63,8 +67,8 @@ function isRoomEligible(includedRoomIds: unknown, roomId: string) {
 }
 
 function isDateEligible(startDate: Date | null, endDate: Date | null, checkIn: Date, checkOut: Date) {
-  if (startDate && checkIn < startDate) return false;
-  if (endDate && checkOut > endDate) return false;
+  if (startDate && toUtcDay(checkIn) < toUtcDay(startDate)) return false;
+  if (endDate && toUtcDay(checkOut) > toUtcDay(endDate)) return false;
   return true;
 }
 
