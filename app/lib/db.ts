@@ -1,14 +1,29 @@
 import mongoose from 'mongoose';
 
-const MONGODB_URI = process.env.MONGODB_URI || 'mongodb://127.0.0.1:27017/la_velleza';
+function getMongoDbUri() {
+  const configuredUri = process.env.MONGODB_URI?.trim();
 
-if (!process.env.MONGODB_URI && process.env.NODE_ENV === 'production') {
-  // Fails loudly on the server instead of silently returning empty data everywhere,
-  // which is what happens if this connects to a localhost Mongo that doesn't exist on Vercel.
-  console.error(
-    'MONGODB_URI is not set. Set it in Vercel → Project → Settings → Environment Variables.'
-  );
+  if (!configuredUri) {
+    if (process.env.NODE_ENV === 'production') {
+      throw new Error('MONGODB_URI is not configured for this deployment.');
+    }
+
+    return 'mongodb://127.0.0.1:27017/la_velleza';
+  }
+
+  const uri = configuredUri
+    .replace(/^MONGODB_URI\s*=\s*/i, '')
+    .replace(/^['"]|['"]$/g, '')
+    .trim();
+
+  if (!uri.startsWith('mongodb://') && !uri.startsWith('mongodb+srv://')) {
+    throw new Error('MONGODB_URI must start with mongodb:// or mongodb+srv://.');
+  }
+
+  return uri;
 }
+
+const MONGODB_URI = getMongoDbUri();
 
 type MongooseCache = {
   conn: typeof mongoose | null;
