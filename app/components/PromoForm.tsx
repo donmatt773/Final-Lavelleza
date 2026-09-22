@@ -2,6 +2,7 @@
 
 import React, { useEffect, useMemo, useState } from 'react';
 import Image from 'next/image';
+import { uploadImagesToCloudinary } from '@/app/lib/uploadClient';
 
 type RoomOption = {
   _id: string;
@@ -327,22 +328,8 @@ export default function PromoForm({ open, mode, promoId, initialValues, onClose,
 
     try {
       setServerMessage(null);
-      const data = new FormData();
-      data.append('files', file);
+      const [uploaded] = await uploadImagesToCloudinary([file], getAuthHeaders());
 
-      const res = await fetch('/api/uploads', {
-        method: 'POST',
-        headers: { ...getAuthHeaders() },
-        body: data,
-        credentials: 'same-origin',
-      });
-
-      const result = await res.json();
-      if (!res.ok || !result?.success || !Array.isArray(result.images) || !result.images.length) {
-        throw new Error(result?.message || 'Unable to upload promo image');
-      }
-
-      const uploaded = result.images[0];
       setForm((current) => ({
         ...current,
         banner: {

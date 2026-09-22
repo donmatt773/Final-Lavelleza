@@ -2,6 +2,7 @@
 
 import React, { useEffect, useMemo, useState } from 'react';
 import Image from 'next/image';
+import { uploadImagesToCloudinary } from '@/app/lib/uploadClient';
 
 type BedEntry = {
   id: string;
@@ -225,21 +226,7 @@ export default function RoomForm({ open, mode, roomId, initialValues, onClose, o
     if (!files.length) return;
 
     try {
-      const data = new FormData();
-      files.forEach((file) => data.append('files', file));
-
-      const res = await fetch('/api/uploads', {
-        method: 'POST',
-        headers: { ...getAuthHeaders() },
-        body: data,
-      });
-
-      const result = await res.json();
-      if (!res.ok || !result?.success) {
-        throw new Error(result?.message || 'Unable to upload images');
-      }
-
-      const uploaded = Array.isArray(result.images) ? result.images : [];
+      const uploaded = await uploadImagesToCloudinary(files, getAuthHeaders());
 
       setForm((current) => {
         const nextImages = uploaded.map((image: { fileUrl: string; storageKey?: string; altText?: string }, index: number) => ({

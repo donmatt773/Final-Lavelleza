@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { requireOwner } from '@/app/lib/auth';
-import { uploadRoomImage } from '@/app/lib/cloudinary';
+import { createUploadSignature, uploadRoomImage } from '@/app/lib/cloudinary';
 
 export const runtime = 'nodejs';
 
@@ -8,6 +8,21 @@ const MAX_IMAGE_SIZE = 4 * 1024 * 1024;
 
 function isFile(value: FormDataEntryValue | null): value is File {
   return value instanceof File;
+}
+
+// Hands out a short-lived signed payload so the browser can upload large images
+// directly to Cloudinary instead of routing raw file bytes through this function
+// (serverless functions reject large request bodies with FUNCTION_PAYLOAD_TOO_LARGE).
+export async function GET(request: Request) {
+  try {
+    const authError = requireOwner(request);
+    if (authError) return authError;
+
+    const signaturePayload = createUploadSignature('la-velleza/rooms');
+    return NextResponse.json({ success: true, ...signaturePayload }, { status: 200 });
+  } catch {
+    return NextResponse.json({ success: false, message: 'Failed to prepare upload.' }, { status: 500 });
+  }
 }
 
 export async function POST(request: Request) {

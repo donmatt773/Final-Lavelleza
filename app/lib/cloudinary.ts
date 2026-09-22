@@ -15,6 +15,20 @@ function getCloudinary() {
   return cloudinary;
 }
 
+export function createUploadSignature(folder: string) {
+  const client = getCloudinary();
+  const timestamp = Math.round(Date.now() / 1000);
+  const signature = client.utils.api_sign_request({ folder, timestamp }, cloudinaryConfig.api_secret as string);
+
+  return {
+    signature,
+    timestamp,
+    folder,
+    apiKey: cloudinaryConfig.api_key,
+    cloudName: cloudinaryConfig.cloud_name,
+  };
+}
+
 export async function uploadRoomImage(buffer: Buffer, originalFilename: string) {
   const client = getCloudinary();
   const publicId = originalFilename.replace(/[^a-zA-Z0-9_-]/g, '-').replace(/-+/g, '-').replace(/^-|-$/g, '') || 'room-image';
