@@ -2,6 +2,7 @@
 
 import React, { useEffect, useMemo, useState } from 'react';
 import ReservationSuccess from '@/app/components/ReservationSuccess';
+import { theme } from '@/app/lib/landingTheme';
 
 type RoomOption = {
   _id: string;
@@ -188,6 +189,8 @@ export default function ReservationForm({ rooms, initialSelection, mode = 'publi
     [rooms, form.room]
   );
 
+  const packageIncludesGuests = Boolean(selectedPromoDetails?.includedPax);
+
   useEffect(() => {
     if (!selectionPicker) return;
 
@@ -204,6 +207,18 @@ export default function ReservationForm({ rooms, initialSelection, mode = 'publi
       const next = { ...current, [field]: value };
       if ((field === 'room' || field === 'checkIn' || field === 'checkOut') && current.promo) {
         next.promo = '';
+        next.adults = '1';
+        next.children = '0';
+      }
+      if (field === 'promo') {
+        const selectedPromo = eligiblePromos.find((promo) => promo._id === value);
+        if (selectedPromo?.includedPax) {
+          next.adults = String(selectedPromo.includedPax);
+          next.children = '0';
+        } else if (!value) {
+          next.adults = '1';
+          next.children = '0';
+        }
       }
       return next;
     });
@@ -358,6 +373,10 @@ export default function ReservationForm({ rooms, initialSelection, mode = 'publi
 
         const nextPromos = Array.isArray(data.eligiblePromos) ? data.eligiblePromos as PromoOption[] : [];
         setEligiblePromos(nextPromos);
+        const prefilledPromo = nextPromos.find((promo) => promo._id === form.promo);
+        if (prefilledPromo?.includedPax) {
+          setForm((current) => ({ ...current, adults: String(prefilledPromo.includedPax), children: '0' }));
+        }
         setPromoSummary({
           validPromos: Number(data?.summary?.validPromos || 0),
           expiredPromos: Number(data?.summary?.expiredPromos || 0),
@@ -375,7 +394,7 @@ export default function ReservationForm({ rooms, initialSelection, mode = 'publi
     return () => {
       window.clearTimeout(timeoutId);
     };
-  }, [form.room, form.checkIn, form.checkOut]);
+  }, [form.room, form.promo, form.checkIn, form.checkOut]);
 
   useEffect(() => {
     if (!canComputePricing) return;
@@ -431,13 +450,13 @@ export default function ReservationForm({ rooms, initialSelection, mode = 'publi
   }
 
   return (
-    <section className="rounded-3xl border border-slate-800 bg-linear-to-br from-slate-900 via-slate-900 to-slate-950 p-6 shadow-2xl shadow-black/30">
-      <div className="mb-6 border-b border-slate-800 pb-5">
+    <section className="reservation-form rounded-3xl border p-4 shadow-xl sm:p-6 lg:p-8" style={{ borderColor: `${theme.ink}1A`, backgroundColor: '#FFFDF8', boxShadow: `0 20px 50px ${theme.ink}12` }}>
+      <div className="mb-6 border-b pb-6" style={{ borderColor: `${theme.ink}1A` }}>
         <div className="flex items-start justify-between gap-3">
           <div>
-            <p className="text-xs font-semibold uppercase tracking-[0.3em] text-emerald-400">{isWalkInMode ? 'Walk-In Booking' : 'Public Reservation Form'}</p>
-            <h2 className="mt-2 text-2xl font-semibold text-white">{isWalkInMode ? 'Create a walk-in reservation' : 'Request a stay at La Velleza Resort'}</h2>
-            <p className="mt-2 text-sm text-slate-400">
+            <p className="text-xs font-semibold uppercase tracking-[0.3em]" style={{ color: theme.coral }}>{isWalkInMode ? 'Walk-In Booking' : 'Public Reservation Form'}</p>
+            <h2 className="mt-2 text-2xl font-semibold tracking-tight" style={{ color: theme.navy }}>{isWalkInMode ? 'Create a walk-in reservation' : 'Request a stay at La Velleza Resort'}</h2>
+            <p className="mt-2 text-sm" style={{ color: `${theme.ink}99` }}>
               {isWalkInMode
                 ? 'Create a reservation directly from the front desk using the same booking workflow.'
                 : 'No account is required. Submit your request and our staff will review and contact you.'}
@@ -447,7 +466,7 @@ export default function ReservationForm({ rooms, initialSelection, mode = 'publi
             <button
               type="button"
               onClick={onCancel}
-              className="rounded-lg border border-slate-700 px-3 py-2 text-xs text-slate-300 hover:bg-slate-800"
+              className="rounded-lg border px-3 py-2 text-xs transition hover:bg-black/5" style={{ borderColor: `${theme.ink}33`, color: theme.ink }}
             >
               Close
             </button>
@@ -474,20 +493,20 @@ export default function ReservationForm({ rooms, initialSelection, mode = 'publi
         </div>
       ) : null}
 
-      <div className="mb-5 rounded-2xl border border-slate-800 bg-slate-950/70 p-4">
+      <div className="mb-5 rounded-2xl border p-4" style={{ borderColor: `${theme.royal}33`, backgroundColor: `${theme.royal}0D` }}>
         <div className="mb-3">
-          <p className="text-xs font-semibold uppercase tracking-[0.2em] text-emerald-400">Stay selection</p>
-          <p className="mt-1 text-xs text-slate-400">Choose your room before entering guest details. Select a package after choosing your stay dates.</p>
+          <p className="text-xs font-semibold uppercase tracking-[0.2em]" style={{ color: theme.royal }}>Stay selection</p>
+          <p className="mt-1 text-xs" style={{ color: `${theme.ink}99` }}>Choose your room before entering guest details. Select a package after choosing your stay dates.</p>
         </div>
         <div className="grid gap-3 sm:grid-cols-2">
-          <div className="rounded-xl border border-slate-800 bg-slate-900 p-3">
-            <p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">Selected room</p>
-            <p className="mt-2 text-sm font-semibold text-white">{selectedRoomDetails ? selectedRoomDetails.name : 'No room selected'}</p>
-            {selectedRoomDetails ? <p className="mt-1 text-xs text-slate-400">{selectedRoomDetails.code}</p> : null}
+          <div className="rounded-xl border p-3" style={{ borderColor: `${theme.ink}1A`, backgroundColor: `${theme.sand}CC` }}>
+            <p className="text-xs font-semibold uppercase tracking-[0.2em]" style={{ color: `${theme.ink}80` }}>Selected room</p>
+            <p className="mt-2 text-sm font-semibold" style={{ color: theme.navy }}>{selectedRoomDetails ? selectedRoomDetails.name : 'No room selected'}</p>
+            {selectedRoomDetails ? <p className="mt-1 text-xs" style={{ color: `${theme.ink}99` }}>{selectedRoomDetails.code}</p> : null}
             <button
               type="button"
               onClick={() => setSelectionPicker('room')}
-              className="mt-3 rounded-lg border border-slate-700 px-3 py-2 text-xs font-semibold text-slate-200 hover:bg-slate-800"
+              className="mt-3 rounded-lg border px-3 py-2 text-xs font-semibold transition hover:bg-black/5" style={{ borderColor: `${theme.royal}55`, color: theme.royal }}
             >
               View &amp; change room
             </button>
@@ -495,7 +514,15 @@ export default function ReservationForm({ rooms, initialSelection, mode = 'publi
         </div>
       </div>
 
-      <form onSubmit={handleSubmit} className="space-y-4">
+      <form onSubmit={handleSubmit} className="space-y-6">
+        <div>
+          <div className="mb-3 flex items-end justify-between gap-3">
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-[0.2em] text-emerald-400">Guest details</p>
+              <p className="mt-1 text-xs text-slate-500">Tell us who will be staying with us.</p>
+            </div>
+            <span className="text-xs text-slate-500">Required fields marked by the form</span>
+          </div>
         <div className="grid gap-4 md:grid-cols-2">
           <input
             value={form.guestName}
@@ -568,27 +595,32 @@ export default function ReservationForm({ rooms, initialSelection, mode = 'publi
             ) : null}
           </div>
           <div>
-            <label className="mb-1 block text-xs uppercase tracking-wider text-slate-400">Adults</label>
+            <label className="mb-1 block text-xs uppercase tracking-wider text-slate-400">Adults{packageIncludesGuests ? ' (package)' : ''}</label>
             <input
               type="number"
               min={1}
               value={form.adults}
+              disabled={packageIncludesGuests}
               onChange={(event) => updateField('adults', event.target.value)}
-              className="w-full rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-white outline-none focus:border-emerald-500"
+              className="w-full rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-white outline-none focus:border-emerald-500 disabled:cursor-not-allowed disabled:bg-slate-800 disabled:text-slate-400"
               required
             />
           </div>
           <div>
-            <label className="mb-1 block text-xs uppercase tracking-wider text-slate-400">Children</label>
+            <label className="mb-1 block text-xs uppercase tracking-wider text-slate-400">Children{packageIncludesGuests ? ' (package)' : ''}</label>
             <input
               type="number"
               min={0}
               value={form.children}
+              disabled={packageIncludesGuests}
               onChange={(event) => updateField('children', event.target.value)}
-              className="w-full rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-white outline-none focus:border-emerald-500"
+              className="w-full rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-white outline-none focus:border-emerald-500 disabled:cursor-not-allowed disabled:bg-slate-800 disabled:text-slate-400"
               required
             />
           </div>
+          {packageIncludesGuests ? (
+            <p className="md:col-span-2 text-xs text-slate-500">This package includes {selectedPromoDetails?.includedPax} guests. Guest counts are fixed for this package.</p>
+          ) : null}
           <div className="md:col-span-2 rounded-xl border border-slate-800 bg-slate-950/70 p-4">
             <p className="text-xs font-semibold uppercase tracking-[0.2em] text-emerald-400">Additional Items</p>
             <p className="mt-1 text-xs text-slate-400">Optional extras are added to the reservation total.</p>
@@ -690,8 +722,9 @@ export default function ReservationForm({ rooms, initialSelection, mode = 'publi
             </div>
           ) : null}
         </div>
+        </div>
 
-        <div className="rounded-xl border border-slate-800 bg-slate-950/70 p-4">
+        <div className="pricing-summary rounded-2xl border border-white/15 bg-linear-to-br from-[#1F3A5F] via-[#2E5AA8] to-[#1F3A5F] p-5 text-sand shadow-lg shadow-[#1F3A5F]/25">
           <p className="text-xs font-semibold uppercase tracking-[0.2em] text-emerald-400">Pricing Summary</p>
           {pricingLoading ? (
             <p className="mt-2 text-sm text-slate-400">Calculating...</p>
@@ -734,18 +767,21 @@ export default function ReservationForm({ rooms, initialSelection, mode = 'publi
           ) : null}
         </div>
 
-        <textarea
+        <div>
+          <p className="mb-2 text-xs font-semibold uppercase tracking-[0.2em] text-slate-400">Anything else?</p>
+          <textarea
           value={form.specialRequests}
           onChange={(event) => updateField('specialRequests', event.target.value)}
           placeholder="Special Requests"
           rows={4}
           className="w-full rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-white outline-none focus:border-emerald-500"
-        />
+          />
+        </div>
 
         <button
           type="submit"
           disabled={submitting || rooms.length === 0}
-          className="w-full rounded-lg bg-emerald-600 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-emerald-500 disabled:cursor-not-allowed disabled:bg-emerald-800"
+          className="w-full rounded-xl bg-emerald-600 px-4 py-3 text-sm font-semibold text-white shadow-lg shadow-emerald-950/30 transition hover:bg-emerald-500 disabled:cursor-not-allowed disabled:bg-emerald-800"
         >
           {submitting ? (isWalkInMode ? 'Creating Walk-In Booking...' : 'Submitting Request...') : (isWalkInMode ? 'Create Walk-In Booking' : 'Submit Reservation Request')}
         </button>

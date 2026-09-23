@@ -137,3 +137,77 @@ body {
   color: var(--foreground);
   font-family: Arial, Helvetica, sans-serif;
 }
+
+.reservation-form input,
+.reservation-form select,
+.reservation-form textarea {
+  border-color: #17263A33;
+  background-color: #FBF3E4;
+  color: #17263A;
+}
+
+.reservation-form input::placeholder,
+.reservation-form textarea::placeholder {
+  color: #17263A80;
+}
+
+.reservation-form input:focus,
+.reservation-form select:focus,
+.reservation-form textarea:focus {
+  border-color: #2E5AA8;
+  box-shadow: 0 0 0 3px #2E5AA81A;
+}
+
+.reservation-form input:disabled,
+.reservation-form select:disabled {
+  border-color: #17263A1A;
+  background-color: #17263A0D;
+  color: #17263A80;
+}
+
+.reservation-form .bg-slate-950\/70,
+.reservation-form .bg-slate-950\/60,
+.reservation-form .bg-slate-900\/70,
+.reservation-form .bg-slate-900 {
+  background-color: #17263A08;
+}
+
+.reservation-form .border-slate-800,
+.reservation-form .border-slate-700 {
+  border-color: #17263A1A;
+}
+
+.reservation-form .text-white {
+  color: #1F3A5F;
+}
+
+.reservation-form .text-slate-300,
+.reservation-form .text-slate-400 {
+  color: #17263ACC;
+}
+
+.reservation-form .text-slate-500 {
+  color: #17263A99;
+}
+
+.reservation-form .pricing-summary .text-white {
+  color: #FBF3E4;
+}
+
+.reservation-form .pricing-summary .text-slate-300,
+.reservation-form .pricing-summary .text-slate-400,
+.reservation-form .pricing-summary .text-slate-500 {
+  color: #FBF3E4CC;
+}
+
+.reservation-form .pricing-summary .text-emerald-300 {
+  color: #F7C948;
+}
+
+.reservation-form .pricing-summary .border-slate-800 {
+  border-color: #FBF3E426;
+}
+
+.reservation-form .pricing-summary .bg-slate-900\/70 {
+  background-color: #17263A40;
+}
