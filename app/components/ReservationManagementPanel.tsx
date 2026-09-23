@@ -1140,7 +1140,7 @@ export default function ReservationManagementPanel({ active }: Props) {
                     <td className="px-3 py-3">{reservation.promo?.name || '—'}</td>
                     <td className="px-3 py-3">{formatDate(reservation.checkIn)}</td>
                     <td className="px-3 py-3">{formatDate(reservation.checkOut)}</td>
-                    <td className="px-3 py-3 font-semibold text-emerald-300">PHP {(reservation.pricingSummary?.grandTotal || 0).toFixed(2)}</td>
+                    <td className="px-3 py-3 font-semibold text-emerald-300">{formatMoney(reservation.pricingSummary?.grandTotal || 0)}</td>
                     <td className="px-3 py-3">
                       <span className={`inline-flex rounded-full border px-2.5 py-1 text-[11px] font-semibold ${RESERVATION_STATUS_STYLES[reservation.reservationStatus]}`}>
                         {reservation.reservationStatus.replace('_', ' ')}
@@ -1350,18 +1350,18 @@ export default function ReservationManagementPanel({ active }: Props) {
               <div className="mt-4 rounded-xl border border-slate-800 bg-slate-950/70 p-4">
                 <p className="text-xs font-semibold uppercase tracking-[0.2em] text-emerald-400">Pricing Summary</p>
                 <div className="mt-2 grid gap-2 text-sm text-slate-300 sm:grid-cols-2">
-                  <p>Room Rate ({editingReservation.pricingSummary.numberOfNights} night{editingReservation.pricingSummary.numberOfNights === 1 ? '' : 's'}): <span className="text-white">PHP {editingReservation.pricingSummary.roomRate.toFixed(2)}</span></p>
-                  <p>Extra Person Fee: <span className="text-white">PHP {editingReservation.pricingSummary.extraPersonFee.toFixed(2)}</span></p>
-                  <p>Extra Bed Fee: <span className="text-white">PHP {editingReservation.pricingSummary.extraBedFee.toFixed(2)}</span></p>
-                  <p>Add-On Total: <span className="text-white">PHP {Number(editingReservation.pricingSummary.addOnTotal || 0).toFixed(2)}</span></p>
-                  <p>Promo Discount: <span className="text-emerald-300">- PHP {editingReservation.pricingSummary.promoDiscount.toFixed(2)}</span></p>
-                  <p>Additional Room Discount: <span className="text-emerald-300">- PHP {editingReservation.pricingSummary.additionalRoomDiscount.toFixed(2)}</span></p>
-                  <p>Subtotal: <span className="text-white">PHP {editingReservation.pricingSummary.subtotal.toFixed(2)}</span></p>
-                  <p className="sm:col-span-2 text-base font-semibold">Grand Total: <span className="text-emerald-300">PHP {editingReservation.pricingSummary.grandTotal.toFixed(2)}</span></p>
+                  <p>Room Rate ({editingReservation.pricingSummary.numberOfNights} night{editingReservation.pricingSummary.numberOfNights === 1 ? '' : 's'}): <span className="text-white">{formatMoney(editingReservation.pricingSummary.roomRate)}</span></p>
+                  <p>Extra Person Fee: <span className="text-white">{formatMoney(editingReservation.pricingSummary.extraPersonFee)}</span></p>
+                  <p>Extra Bed Fee: <span className="text-white">{formatMoney(editingReservation.pricingSummary.extraBedFee)}</span></p>
+                  <p>Add-On Total: <span className="text-white">{formatMoney(Number(editingReservation.pricingSummary.addOnTotal || 0))}</span></p>
+                  <p>Promo Discount: <span className="text-emerald-300">- {formatMoney(editingReservation.pricingSummary.promoDiscount)}</span></p>
+                  <p>Additional Room Discount: <span className="text-emerald-300">- {formatMoney(editingReservation.pricingSummary.additionalRoomDiscount)}</span></p>
+                  <p>Subtotal: <span className="text-white">{formatMoney(editingReservation.pricingSummary.subtotal)}</span></p>
+                  <p className="sm:col-span-2 text-base font-semibold">Grand Total: <span className="text-emerald-300">{formatMoney(editingReservation.pricingSummary.grandTotal)}</span></p>
                 </div>
                 {editingReservation.pricingSummary.addOns?.length > 0 ? (
                   <ul className="mt-3 space-y-1 border-t border-slate-800 pt-3 text-sm text-slate-300">
-                    {editingReservation.pricingSummary.addOns.map((addOn) => <li key={addOn.addOnId}>{addOn.quantity}x {addOn.name} - PHP {addOn.totalPrice.toFixed(2)}</li>)}
+                    {editingReservation.pricingSummary.addOns.map((addOn) => <li key={addOn.addOnId}>{addOn.quantity}x {addOn.name} - {formatMoney(addOn.totalPrice)}</li>)}
                   </ul>
                 ) : null}
               </div>

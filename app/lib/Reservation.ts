@@ -44,6 +44,7 @@ export interface IReservation {
     currency: 'PHP';
     roomRate: number;
     numberOfNights: number;
+      promoPackagePrice?: number;
     extraPersonFee: number;
     extraBedFee: number;
     promoDiscount: number;
@@ -135,6 +136,7 @@ const reservationSchema = new Schema<IReservation>(
       currency: { type: String, default: 'PHP' },
       roomRate: { type: Number, default: 0, min: 0 },
       numberOfNights: { type: Number, default: 1, min: 1 },
+      promoPackagePrice: { type: Number, default: 0, min: 0 },
       extraPersonFee: { type: Number, default: 0, min: 0 },
       extraBedFee: { type: Number, default: 0, min: 0 },
       addOnTotal: { type: Number, default: 0, min: 0 },

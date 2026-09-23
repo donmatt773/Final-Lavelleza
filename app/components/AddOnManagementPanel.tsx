@@ -22,7 +22,7 @@ type FormState = {
 
 const emptyForm: FormState = { name: '', description: '', category: 'OTHER', price: '0', stockQuantity: '' };
 
-const formatMoney = (value: number) => new Intl.NumberFormat('en-PH', { style: 'currency', currency: 'PHP' }).format(value);
+const formatMoney = (value: number) => new Intl.NumberFormat('en-PH', { style: 'currency', currency: 'PHP', minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(value);
 
 export default function AddOnManagementPanel({ active }: { active: boolean }) {
   const [addOns, setAddOns] = useState<AddOnRecord[]>([]);

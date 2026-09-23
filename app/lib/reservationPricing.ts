@@ -26,6 +26,7 @@ export type ReservationPricingSummary = {
     unitPrice: number;
     totalPrice: number;
   }>;
+  promoPackagePrice: number;
   promoDiscount: number;
   additionalRoomDiscount: number;
   subtotal: number;
@@ -101,11 +102,11 @@ export async function calculateReservationPricing(input: PricingInput): Promise<
   const roomCapacity = Math.max(1, Number(roomDoc.maxGuests || 1));
   const overflowGuests = Math.max(0, totalGuests - roomCapacity);
 
-  const extraPersonFee = normalizeMoney(overflowGuests * extraPersonRate * nights);
+  let extraPersonFee = normalizeMoney(overflowGuests * extraPersonRate * nights);
 
   const doubleBeds = Math.floor(overflowGuests / 2);
   const singleBeds = overflowGuests % 2;
-  const extraBedFee = normalizeMoney((doubleBeds * extraDoubleBedRate + singleBeds * extraSingleBedRate) * nights);
+  let extraBedFee = normalizeMoney((doubleBeds * extraDoubleBedRate + singleBeds * extraSingleBedRate) * nights);
 
   const requestedAddOns = Array.isArray(input.addOns) ? input.addOns : [];
   const addOnIds = requestedAddOns.map((item) => String(item.addOnId));
@@ -136,6 +137,7 @@ export async function calculateReservationPricing(input: PricingInput): Promise<
   const addOnTotal = normalizeMoney(addOns.reduce((total, addOn) => total + addOn.totalPrice, 0));
 
   let promoDiscount = 0;
+  let promoPackagePrice = 0;
   let additionalRoomDiscount = 0;
 
   if (input.promoId && mongoose.Types.ObjectId.isValid(input.promoId)) {
@@ -150,11 +152,11 @@ export async function calculateReservationPricing(input: PricingInput): Promise<
       if (isWithinDateRange) {
         const applicability = isPromoApplicableToRoom(promoDoc, input.roomId);
         if (applicability.includedMatch) {
-          promoDiscount = normalizeMoney(Math.min(roomRate, Number(promoDoc.packagePrice || 0)));
+          promoPackagePrice = normalizeMoney(Number(promoDoc.packagePrice || 0) * nights);
         }
 
         if (promoDoc.additionalRoomDiscount && applicability.additionalMatch) {
-          const discountBase = Math.max(roomRate - promoDiscount, 0);
+          const discountBase = Math.max(promoPackagePrice || roomRate, 0);
           if (promoDoc.additionalRoomDiscount.mode === 'PERCENT') {
             additionalRoomDiscount = normalizeMoney(discountBase * (Number(promoDoc.additionalRoomDiscount.value || 0) / 100));
           } else {
@@ -172,8 +174,17 @@ export async function calculateReservationPricing(input: PricingInput): Promise<
     }
   }
 
-  const subtotal = normalizeMoney(roomRate + extraPersonFee + extraBedFee + addOnTotal);
-  const grandTotal = normalizeMoney(Math.max(subtotal - promoDiscount - additionalRoomDiscount, 0));
+  if (promoPackagePrice > 0) {
+    // A package price already covers the room and included guest capacity.
+    extraPersonFee = 0;
+    extraBedFee = 0;
+    promoDiscount = 0;
+    additionalRoomDiscount = 0;
+  }
+
+  const baseRoomCharge = promoPackagePrice || roomRate;
+  const subtotal = normalizeMoney(baseRoomCharge + extraPersonFee + extraBedFee + addOnTotal);
+  const grandTotal = normalizeMoney(Math.max(subtotal - additionalRoomDiscount, 0));
 
   return {
     currency: 'PHP',
@@ -183,6 +194,7 @@ export async function calculateReservationPricing(input: PricingInput): Promise<
     extraBedFee,
     addOnTotal,
     addOns,
+    promoPackagePrice,
     promoDiscount,
     additionalRoomDiscount,
     subtotal,

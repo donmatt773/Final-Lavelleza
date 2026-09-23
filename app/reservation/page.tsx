@@ -10,6 +10,11 @@ type RoomOption = {
   _id: string;
   name: string;
   code: string;
+  description?: string;
+  maxGuests: number;
+  nightlyRate: number;
+  halfDayRate: number;
+  wholeDayRate: number;
 };
 
 type ReservationSearchParams = Record<string, string | string[] | undefined>;
@@ -19,7 +24,7 @@ async function loadPublicReservationFormData() {
     await connectDB();
 
     const roomsRaw = await Room.find({ isArchived: false, status: 'AVAILABLE' })
-      .select('name code')
+      .select('name code description maxGuests nightlyRate halfDayRate wholeDayRate')
       .sort({ name: 1 })
       .lean();
 
@@ -27,6 +32,11 @@ async function loadPublicReservationFormData() {
       _id: String(room._id),
       name: String(room.name || ''),
       code: String(room.code || ''),
+      description: room.description || '',
+      maxGuests: Number(room.maxGuests || 0),
+      nightlyRate: Number(room.nightlyRate || 0),
+      halfDayRate: Number(room.halfDayRate || 0),
+      wholeDayRate: Number(room.wholeDayRate || 0),
     }));
 
     return { rooms };

@@ -8,6 +8,11 @@ type RoomOption = {
   _id: string;
   name: string;
   code: string;
+  description?: string;
+  maxGuests?: number;
+  nightlyRate?: number;
+  halfDayRate?: number;
+  wholeDayRate?: number;
 };
 
 type AddOnOption = {
@@ -51,6 +56,7 @@ type PricingSummary = {
     unitPrice: number;
     totalPrice: number;
   }>;
+  promoPackagePrice: number;
   promoDiscount: number;
   additionalRoomDiscount: number;
   subtotal: number;
@@ -71,6 +77,13 @@ type Props = {
 };
 
 type SelectionPicker = 'room' | 'promo' | null;
+
+const formatPeso = (value: number) => new Intl.NumberFormat('en-PH', {
+  style: 'currency',
+  currency: 'PHP',
+  minimumFractionDigits: 2,
+  maximumFractionDigits: 2,
+}).format(Number(value || 0));
 
 type FormState = {
   guestName: string;
@@ -190,6 +203,7 @@ export default function ReservationForm({ rooms, initialSelection, mode = 'publi
   );
 
   const packageIncludesGuests = Boolean(selectedPromoDetails?.includedPax);
+  const canChoosePromo = Boolean(form.room && form.checkIn && form.checkOut && !promoLoading);
 
   useEffect(() => {
     if (!selectionPicker) return;
@@ -499,17 +513,46 @@ export default function ReservationForm({ rooms, initialSelection, mode = 'publi
           <p className="mt-1 text-xs" style={{ color: `${theme.ink}99` }}>Choose your room before entering guest details. Select a package after choosing your stay dates.</p>
         </div>
         <div className="grid gap-3 sm:grid-cols-2">
-          <div className="rounded-xl border p-3" style={{ borderColor: `${theme.ink}1A`, backgroundColor: `${theme.sand}CC` }}>
-            <p className="text-xs font-semibold uppercase tracking-[0.2em]" style={{ color: `${theme.ink}80` }}>Selected room</p>
-            <p className="mt-2 text-sm font-semibold" style={{ color: theme.navy }}>{selectedRoomDetails ? selectedRoomDetails.name : 'No room selected'}</p>
-            {selectedRoomDetails ? <p className="mt-1 text-xs" style={{ color: `${theme.ink}99` }}>{selectedRoomDetails.code}</p> : null}
-            <button
-              type="button"
-              onClick={() => setSelectionPicker('room')}
-              className="mt-3 rounded-lg border px-3 py-2 text-xs font-semibold transition hover:bg-black/5" style={{ borderColor: `${theme.royal}55`, color: theme.royal }}
-            >
-              View &amp; change room
-            </button>
+          <div className="rounded-xl border p-3 sm:col-span-2" style={{ borderColor: `${theme.ink}1A`, backgroundColor: `${theme.sand}CC` }}>
+            <div className="grid gap-6 md:grid-cols-[minmax(0,0.8fr)_minmax(0,1.2fr)] md:items-start">
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-[0.2em]" style={{ color: `${theme.ink}80` }}>Selected room</p>
+                <p className="mt-2 text-sm font-semibold" style={{ color: theme.navy }}>{selectedRoomDetails ? selectedRoomDetails.name : 'No room selected'}</p>
+                {selectedRoomDetails ? <p className="mt-1 text-xs" style={{ color: `${theme.ink}99` }}>{selectedRoomDetails.code}</p> : null}
+                {selectedRoomDetails?.description ? <p className="mt-3 text-xs leading-5" style={{ color: `${theme.ink}99` }}>{selectedRoomDetails.description}</p> : null}
+                <button
+                  type="button"
+                  onClick={() => setSelectionPicker('room')}
+                  className="mt-4 rounded-lg border px-3 py-2 text-xs font-semibold transition hover:bg-black/5" style={{ borderColor: `${theme.royal}55`, color: theme.royal }}
+                >
+                  View &amp; change room
+                </button>
+              </div>
+              {selectedRoomDetails ? (
+                <div className="grid grid-cols-2 gap-x-6 gap-y-4 border-t pt-4 text-sm md:border-l md:border-t-0 md:pl-7 md:pt-0" style={{ borderColor: `${theme.ink}1A` }}>
+                  <div>
+                    <p className="text-[10px] uppercase tracking-wider" style={{ color: `${theme.ink}80` }}>Capacity</p>
+                    <p className="mt-1 font-semibold" style={{ color: theme.royal }}>{selectedRoomDetails.maxGuests ? `${selectedRoomDetails.maxGuests} guests` : 'Not specified'}</p>
+                  </div>
+                  <div>
+                    <p className="text-[10px] uppercase tracking-wider" style={{ color: `${theme.ink}80` }}>Nightly rate</p>
+                    <p className="mt-1 font-semibold" style={{ color: theme.coral }}>{selectedRoomDetails.nightlyRate !== undefined ? formatPeso(selectedRoomDetails.nightlyRate) : 'Not available'}</p>
+                  </div>
+                  <div>
+                    <p className="text-[10px] uppercase tracking-wider" style={{ color: `${theme.ink}80` }}>Half day</p>
+                    <p className="mt-1 font-semibold" style={{ color: theme.navy }}>{selectedRoomDetails.halfDayRate !== undefined ? formatPeso(selectedRoomDetails.halfDayRate) : 'Not available'}</p>
+                  </div>
+                  <div>
+                    <p className="text-[10px] uppercase tracking-wider" style={{ color: `${theme.ink}80` }}>Whole day</p>
+                    <p className="mt-1 font-semibold" style={{ color: theme.navy }}>{selectedRoomDetails.wholeDayRate !== undefined ? formatPeso(selectedRoomDetails.wholeDayRate) : 'Not available'}</p>
+                  </div>
+                </div>
+              ) : (
+                <div className="flex items-center border-t pt-4 text-xs md:border-l md:border-t-0 md:pl-7 md:pt-0" style={{ borderColor: `${theme.ink}1A`, color: `${theme.ink}99` }}>
+                  Room details will appear here after you make a selection.
+                </div>
+              )}
+            </div>
           </div>
         </div>
       </div>
@@ -575,24 +618,58 @@ export default function ReservationForm({ rooms, initialSelection, mode = 'publi
             />
           </div>
           <div className="md:col-span-2 rounded-xl border border-slate-800 bg-slate-950/70 p-4">
-            <p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">Selected promo package</p>
-            <p className="mt-2 text-sm font-semibold text-white">{selectedPromoDetails ? selectedPromoDetails.name : 'No promo selected'}</p>
-            {selectedPromoDetails ? (
-              <p className="mt-1 text-xs text-slate-400">
-                {selectedPromoDetails.code} · PHP {selectedPromoDetails.packagePrice.toFixed(2)}
-              </p>
-            ) : null}
-            <button
-              type="button"
-              onClick={() => setSelectionPicker('promo')}
-              disabled={!form.room || !form.checkIn || !form.checkOut || promoLoading}
-              className="mt-3 rounded-lg border border-slate-700 px-3 py-2 text-xs font-semibold text-slate-200 hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-40"
-            >
-              {promoLoading ? 'Loading packages...' : 'View & change package'}
-            </button>
-            {!form.room || !form.checkIn || !form.checkOut ? (
-              <p className="mt-2 text-xs text-slate-500">Select a room and both stay dates to view eligible packages.</p>
-            ) : null}
+            <div className="grid gap-7 md:grid-cols-[minmax(0,0.8fr)_minmax(0,1.2fr)] md:items-start">
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">Selected promo package</p>
+                <p className="mt-2 text-sm font-semibold text-white">{selectedPromoDetails ? selectedPromoDetails.name : 'No promo selected'}</p>
+                {selectedPromoDetails ? (
+                  <p className="mt-1 text-xs text-slate-400">{selectedPromoDetails.code}</p>
+                ) : null}
+                <button
+                  type="button"
+                  onClick={() => setSelectionPicker('promo')}
+                  disabled={!canChoosePromo}
+                  className={`mt-3 rounded-lg border px-3 py-2 text-xs font-semibold transition ${canChoosePromo ? 'border-[#2E5AA8]/40 bg-[#2E5AA8]/10 text-[#1F3A5F] hover:bg-[#2E5AA8]/20' : 'cursor-not-allowed border-slate-700/30 text-slate-400 opacity-60'}`}
+                >
+                  {promoLoading ? 'Loading packages...' : 'View & change package'}
+                </button>
+                {!form.room || !form.checkIn || !form.checkOut ? (
+                  <p className="mt-2 text-xs text-slate-500">Select a room and both stay dates to view eligible packages.</p>
+                ) : null}
+              </div>
+              {selectedPromoDetails ? (
+                <div className="grid grid-cols-2 gap-x-6 gap-y-4 border-t border-slate-800 pt-4 text-sm md:border-l md:border-t-0 md:pl-7 md:pt-0">
+                  <div>
+                    <p className="text-[10px] uppercase tracking-wider text-slate-500">Package price</p>
+                    <p className="mt-1 font-semibold text-[#E85C3E]">{formatPeso(selectedPromoDetails.packagePrice)}</p>
+                  </div>
+                  <div>
+                    <p className="text-[10px] uppercase tracking-wider text-slate-500">Included guests</p>
+                    <p className="mt-1 font-semibold text-[#2E5AA8]">{selectedPromoDetails.includedPax || 'Flexible'}</p>
+                  </div>
+                  <div className="col-span-2">
+                    <p className="text-[10px] uppercase tracking-wider text-slate-500">Package inclusions</p>
+                    {selectedPromoDetails.inclusions && selectedPromoDetails.inclusions.length > 0 ? (
+                      <ul className="mt-1 grid gap-x-5 gap-y-1 text-xs text-slate-400 sm:grid-cols-2">
+                        {selectedPromoDetails.inclusions.map((inclusion, index) => (
+                          <li key={inclusion._id || `${selectedPromoDetails._id}-summary-${index}`}>
+                            <span className="mr-1 text-[#E85C3E]">•</span>
+                            {inclusion.quantity && inclusion.quantity > 1 ? `${inclusion.quantity}x ` : ''}
+                            {inclusion.name || 'Included item'}
+                          </li>
+                        ))}
+                      </ul>
+                    ) : (
+                      <p className="mt-1 text-xs text-slate-400">No inclusions listed.</p>
+                    )}
+                  </div>
+                </div>
+              ) : (
+                <div className="flex items-center border-t border-slate-800 pt-4 text-xs text-slate-500 md:border-l md:border-t-0 md:pl-5 md:pt-0">
+                  Package details will appear here after you make a selection.
+                </div>
+              )}
+            </div>
           </div>
           <div>
             <label className="mb-1 block text-xs uppercase tracking-wider text-slate-400">Adults{packageIncludesGuests ? ' (package)' : ''}</label>
@@ -632,7 +709,7 @@ export default function ReservationForm({ rooms, initialSelection, mode = 'publi
                     <div key={addOn._id} className="flex items-center justify-between gap-3 rounded-lg border border-slate-800 bg-slate-900 px-3 py-2">
                       <div>
                         <p className="text-sm font-medium text-white">{addOn.name}</p>
-                        <p className="text-xs text-slate-400">PHP {Number(addOn.price || 0).toFixed(2)}{addOn.stockQuantity !== null && addOn.stockQuantity !== undefined ? ` · ${addOn.stockQuantity} available` : ''}</p>
+                        <p className="text-xs text-slate-400">{formatPeso(Number(addOn.price || 0))}{addOn.stockQuantity !== null && addOn.stockQuantity !== undefined ? ` · ${addOn.stockQuantity} available` : ''}</p>
                       </div>
                       <input
                         type="number"
@@ -730,14 +807,15 @@ export default function ReservationForm({ rooms, initialSelection, mode = 'publi
             <p className="mt-2 text-sm text-slate-400">Calculating...</p>
           ) : canComputePricing && pricingSummary ? (
             <div className="mt-3 grid gap-2 text-sm text-slate-300 sm:grid-cols-2">
-              <p>Room Rate ({pricingSummary.numberOfNights} night{pricingSummary.numberOfNights === 1 ? '' : 's'}): <span className="text-white">PHP {pricingSummary.roomRate.toFixed(2)}</span></p>
-              <p>Extra Person Fee: <span className="text-white">PHP {pricingSummary.extraPersonFee.toFixed(2)}</span></p>
-              <p>Extra Bed Fee: <span className="text-white">PHP {pricingSummary.extraBedFee.toFixed(2)}</span></p>
-              <p>Add-On Total: <span className="text-white">PHP {pricingSummary.addOnTotal.toFixed(2)}</span></p>
-              <p>Promo Discount: <span className="text-emerald-300">- PHP {pricingSummary.promoDiscount.toFixed(2)}</span></p>
-              <p>Additional Room Discount: <span className="text-emerald-300">- PHP {pricingSummary.additionalRoomDiscount.toFixed(2)}</span></p>
-              <p>Subtotal: <span className="text-white">PHP {pricingSummary.subtotal.toFixed(2)}</span></p>
-              <p className="sm:col-span-2 text-base font-semibold">Grand Total: <span className="text-emerald-300">PHP {pricingSummary.grandTotal.toFixed(2)}</span></p>
+              {pricingSummary.promoPackagePrice > 0 ? null : <p>Room Rate ({pricingSummary.numberOfNights} night{pricingSummary.numberOfNights === 1 ? '' : 's'}): <span className="text-white">{formatPeso(pricingSummary.roomRate)}</span></p>}
+              {pricingSummary.promoPackagePrice > 0 ? <p>Package Price: <span className="text-white">{formatPeso(pricingSummary.promoPackagePrice)}</span></p> : null}
+              <p>Extra Person Fee: <span className="text-white">{formatPeso(pricingSummary.extraPersonFee)}</span></p>
+              <p>Extra Bed Fee: <span className="text-white">{formatPeso(pricingSummary.extraBedFee)}</span></p>
+              <p>Add-On Total: <span className="text-white">{formatPeso(pricingSummary.addOnTotal)}</span></p>
+              {pricingSummary.promoPackagePrice > 0 ? null : <p>Promo Discount: <span className="text-emerald-300">- {formatPeso(pricingSummary.promoDiscount)}</span></p>}
+              {pricingSummary.promoPackagePrice > 0 ? null : <p>Additional Room Discount: <span className="text-emerald-300">- {formatPeso(pricingSummary.additionalRoomDiscount)}</span></p>}
+              <p>Subtotal: <span className="text-white">{formatPeso(pricingSummary.subtotal)}</span></p>
+              <p className="sm:col-span-2 text-base font-semibold">Grand Total: <span className="text-emerald-300">{formatPeso(pricingSummary.grandTotal)}</span></p>
             </div>
           ) : (
             <p className="mt-2 text-sm text-slate-500">Select room and stay details to view total pricing.</p>
@@ -761,7 +839,7 @@ export default function ReservationForm({ rooms, initialSelection, mode = 'publi
             <div className="mt-4 rounded-lg border border-slate-800 bg-slate-900/70 p-3">
               <p className="text-xs font-semibold uppercase tracking-[0.15em] text-emerald-400">Additional Items</p>
               <ul className="mt-2 space-y-1 text-sm text-slate-300">
-                {pricingSummary.addOns.map((addOn) => <li key={addOn.addOnId}>{addOn.quantity}x {addOn.name} - PHP {addOn.totalPrice.toFixed(2)}</li>)}
+                {pricingSummary.addOns.map((addOn) => <li key={addOn.addOnId}>{addOn.quantity}x {addOn.name} - {formatPeso(addOn.totalPrice)}</li>)}
               </ul>
             </div>
           ) : null}
@@ -798,11 +876,13 @@ export default function ReservationForm({ rooms, initialSelection, mode = 'publi
 
       {selectionPicker ? (
         <div
-          className="fixed inset-0 z-60 flex items-center justify-center bg-slate-950/80 p-4"
+          className="fixed inset-0 z-60 flex items-center justify-center p-4"
+          style={{ backgroundColor: `${theme.navy}CC` }}
           onClick={() => setSelectionPicker(null)}
         >
           <div
-            className="max-h-[85vh] w-full max-w-xl overflow-y-auto rounded-2xl border border-slate-700 bg-slate-900 p-5 shadow-2xl"
+            className="max-h-[85vh] w-full max-w-xl overflow-y-auto rounded-2xl border p-5 shadow-2xl"
+            style={{ backgroundColor: theme.sand, borderColor: `${theme.ink}26`, boxShadow: `0 24px 60px ${theme.navy}55` }}
             onClick={(event) => event.stopPropagation()}
           >
             <div className="flex items-start justify-between gap-4">
@@ -816,7 +896,8 @@ export default function ReservationForm({ rooms, initialSelection, mode = 'publi
                 type="button"
                 onClick={() => setSelectionPicker(null)}
                 aria-label="Close selection dialog"
-                className="flex h-8 w-8 items-center justify-center rounded-full border border-slate-700 text-lg text-slate-300 hover:bg-slate-800"
+                className="flex h-8 w-8 items-center justify-center rounded-full border text-lg transition hover:bg-black/5"
+                style={{ borderColor: `${theme.ink}33`, color: theme.navy }}
               >
                 ×
               </button>
@@ -851,7 +932,7 @@ export default function ReservationForm({ rooms, initialSelection, mode = 'publi
                 >
                   <span>
                     <span className="block text-sm font-semibold text-white">{promo.name}</span>
-                    <span className="mt-1 block text-xs text-slate-400">{promo.code} · PHP {promo.packagePrice.toFixed(2)}{promo.includedPax ? ` · Good for ${promo.includedPax}` : ''}</span>
+                    <span className="mt-1 block text-xs text-slate-400">{promo.code} · {formatPeso(promo.packagePrice)}{promo.includedPax ? ` · Good for ${promo.includedPax}` : ''}</span>
                   </span>
                   {form.promo === promo._id ? <span className="shrink-0 text-xs font-semibold text-emerald-300">Selected</span> : null}
                 </button>
