@@ -110,8 +110,8 @@ export default async function Home() {
         <svg className="pointer-events-none absolute inset-x-0 bottom-0 h-40 w-full opacity-30" viewBox="0 0 1200 160" preserveAspectRatio="none">
           <path d="M0,120 C200,60 400,150 600,90 C800,40 1000,130 1200,80 L1200,160 L0,160 Z" fill={theme.royal} />
         </svg>
-        <div className="pointer-events-none absolute right-16 top-16 h-24 w-24 rounded-full opacity-60 blur-sm" style={{ backgroundColor: theme.sunset }} />
-        <div className="pointer-events-none absolute right-24 top-20 h-14 w-14 rounded-full opacity-70 blur-[2px]" style={{ backgroundColor: theme.gold }} />
+        <div className="pointer-events-none absolute right-16 top-28 h-24 w-24 rounded-full opacity-60 blur-sm" style={{ backgroundColor: theme.sunset }} />
+        <div className="pointer-events-none absolute right-24 top-32 h-14 w-14 rounded-full opacity-70 blur-[2px]" style={{ backgroundColor: theme.gold }} />
 
         <div className="relative mx-auto max-w-5xl px-6 py-28 text-center sm:py-36">
           <p className="text-xs font-semibold uppercase tracking-[0.4em]" style={{ color: theme.gold }}>
@@ -191,7 +191,7 @@ export default async function Home() {
       </section>
 
       {/* FOOTER */}
-      <footer className="px-6 pb-6 pt-14 sm:pt-16" style={{ backgroundColor: theme.navy, color: theme.sand }}>
+      <footer className="px-6 pb-6 pt-14 sm:pt-16" style={{ background: `linear-gradient(135deg, ${theme.navy}, ${theme.royal} 58%, ${theme.navy})`, color: theme.sand }}>
         <div className="mx-auto max-w-6xl">
           <div className="grid gap-10 border-b pb-12 sm:grid-cols-2 lg:grid-cols-[1.5fr_1fr_1fr_1.2fr]" style={{ borderColor: `${theme.sand}26` }}>
             <div>
