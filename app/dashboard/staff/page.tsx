@@ -11,7 +11,7 @@ export default function StaffDashboard() {
   const [activeTab, setActiveTab] = useState<StaffTab>('overview');
 
   return (
-    <div className="min-h-screen bg-slate-900 p-8 text-white">
+    <div className="min-h-screen bg-slate-900 p-4 text-white sm:p-6 lg:p-8">
       <div className="mx-auto max-w-7xl">
         <header className="mb-6 flex flex-col justify-between gap-4 border-b border-slate-800 pb-5 sm:flex-row sm:items-center">
           <div>

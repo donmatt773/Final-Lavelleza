@@ -22,6 +22,7 @@ export default function DashboardLayout({
   const pathname = usePathname();
   const [activeTab, setActiveTab] = useState<DashboardTab>('reservations');
   const [isOwner, setIsOwner] = useState(false);
+  const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
 
   React.useEffect(() => {
     const timeoutId = window.setTimeout(() => {
@@ -48,102 +49,122 @@ export default function DashboardLayout({
   return (
     <div className="flex min-h-screen bg-slate-950">
       {/* Persistent System Control Sidebar */}
-      <aside className="w-64 bg-slate-900 border-r border-slate-800 flex flex-col justify-between p-6 shrink-0">
-        <div className="space-y-8">
+      <aside className={`${isSidebarCollapsed ? 'w-14 sm:w-16' : 'w-64 max-sm:absolute max-sm:z-30 max-sm:h-full'} flex min-h-screen shrink-0 flex-col justify-between border-r border-slate-800 bg-slate-900 p-3 transition-[width] duration-200 sm:p-4 lg:p-6`}>
+        <div className="space-y-6">
           {/* Logo Element */}
-          <div className="flex items-center space-x-3 px-2">
-            <div className="w-8 h-8 rounded bg-emerald-600 flex items-center justify-center font-bold text-white text-sm">
-              LV
+          <div className={`flex items-center ${isSidebarCollapsed ? 'flex-col justify-center gap-2' : 'justify-between gap-3'} px-1`}>
+            <div className="flex min-w-0 items-center gap-3">
+              <div className="flex h-8 w-8 items-center justify-center rounded bg-emerald-600 text-sm font-bold text-white">
+                LV
+              </div>
+              {!isSidebarCollapsed ? <span className="truncate text-sm font-bold tracking-wide text-white">La Velleza System</span> : null}
             </div>
-            <span className="font-bold text-white tracking-wide text-sm">La Velleza System</span>
+            <button
+              type="button"
+              onClick={() => setIsSidebarCollapsed((collapsed) => !collapsed)}
+              aria-label={isSidebarCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+              title={isSidebarCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+              className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-slate-700 text-lg text-slate-400 transition hover:bg-slate-800 hover:text-white"
+            >
+              {isSidebarCollapsed ? '›' : '‹'}
+            </button>
           </div>
 
           {/* Navigation Links Group */}
           <nav className="space-y-1.5">
-            <p className="text-[10px] font-bold uppercase tracking-wider text-slate-500 px-2 mb-2">Main Menu</p>
+            {!isSidebarCollapsed ? <p className="mb-2 px-2 text-[10px] font-bold uppercase tracking-wider text-slate-500">Main Menu</p> : null}
             <button
               type="button"
               onClick={() => setActiveTab('overview')}
-              className={`w-full text-left font-medium text-xs px-3 py-2.5 rounded-lg transition-all ${activeTab === 'overview' ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20' : 'text-slate-400 hover:bg-slate-800/30 hover:text-white'}`}
+              aria-label={isOwner ? 'Owner Overview' : 'Overview'}
+              className={`flex w-full items-center ${isSidebarCollapsed ? 'justify-center' : ''} gap-2 rounded-lg px-3 py-2.5 text-left text-xs font-medium transition-all ${activeTab === 'overview' ? 'border border-emerald-500/20 bg-emerald-500/10 text-emerald-400' : 'text-slate-400 hover:bg-slate-800/30 hover:text-white'}`}
             >
-              🎛️ {isOwner ? 'Owner Overview' : 'Overview'}
+              <span aria-hidden="true">🎛️</span>{!isSidebarCollapsed ? <span>{isOwner ? 'Owner Overview' : 'Overview'}</span> : null}
             </button>
             <button
               type="button"
               onClick={() => setActiveTab('reservations')}
-              className={`w-full text-left font-medium text-xs px-3 py-2.5 rounded-lg transition-all ${activeTab === 'reservations' ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20' : 'text-slate-400 hover:bg-slate-800/30 hover:text-white'}`}
+              aria-label="Reservation Management"
+              className={`flex w-full items-center ${isSidebarCollapsed ? 'justify-center' : ''} gap-2 rounded-lg px-3 py-2.5 text-left text-xs font-medium transition-all ${activeTab === 'reservations' ? 'border border-emerald-500/20 bg-emerald-500/10 text-emerald-400' : 'text-slate-400 hover:bg-slate-800/30 hover:text-white'}`}
             >
-              📋 Reservation Management
+              <span aria-hidden="true">📋</span>{!isSidebarCollapsed ? <span>Reservation Management</span> : null}
             </button>
             {isOwner ? (
               <button
                 type="button"
                 onClick={() => setActiveTab('users')}
-                className={`w-full text-left font-medium text-xs px-3 py-2.5 rounded-lg transition-all ${activeTab === 'users' ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20' : 'text-slate-400 hover:bg-slate-800/30 hover:text-white'}`}
+                aria-label="User Management"
+                className={`flex w-full items-center ${isSidebarCollapsed ? 'justify-center' : ''} gap-2 rounded-lg px-3 py-2.5 text-left text-xs font-medium transition-all ${activeTab === 'users' ? 'border border-emerald-500/20 bg-emerald-500/10 text-emerald-400' : 'text-slate-400 hover:bg-slate-800/30 hover:text-white'}`}
               >
-                👤 User Management
+                <span aria-hidden="true">👤</span>{!isSidebarCollapsed ? <span>User Management</span> : null}
               </button>
             ) : null}
             {isOwner ? (
               <button
               type="button"
               onClick={() => setActiveTab('rooms')}
-              className={`w-full text-left font-medium text-xs px-3 py-2.5 rounded-lg transition-all ${activeTab === 'rooms' ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20' : 'text-slate-400 hover:bg-slate-800/30 hover:text-white'}`}
+              aria-label="Room Management"
+              className={`flex w-full items-center ${isSidebarCollapsed ? 'justify-center' : ''} gap-2 rounded-lg px-3 py-2.5 text-left text-xs font-medium transition-all ${activeTab === 'rooms' ? 'border border-emerald-500/20 bg-emerald-500/10 text-emerald-400' : 'text-slate-400 hover:bg-slate-800/30 hover:text-white'}`}
               >
-                🛏️ Room Management
+                <span aria-hidden="true">🛏️</span>{!isSidebarCollapsed ? <span>Room Management</span> : null}
               </button>
             ) : null}
             {isOwner ? (
               <button
               type="button"
               onClick={() => setActiveTab('promos')}
-              className={`w-full text-left font-medium text-xs px-3 py-2.5 rounded-lg transition-all ${activeTab === 'promos' ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20' : 'text-slate-400 hover:bg-slate-800/30 hover:text-white'}`}
+              aria-label="Promo Management"
+              className={`flex w-full items-center ${isSidebarCollapsed ? 'justify-center' : ''} gap-2 rounded-lg px-3 py-2.5 text-left text-xs font-medium transition-all ${activeTab === 'promos' ? 'border border-emerald-500/20 bg-emerald-500/10 text-emerald-400' : 'text-slate-400 hover:bg-slate-800/30 hover:text-white'}`}
               >
-                🎁 Promo Management
+                <span aria-hidden="true">🎁</span>{!isSidebarCollapsed ? <span>Promo Management</span> : null}
               </button>
             ) : null}
             {isOwner ? (
               <button
               type="button"
               onClick={() => setActiveTab('add-ons')}
-              className={`w-full text-left font-medium text-xs px-3 py-2.5 rounded-lg transition-all ${activeTab === 'add-ons' ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20' : 'text-slate-400 hover:bg-slate-800/30 hover:text-white'}`}
+              aria-label="Add-On Management"
+              className={`flex w-full items-center ${isSidebarCollapsed ? 'justify-center' : ''} gap-2 rounded-lg px-3 py-2.5 text-left text-xs font-medium transition-all ${activeTab === 'add-ons' ? 'border border-emerald-500/20 bg-emerald-500/10 text-emerald-400' : 'text-slate-400 hover:bg-slate-800/30 hover:text-white'}`}
               >
-                🧺 Add-On Management
+                <span aria-hidden="true">🧺</span>{!isSidebarCollapsed ? <span>Add-On Management</span> : null}
               </button>
             ) : null}
             <button
               type="button"
               onClick={() => setActiveTab('reports')}
-              className={`w-full text-left font-medium text-xs px-3 py-2.5 rounded-lg transition-all ${activeTab === 'reports' ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20' : 'text-slate-400 hover:bg-slate-800/30 hover:text-white'}`}
+              aria-label="Payment Reports"
+              className={`flex w-full items-center ${isSidebarCollapsed ? 'justify-center' : ''} gap-2 rounded-lg px-3 py-2.5 text-left text-xs font-medium transition-all ${activeTab === 'reports' ? 'border border-emerald-500/20 bg-emerald-500/10 text-emerald-400' : 'text-slate-400 hover:bg-slate-800/30 hover:text-white'}`}
             >
-              📊 Payment Reports
+              <span aria-hidden="true">📊</span>{!isSidebarCollapsed ? <span>Payment Reports</span> : null}
             </button>
             {isOwner ? (
               <button
               type="button"
               onClick={() => setActiveTab('rate-settings')}
-              className={`w-full text-left font-medium text-xs px-3 py-2.5 rounded-lg transition-all ${activeTab === 'rate-settings' ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20' : 'text-slate-400 hover:bg-slate-800/30 hover:text-white'}`}
+              aria-label="Rate Settings"
+              className={`flex w-full items-center ${isSidebarCollapsed ? 'justify-center' : ''} gap-2 rounded-lg px-3 py-2.5 text-left text-xs font-medium transition-all ${activeTab === 'rate-settings' ? 'border border-emerald-500/20 bg-emerald-500/10 text-emerald-400' : 'text-slate-400 hover:bg-slate-800/30 hover:text-white'}`}
               >
-                ⚙️ Rate Settings
+                <span aria-hidden="true">⚙️</span>{!isSidebarCollapsed ? <span>Rate Settings</span> : null}
               </button>
             ) : null}
           </nav>
         </div>
 
         {/* Action Controls Group */}
-        <div className="pt-4 border-t border-slate-800/60">
+        <div className="border-t border-slate-800/60 pt-4">
           <button 
             onClick={handleLogout}
-            className="w-full flex items-center justify-center space-x-2 bg-slate-950 hover:bg-rose-950/20 text-slate-400 hover:text-rose-400 border border-slate-800/80 hover:border-rose-900/30 rounded-lg py-2.5 text-xs font-semibold transition-all shadow-inner"
+            aria-label="Terminate session"
+            className="flex w-full items-center justify-center rounded-lg border border-slate-800/80 bg-slate-950 py-2.5 text-xs font-semibold text-slate-400 shadow-inner transition-all hover:border-rose-900/30 hover:bg-rose-950/20 hover:text-rose-400"
           >
-            <span>🛑 Terminate Session</span>
+            <span aria-hidden="true">🛑</span>{!isSidebarCollapsed ? <span className="ml-2">Terminate Session</span> : null}
           </button>
         </div>
       </aside>
 
       {/* Main Core Component Viewport Area */}
-      <div className="flex-1 overflow-y-auto">
-        <div className="p-8">
+      <div className="min-w-0 flex-1 overflow-y-auto">
+        <div className="p-3 sm:p-6 lg:p-8">
           {pathname?.includes('/dashboard/owner') || pathname?.includes('/dashboard/staff') ? (
             <div className="mt-2">
               {activeTab === 'users' && isOwner ? <UserManagementPanel active={true} /> : activeTab === 'rooms' && isOwner ? <RoomManagementPanel active={true} /> : activeTab === 'promos' && isOwner ? <PromoManagementPanel active={true} /> : activeTab === 'add-ons' && isOwner ? <AddOnManagementPanel active={true} /> : activeTab === 'reservations' ? <ReservationManagementPanel active={true} /> : activeTab === 'reports' ? <PaymentReportsPanel active={true} /> : activeTab === 'rate-settings' && isOwner ? <RoomRateSettingsPanel active={true} /> : (

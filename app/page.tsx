@@ -11,6 +11,7 @@ import RealtimeLandingRefresh from '@/components/RealtimeLandingRefresh';
 import { theme } from '@/app/lib/landingTheme';
 import { peso } from '@/app/lib/landingFormat';
 import type { FeaturedRoom, FeaturedPromo } from '@/app/lib/landingTypes';
+import logo from '@/app/icons/logo.jpg';
 
 export const dynamic = 'force-dynamic';
 
@@ -184,27 +185,85 @@ export default async function Home() {
         </section>
       ) : null}
 
-      {/* CTA STRIP */}
-      <section className="px-6 py-20 text-center">
-        <h2 className="font-serif text-3xl" style={{ color: theme.caramel }}>Ready when you are.</h2>
-        <p className="mx-auto mt-3 max-w-md text-sm" style={{ color: `${theme.ink}99` }}>
-          Submit a reservation request — no account needed. Our staff confirms availability and follows up by email or phone.
-        </p>
-        <Link
-          href="/reservation"
-          className="mt-8 inline-block rounded-full px-8 py-3 text-sm font-semibold transition hover:opacity-90"
-          style={{ backgroundColor: theme.navy, color: theme.sand }}
-        >
-          Start a reservation
-        </Link>
+      {/* LOCATION */}
+      <section id="location" className="px-6 py-16 sm:py-20" style={{ backgroundColor: `${theme.royal}0D` }}>
+        <div className="mx-auto grid max-w-6xl gap-8 lg:grid-cols-[1.15fr_0.85fr] lg:items-center">
+          <div className="order-2 overflow-hidden rounded-2xl border shadow-sm lg:order-1" style={{ borderColor: `${theme.ink}1A` }}>
+            <iframe
+              title="La Velleza Resort location on Google Maps"
+              src="https://www.google.com/maps?q=7.9560259,123.5980586&z=17&output=embed"
+              className="h-72 w-full sm:h-96"
+              loading="lazy"
+              referrerPolicy="no-referrer-when-downgrade"
+            />
+          </div>
+
+          <div className="order-1 lg:order-2">
+            <p className="text-xs font-semibold uppercase tracking-[0.3em]" style={{ color: theme.coral }}>Find us</p>
+            <h2 className="mt-3 font-serif text-4xl leading-tight" style={{ color: theme.caramel }}>Make your way to La Velleza.</h2>
+            <p className="mt-4 max-w-md text-sm leading-6" style={{ color: `${theme.ink}99` }}>
+              See the resort location, plan your route, and come ready for pool days, family gatherings, and slow mornings by the water.
+            </p>
+            <p className="mt-5 text-sm font-semibold" style={{ color: theme.royal }}>La Velleza Resort</p>
+            <p className="mt-1 text-sm" style={{ color: `${theme.ink}99` }}>Zamboanga del Norte, Philippines</p>
+            <a
+              href="https://www.google.com/maps/place/La+velleza+resort/@7.9560259,123.5954783,17z/data=!3m1!4b1!4m6!3m5!1s0x325439007a07a1ad:0x73120fd54fab48de!8m2!3d7.9560259!4d123.5980586!16s%2Fg%2F11vpylgs11?entry=ttu&g_ep=EgoyMDI2MDkyMC4wIKXMDSoASAFQAw%3D%3D"
+              target="_blank"
+              rel="noreferrer"
+              className="mt-6 inline-flex rounded-full px-6 py-3 text-sm font-semibold transition hover:opacity-90"
+              style={{ backgroundColor: theme.navy, color: theme.sand }}
+            >
+              Open in Google Maps
+            </a>
+          </div>
+        </div>
       </section>
 
       {/* FOOTER */}
-      <footer className="border-t px-6 py-10 text-center text-xs" style={{ borderColor: `${theme.ink}1A`, color: `${theme.ink}99` }}>
-        <p>La Velleza Events Place &amp; Hidden Resort · Check-in {rateSettings.checkInTime} · Check-out {rateSettings.checkOutTime}</p>
-        <p className="mt-2">
-          <Link href="/login" className="underline underline-offset-4">Staff &amp; owner login</Link>
-        </p>
+      <footer className="px-6 pb-6 pt-14 sm:pt-16" style={{ backgroundColor: theme.navy, color: theme.sand }}>
+        <div className="mx-auto max-w-6xl">
+          <div className="grid gap-10 border-b pb-12 sm:grid-cols-2 lg:grid-cols-[1.5fr_1fr_1fr_1.2fr]" style={{ borderColor: `${theme.sand}26` }}>
+            <div>
+              <Link href="/" className="inline-flex items-center gap-3">
+                <Image src={logo} alt="La Velleza Resort" className="h-10 w-10 rounded-full object-cover" />
+                <span className="font-serif text-2xl">La Velleza</span>
+              </Link>
+              <p className="mt-5 max-w-xs text-sm leading-6" style={{ color: `${theme.sand}B8` }}>
+                A place for slow mornings, meaningful gatherings, and easy stays by the water.
+              </p>
+            </div>
+
+            <div>
+              <h2 className="text-xs font-semibold uppercase tracking-[0.22em]" style={{ color: theme.gold }}>Explore</h2>
+              <nav className="mt-4 flex flex-col items-start gap-3 text-sm" aria-label="Footer navigation">
+                <a href="#rooms" className="transition hover:text-white" style={{ color: `${theme.sand}CC` }}>Rooms &amp; stays</a>
+                <a href="#promos" className="transition hover:text-white" style={{ color: `${theme.sand}CC` }}>Package promos</a>
+                <Link href="/reservation" className="transition hover:text-white" style={{ color: `${theme.sand}CC` }}>Make a reservation</Link>
+              </nav>
+            </div>
+
+            <div>
+              <h2 className="text-xs font-semibold uppercase tracking-[0.22em]" style={{ color: theme.gold }}>Guest details</h2>
+              <div className="mt-4 space-y-3 text-sm" style={{ color: `${theme.sand}CC` }}>
+                <p>Check-in<br /><span style={{ color: theme.sand }}>{rateSettings.checkInTime}</span></p>
+                <p>Check-out<br /><span style={{ color: theme.sand }}>{rateSettings.checkOutTime}</span></p>
+                <p>Reservations are confirmed by our team after review.</p>
+              </div>
+            </div>
+
+            <div>
+              <h2 className="text-xs font-semibold uppercase tracking-[0.22em]" style={{ color: theme.gold }}>Stay connected</h2>
+              <p className="mt-4 text-sm leading-6" style={{ color: `${theme.sand}B8` }}>
+                Ready to bring the whole barkada? Send a request and our team will follow up by email or phone.
+              </p>
+            </div>
+          </div>
+
+          <div className="flex flex-col gap-3 pt-6 text-xs sm:flex-row sm:items-center sm:justify-between" style={{ color: `${theme.sand}80` }}>
+            <p>&copy; {new Date().getFullYear()} La Velleza Events Place &amp; Hidden Resort. All rights reserved.</p>
+            <p>Made for memorable days and restful nights.</p>
+          </div>
+        </div>
       </footer>
     </main>
   );

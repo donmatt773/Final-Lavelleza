@@ -9,6 +9,7 @@ import { theme } from '@/app/lib/landingTheme';
 const NAV_LINKS = [
   { label: 'Rooms', href: '#rooms' },
   { label: 'Promos', href: '#promos' },
+  { label: 'Location', href: '#location' },
   { label: 'Reservation', href: '/reservation' },
 ];
 

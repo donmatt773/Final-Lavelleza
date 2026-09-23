@@ -116,7 +116,7 @@ export default function AddOnManagementPanel({ active }: { active: boolean }) {
   if (!active) return null;
 
   return (
-    <section className="mt-4 rounded-3xl border border-slate-800 bg-linear-to-br from-slate-900 via-slate-900 to-slate-950 p-6 text-slate-300 shadow-2xl shadow-black/30">
+    <section className="mt-4 rounded-3xl border border-slate-800 bg-linear-to-br from-slate-900 via-slate-900 to-slate-950 p-4 text-slate-300 shadow-2xl shadow-black/30 sm:p-6">
       <div className="mb-6 border-b border-slate-800 pb-5">
         <p className="text-xs font-semibold uppercase tracking-[0.3em] text-emerald-400">Add-On Management</p>
         <h2 className="mt-2 text-2xl font-semibold text-white">Manage reservation extras</h2>

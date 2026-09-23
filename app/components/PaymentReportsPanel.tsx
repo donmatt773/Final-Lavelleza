@@ -157,7 +157,7 @@ export default function PaymentReportsPanel({ active }: Props) {
   if (!active) return null;
 
   return (
-    <section className="mt-4 rounded-3xl border border-slate-800 bg-linear-to-br from-slate-900 via-slate-900 to-slate-950 p-6 shadow-2xl shadow-black/30">
+    <section className="mt-4 rounded-3xl border border-slate-800 bg-linear-to-br from-slate-900 via-slate-900 to-slate-950 p-4 shadow-2xl shadow-black/30 sm:p-6">
       <div className="mb-6 border-b border-slate-800 pb-5">
         <div className="flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
           <div>

@@ -185,7 +185,7 @@ export default function ReservationDashboardPanel() {
   const monthLabel = useMemo(() => formatMonthLabel(metrics.monthKey), [metrics.monthKey]);
 
   return (
-    <section className="mt-6 rounded-3xl border border-slate-800 bg-slate-900/80 p-6 text-slate-300">
+    <section className="mt-6 rounded-3xl border border-slate-800 bg-slate-900/80 p-4 text-slate-300 sm:p-6">
       <div className="mb-5 flex flex-col gap-2 border-b border-slate-800 pb-4 md:flex-row md:items-end md:justify-between">
         <div>
           <h2 className="text-xl font-semibold text-white">Reservation Dashboard</h2>
