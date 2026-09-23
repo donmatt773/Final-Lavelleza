@@ -25,14 +25,30 @@ export default function SiteNav() {
 
   return (
     <header
-      className="fixed inset-x-0 top-0 z-50 transition-all duration-300"
+      className="fixed inset-x-0 top-0 z-50 overflow-hidden transition-all duration-300"
       style={{
-        backgroundColor: scrolled ? `${theme.sand}EE` : 'transparent',
-        backdropFilter: scrolled ? 'blur(8px)' : 'none',
-        borderBottom: scrolled ? `1px solid ${theme.ink}1A` : '1px solid transparent',
+        backgroundColor: theme.navy,
+        backdropFilter: 'blur(8px)',
+        borderBottom: scrolled ? `1px solid ${theme.sand}33` : '1px solid transparent',
       }}
     >
-      <div className="mx-auto flex max-w-6xl items-center justify-between px-6 py-4">
+      <div
+        aria-hidden="true"
+        className="pointer-events-none absolute inset-0 transition-opacity duration-500 ease-out"
+        style={{
+          background: `linear-gradient(135deg, ${theme.navy}, ${theme.royal} 58%, ${theme.navy})`,
+          opacity: scrolled ? 0 : 1,
+        }}
+      />
+      <div
+        aria-hidden="true"
+        className="pointer-events-none absolute inset-0 transition-opacity duration-500 ease-out"
+        style={{
+          background: `linear-gradient(135deg, ${theme.caramel}, ${theme.sunset} 58%, ${theme.caramel})`,
+          opacity: scrolled ? 1 : 0,
+        }}
+      />
+      <div className="relative z-10 mx-auto flex max-w-6xl items-center justify-between px-6 py-4">
         <Link href="/" className="flex items-center gap-3">
           <Image
             src={logo}
@@ -42,7 +58,7 @@ export default function SiteNav() {
           />
           <span
             className="font-serif text-lg transition-colors duration-300"
-            style={{ color: scrolled ? theme.caramel : theme.sand }}
+            style={{ color: theme.sand }}
           >
             La Velleza
           </span>
@@ -54,7 +70,7 @@ export default function SiteNav() {
               key={link.href}
               href={link.href}
               className="text-sm font-medium transition-colors duration-300"
-              style={{ color: scrolled ? theme.royal : `${theme.sand}CC` }}
+              style={{ color: `${theme.sand}CC` }}
             >
               {link.label}
             </a>
@@ -63,8 +79,8 @@ export default function SiteNav() {
 
         <Link
           href="/reservation"
-          className="rounded-full px-5 py-2 text-sm font-semibold transition hover:opacity-90"
-          style={{ backgroundColor: theme.sunset, color: theme.navy }}
+          className="rounded-full px-5 py-2 text-sm font-semibold transition-all duration-300 hover:opacity-90"
+          style={{ backgroundColor: scrolled ? theme.navy : theme.sunset, color: scrolled ? theme.caramel : theme.navy }}
         >
           Book now
         </Link>

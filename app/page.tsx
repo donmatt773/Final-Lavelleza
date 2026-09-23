@@ -105,7 +105,7 @@ export default async function Home() {
       <SiteNav />
 
       {/* HERO */}
-      <section className="relative overflow-hidden" style={{ backgroundColor: theme.navy }}>
+      <section className="relative overflow-hidden" style={{ background: `linear-gradient(135deg, ${theme.navy}, ${theme.royal} 58%, ${theme.navy})` }}>
         {/* horizon texture */}
         <svg className="pointer-events-none absolute inset-x-0 bottom-0 h-40 w-full opacity-30" viewBox="0 0 1200 160" preserveAspectRatio="none">
           <path d="M0,120 C200,60 400,150 600,90 C800,40 1000,130 1200,80 L1200,160 L0,160 Z" fill={theme.royal} />
