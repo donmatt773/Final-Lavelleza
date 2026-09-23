@@ -22,6 +22,8 @@ type PromoOption = {
   _id: string;
   name: string;
   code: string;
+  packagePrice: number;
+  includedPax?: number;
   statusCategory?: 'VALID' | 'EXPIRED' | 'INACTIVE';
   roomEligible?: boolean;
   dateEligible?: boolean;
@@ -56,10 +58,18 @@ type PricingSummary = {
 
 type Props = {
   rooms: RoomOption[];
+  initialSelection?: {
+    room?: string;
+    promo?: string;
+    checkIn?: string;
+    checkOut?: string;
+  };
   mode?: 'public' | 'walk-in';
   onSuccess?: (reservationNumber: string) => void;
   onCancel?: () => void;
 };
+
+type SelectionPicker = 'room' | 'promo' | null;
 
 type FormState = {
   guestName: string;
@@ -80,30 +90,57 @@ type FormState = {
   addOns: Record<string, number>;
 };
 
-const initialForm: FormState = {
-  guestName: '',
-  email: '',
-  phone: '',
-  address: '',
-  room: '',
-  promo: '',
-  checkIn: '',
-  checkOut: '',
-  adults: '1',
-  children: '0',
-  paymentMethod: 'CASH_ON_ARRIVAL',
-  gcashAmountPaid: '',
-  gcashReferenceNumber: '',
-  gcashProofOfPaymentUrl: '',
-  specialRequests: '',
-  addOns: {},
-};
+function formatDateInput(date: Date) {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+}
+
+function createInitialForm(): FormState {
+  const checkIn = new Date();
+  const checkOut = new Date(checkIn);
+  checkOut.setDate(checkOut.getDate() + 1);
+
+  return {
+    guestName: '',
+    email: '',
+    phone: '',
+    address: '',
+    room: '',
+    promo: '',
+    checkIn: formatDateInput(checkIn),
+    checkOut: formatDateInput(checkOut),
+    adults: '1',
+    children: '0',
+    paymentMethod: 'CASH_ON_ARRIVAL',
+    gcashAmountPaid: '',
+    gcashReferenceNumber: '',
+    gcashProofOfPaymentUrl: '',
+    specialRequests: '',
+    addOns: {},
+  };
+}
 
 const emptyPromoSummary = { validPromos: 0, expiredPromos: 0, inactivePromos: 0, eligiblePromos: 0 };
 
-export default function ReservationForm({ rooms, mode = 'public', onSuccess, onCancel }: Props) {
+export default function ReservationForm({ rooms, initialSelection, mode = 'public', onSuccess, onCancel }: Props) {
   const isWalkInMode = mode === 'walk-in';
-  const [form, setForm] = useState<FormState>(initialForm);
+  const [form, setForm] = useState<FormState>(() => {
+    const defaults = createInitialForm();
+    if (isWalkInMode || rooms.length === 0 || !initialSelection) return defaults;
+
+    const requestedRoom = initialSelection.room || '';
+    const room = rooms.some((option) => option._id === requestedRoom) ? requestedRoom : '';
+
+    return {
+      ...defaults,
+      room,
+      promo: initialSelection.promo || '',
+      checkIn: initialSelection.checkIn || defaults.checkIn,
+      checkOut: initialSelection.checkOut || defaults.checkOut,
+    };
+  });
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [validationErrors, setValidationErrors] = useState<string[]>([]);
@@ -117,6 +154,7 @@ export default function ReservationForm({ rooms, mode = 'public', onSuccess, onC
   const [promoLoading, setPromoLoading] = useState(false);
   const [availableAddOns, setAvailableAddOns] = useState<AddOnOption[]>([]);
   const [addOnsLoading, setAddOnsLoading] = useState(false);
+  const [selectionPicker, setSelectionPicker] = useState<SelectionPicker>(null);
 
   const todayMinDate = useMemo(() => {
     const now = new Date();
@@ -144,6 +182,22 @@ export default function ReservationForm({ rooms, mode = 'public', onSuccess, onC
     () => (form.room && form.checkIn && form.checkOut ? promoSummary : emptyPromoSummary),
     [promoSummary, form.room, form.checkIn, form.checkOut]
   );
+
+  const selectedRoomDetails = useMemo(
+    () => rooms.find((room) => room._id === form.room) || null,
+    [rooms, form.room]
+  );
+
+  useEffect(() => {
+    if (!selectionPicker) return;
+
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') setSelectionPicker(null);
+    };
+
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, [selectionPicker]);
 
   const updateField = (field: keyof FormState, value: string) => {
     setForm((current) => {
@@ -251,7 +305,7 @@ export default function ReservationForm({ rooms, mode = 'public', onSuccess, onC
         });
       }
 
-      setForm(initialForm);
+      setForm(createInitialForm());
       setValidationErrors([]);
       setPricingSummary(null);
     } catch (submitError) {
@@ -420,6 +474,27 @@ export default function ReservationForm({ rooms, mode = 'public', onSuccess, onC
         </div>
       ) : null}
 
+      <div className="mb-5 rounded-2xl border border-slate-800 bg-slate-950/70 p-4">
+        <div className="mb-3">
+          <p className="text-xs font-semibold uppercase tracking-[0.2em] text-emerald-400">Stay selection</p>
+          <p className="mt-1 text-xs text-slate-400">Choose your room before entering guest details. Select a package after choosing your stay dates.</p>
+        </div>
+        <div className="grid gap-3 sm:grid-cols-2">
+          <div className="rounded-xl border border-slate-800 bg-slate-900 p-3">
+            <p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">Selected room</p>
+            <p className="mt-2 text-sm font-semibold text-white">{selectedRoomDetails ? selectedRoomDetails.name : 'No room selected'}</p>
+            {selectedRoomDetails ? <p className="mt-1 text-xs text-slate-400">{selectedRoomDetails.code}</p> : null}
+            <button
+              type="button"
+              onClick={() => setSelectionPicker('room')}
+              className="mt-3 rounded-lg border border-slate-700 px-3 py-2 text-xs font-semibold text-slate-200 hover:bg-slate-800"
+            >
+              View &amp; change room
+            </button>
+          </div>
+        </div>
+      </div>
+
       <form onSubmit={handleSubmit} className="space-y-4">
         <div className="grid gap-4 md:grid-cols-2">
           <input
@@ -450,32 +525,6 @@ export default function ReservationForm({ rooms, mode = 'public', onSuccess, onC
             placeholder="Address (optional)"
             className="w-full rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-white outline-none focus:border-emerald-500"
           />
-          <select
-            value={form.room}
-            onChange={(event) => updateField('room', event.target.value)}
-            className="w-full rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-white outline-none focus:border-emerald-500"
-            required
-          >
-            <option value="">Select Room</option>
-            {rooms.map((room) => (
-              <option key={room._id} value={room._id}>
-                {room.name} ({room.code})
-              </option>
-            ))}
-          </select>
-          <select
-            value={form.promo}
-            onChange={(event) => updateField('promo', event.target.value)}
-            className="w-full rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-white outline-none focus:border-emerald-500"
-            disabled={!form.room || !form.checkIn || !form.checkOut || promoLoading}
-          >
-            <option value="">Optional Promo ({promoLoading ? 'Loading...' : `${displayedPromoSummary.eligiblePromos} eligible`})</option>
-            {displayedEligiblePromos.map((promo) => (
-              <option key={promo._id} value={promo._id}>
-                {promo.name} ({promo.code})
-              </option>
-            ))}
-          </select>
           <div>
             <label className="mb-1 block text-xs uppercase tracking-wider text-slate-400">Check-In Date</label>
             <input
@@ -497,6 +546,26 @@ export default function ReservationForm({ rooms, mode = 'public', onSuccess, onC
               className="w-full rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-white outline-none focus:border-emerald-500"
               required
             />
+          </div>
+          <div className="md:col-span-2 rounded-xl border border-slate-800 bg-slate-950/70 p-4">
+            <p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">Selected promo package</p>
+            <p className="mt-2 text-sm font-semibold text-white">{selectedPromoDetails ? selectedPromoDetails.name : 'No promo selected'}</p>
+            {selectedPromoDetails ? (
+              <p className="mt-1 text-xs text-slate-400">
+                {selectedPromoDetails.code} · PHP {selectedPromoDetails.packagePrice.toFixed(2)}
+              </p>
+            ) : null}
+            <button
+              type="button"
+              onClick={() => setSelectionPicker('promo')}
+              disabled={!form.room || !form.checkIn || !form.checkOut || promoLoading}
+              className="mt-3 rounded-lg border border-slate-700 px-3 py-2 text-xs font-semibold text-slate-200 hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-40"
+            >
+              {promoLoading ? 'Loading packages...' : 'View & change package'}
+            </button>
+            {!form.room || !form.checkIn || !form.checkOut ? (
+              <p className="mt-2 text-xs text-slate-500">Select a room and both stay dates to view eligible packages.</p>
+            ) : null}
           </div>
           <div>
             <label className="mb-1 block text-xs uppercase tracking-wider text-slate-400">Adults</label>
@@ -622,30 +691,6 @@ export default function ReservationForm({ rooms, mode = 'public', onSuccess, onC
           ) : null}
         </div>
 
-        <textarea
-          value={form.specialRequests}
-          onChange={(event) => updateField('specialRequests', event.target.value)}
-          placeholder="Special Requests"
-          rows={4}
-          className="w-full rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-white outline-none focus:border-emerald-500"
-        />
-
-        <button
-          type="submit"
-          disabled={submitting || rooms.length === 0}
-          className="w-full rounded-lg bg-emerald-600 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-emerald-500 disabled:cursor-not-allowed disabled:bg-emerald-800"
-        >
-          {submitting ? (isWalkInMode ? 'Creating Walk-In Booking...' : 'Submitting Request...') : (isWalkInMode ? 'Create Walk-In Booking' : 'Submit Reservation Request')}
-        </button>
-
-        {rooms.length === 0 ? (
-          <p className="text-xs text-amber-300">No rooms are currently available for reservation requests.</p>
-        ) : null}
-
-        <p className="text-xs text-slate-400">
-          Promo status scan: {displayedPromoSummary.validPromos} valid, {displayedPromoSummary.expiredPromos} expired, {displayedPromoSummary.inactivePromos} inactive. Only eligible promos are selectable.
-        </p>
-
         <div className="rounded-xl border border-slate-800 bg-slate-950/70 p-4">
           <p className="text-xs font-semibold uppercase tracking-[0.2em] text-emerald-400">Pricing Summary</p>
           {pricingLoading ? (
@@ -688,7 +733,99 @@ export default function ReservationForm({ rooms, mode = 'public', onSuccess, onC
             </div>
           ) : null}
         </div>
+
+        <textarea
+          value={form.specialRequests}
+          onChange={(event) => updateField('specialRequests', event.target.value)}
+          placeholder="Special Requests"
+          rows={4}
+          className="w-full rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-white outline-none focus:border-emerald-500"
+        />
+
+        <button
+          type="submit"
+          disabled={submitting || rooms.length === 0}
+          className="w-full rounded-lg bg-emerald-600 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-emerald-500 disabled:cursor-not-allowed disabled:bg-emerald-800"
+        >
+          {submitting ? (isWalkInMode ? 'Creating Walk-In Booking...' : 'Submitting Request...') : (isWalkInMode ? 'Create Walk-In Booking' : 'Submit Reservation Request')}
+        </button>
+
+        {rooms.length === 0 ? (
+          <p className="text-xs text-amber-300">No rooms are currently available for reservation requests.</p>
+        ) : null}
+
+        <p className="text-xs text-slate-400">
+          Promo status scan: {displayedPromoSummary.validPromos} valid, {displayedPromoSummary.expiredPromos} expired, {displayedPromoSummary.inactivePromos} inactive. Only eligible promos are selectable.
+        </p>
+
       </form>
+
+      {selectionPicker ? (
+        <div
+          className="fixed inset-0 z-60 flex items-center justify-center bg-slate-950/80 p-4"
+          onClick={() => setSelectionPicker(null)}
+        >
+          <div
+            className="max-h-[85vh] w-full max-w-xl overflow-y-auto rounded-2xl border border-slate-700 bg-slate-900 p-5 shadow-2xl"
+            onClick={(event) => event.stopPropagation()}
+          >
+            <div className="flex items-start justify-between gap-4">
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-[0.2em] text-emerald-400">Reservation selection</p>
+                <h3 className="mt-2 text-xl font-semibold text-white">
+                  {selectionPicker === 'room' ? 'Choose a room' : 'Choose a promo package'}
+                </h3>
+              </div>
+              <button
+                type="button"
+                onClick={() => setSelectionPicker(null)}
+                aria-label="Close selection dialog"
+                className="flex h-8 w-8 items-center justify-center rounded-full border border-slate-700 text-lg text-slate-300 hover:bg-slate-800"
+              >
+                ×
+              </button>
+            </div>
+
+            <div className="mt-5 space-y-2">
+              {selectionPicker === 'room' ? rooms.map((room) => (
+                <button
+                  key={room._id}
+                  type="button"
+                  onClick={() => {
+                    updateField('room', room._id);
+                    setSelectionPicker(null);
+                  }}
+                  className={`flex w-full items-center justify-between rounded-xl border p-3 text-left transition ${form.room === room._id ? 'border-emerald-500/50 bg-emerald-500/10' : 'border-slate-800 bg-slate-950/60 hover:border-slate-600'}`}
+                >
+                  <span>
+                    <span className="block text-sm font-semibold text-white">{room.name}</span>
+                    <span className="mt-1 block text-xs text-slate-400">{room.code}</span>
+                  </span>
+                  {form.room === room._id ? <span className="text-xs font-semibold text-emerald-300">Selected</span> : null}
+                </button>
+              )) : displayedEligiblePromos.map((promo) => (
+                <button
+                  key={promo._id}
+                  type="button"
+                  onClick={() => {
+                    updateField('promo', promo._id);
+                    setSelectionPicker(null);
+                  }}
+                  className={`flex w-full items-center justify-between gap-3 rounded-xl border p-3 text-left transition ${form.promo === promo._id ? 'border-emerald-500/50 bg-emerald-500/10' : 'border-slate-800 bg-slate-950/60 hover:border-slate-600'}`}
+                >
+                  <span>
+                    <span className="block text-sm font-semibold text-white">{promo.name}</span>
+                    <span className="mt-1 block text-xs text-slate-400">{promo.code} · PHP {promo.packagePrice.toFixed(2)}{promo.includedPax ? ` · Good for ${promo.includedPax}` : ''}</span>
+                  </span>
+                  {form.promo === promo._id ? <span className="shrink-0 text-xs font-semibold text-emerald-300">Selected</span> : null}
+                </button>
+              ))}
+              {selectionPicker === 'room' && rooms.length === 0 ? <p className="py-5 text-center text-sm text-slate-400">No rooms are currently available.</p> : null}
+              {selectionPicker === 'promo' && displayedEligiblePromos.length === 0 ? <p className="py-5 text-center text-sm text-slate-400">No eligible promo packages are available for this room and date range.</p> : null}
+            </div>
+          </div>
+        </div>
+      ) : null}
     </section>
   );
 }

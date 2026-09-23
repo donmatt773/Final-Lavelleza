@@ -8,6 +8,8 @@ type RoomOption = {
   code: string;
 };
 
+type ReservationSearchParams = Record<string, string | string[] | undefined>;
+
 async function loadPublicReservationFormData() {
   try {
     await connectDB();
@@ -29,8 +31,10 @@ async function loadPublicReservationFormData() {
   }
 }
 
-export default async function ReservationPage() {
+export default async function ReservationPage({ searchParams }: { searchParams: Promise<ReservationSearchParams> }) {
   const { rooms } = await loadPublicReservationFormData();
+  const query = await searchParams;
+  const readParam = (value: string | string[] | undefined) => typeof value === 'string' ? value : '';
 
   return (
     <main className="min-h-screen bg-slate-950 px-4 py-10 text-white">
@@ -43,7 +47,15 @@ export default async function ReservationPage() {
           </p>
         </header>
 
-        <ReservationForm rooms={rooms} />
+        <ReservationForm
+          rooms={rooms}
+          initialSelection={{
+            room: readParam(query.room),
+            promo: readParam(query.promo),
+            checkIn: readParam(query.checkIn),
+            checkOut: readParam(query.checkOut),
+          }}
+        />
       </div>
     </main>
   );

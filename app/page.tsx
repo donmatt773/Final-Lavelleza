@@ -7,9 +7,9 @@ import RateSettings from '@/app/lib/RateSettings';
 import DayNightDivider from '@/app/components/landing/DayNightDivider';
 import SiteNav from '@/app/components/landing/SiteNav';
 import RoomsShowcase from '@/app/components/landing/RoomsShowcase';
+import PromosShowcase from '@/app/components/landing/PromosShowcase';
 import RealtimeLandingRefresh from '@/components/RealtimeLandingRefresh';
 import { theme } from '@/app/lib/landingTheme';
-import { peso } from '@/app/lib/landingFormat';
 import type { FeaturedRoom, FeaturedPromo } from '@/app/lib/landingTypes';
 import logo from '@/app/icons/logo.jpg';
 
@@ -32,7 +32,7 @@ async function loadLandingData() {
         status: 'ACTIVE',
         $or: [{ endDate: { $exists: false } }, { endDate: { $gte: now } }],
       })
-        .select('name code description packagePrice includedPax banner')
+        .select('name code description packagePrice includedPax includedRoomIds inclusions startDate endDate banner')
         .sort({ createdAt: -1 })
         .limit(3)
         .lean(),
@@ -56,16 +56,26 @@ async function loadLandingData() {
       };
     });
 
-    const promos: FeaturedPromo[] = promosRaw.map((promo) => ({
+    const promos: FeaturedPromo[] = promosRaw.map((promo) => {
+      const includedRoomIds = Array.isArray(promo.includedRoomIds) ? promo.includedRoomIds.map((roomId) => String(roomId)) : [];
+      const inclusionRoomIds = Array.isArray(promo.inclusions)
+        ? promo.inclusions.map((inclusion) => inclusion.roomId).filter(Boolean).map((roomId) => String(roomId))
+        : [];
+
+      return {
       _id: String(promo._id),
       name: String(promo.name || ''),
       code: String(promo.code || ''),
       description: promo.description || '',
       packagePrice: Number(promo.packagePrice || 0),
       includedPax: promo.includedPax,
+      includedRoomIds: [...new Set([...includedRoomIds, ...inclusionRoomIds])],
+      startDate: promo.startDate ? new Date(promo.startDate).toISOString().slice(0, 10) : undefined,
+      endDate: promo.endDate ? new Date(promo.endDate).toISOString().slice(0, 10) : undefined,
       bannerUrl: promo.banner?.fileUrl,
       bannerAlt: promo.banner?.altText || promo.name,
-    }));
+      };
+    });
 
     return {
       rooms,
@@ -144,46 +154,7 @@ export default async function Home() {
       <RoomsShowcase rooms={rooms} />
 
       {/* PROMOS */}
-      {promos.length > 0 ? (
-        <section id="promos" className="py-20" style={{ backgroundColor: `${theme.royal}0D` }}>
-          <div className="mx-auto max-w-6xl px-6">
-            <p className="text-xs font-semibold uppercase tracking-[0.3em]" style={{ color: theme.coral }}>
-              Package Promos
-            </p>
-            <h2 className="mt-2 font-serif text-3xl" style={{ color: theme.caramel }}>
-              Bring the whole barkada
-            </h2>
-
-            <div className="mt-10 grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
-              {promos.map((promo) => (
-                <div key={promo._id} className="overflow-hidden rounded-2xl border" style={{ borderColor: `${theme.ink}1A`, backgroundColor: theme.sand }}>
-                  <div className="relative h-48 w-full" style={{ backgroundColor: `${theme.sunset}1F` }}>
-                    {promo.bannerUrl ? (
-                      <Image src={promo.bannerUrl} alt={promo.bannerAlt || promo.name} fill unoptimized className="object-contain p-4" />
-                    ) : (
-                      <div className="flex h-full w-full items-center justify-center text-xs uppercase tracking-[0.3em]" style={{ color: `${theme.ink}99` }}>
-                        {promo.code}
-                      </div>
-                    )}
-                  </div>
-                  <div className="p-5">
-                    <h3 className="font-serif text-lg" style={{ color: theme.caramel }}>{promo.name}</h3>
-                    {promo.description ? (
-                      <p className="mt-2 text-sm" style={{ color: `${theme.ink}99` }}>{promo.description}</p>
-                    ) : null}
-                    <div className="mt-4 flex items-center justify-between">
-                      <span className="text-sm font-semibold" style={{ color: theme.coral }}>{peso(promo.packagePrice)}</span>
-                      {promo.includedPax ? (
-                        <span className="text-xs" style={{ color: `${theme.ink}99` }}>Good for {promo.includedPax} pax</span>
-                      ) : null}
-                    </div>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-        </section>
-      ) : null}
+      {promos.length > 0 ? <PromosShowcase promos={promos} /> : null}
 
       {/* LOCATION */}
       <section id="location" className="px-6 py-16 sm:py-20" style={{ backgroundColor: `${theme.royal}0D` }}>

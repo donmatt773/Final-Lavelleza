@@ -15,6 +15,8 @@ export type PromoEligibilityItem = {
   _id: string;
   name: string;
   code: string;
+  packagePrice: number;
+  includedPax?: number;
   status: string;
   statusCategory: PromoStatusCategory;
   roomEligible: boolean;
@@ -74,7 +76,7 @@ function isDateEligible(startDate: Date | null, endDate: Date | null, checkIn: D
 
 export async function evaluatePromosForReservation(input: EligibilityInput) {
   const promos = await Promo.find({ isArchived: false })
-    .select('name code status startDate endDate includedRoomIds inclusions')
+    .select('name code packagePrice includedPax status startDate endDate includedRoomIds inclusions')
     .sort({ name: 1 })
     .lean();
 
@@ -105,6 +107,8 @@ export async function evaluatePromosForReservation(input: EligibilityInput) {
       _id: String(promo._id),
       name: String(promo.name || ''),
       code: String(promo.code || ''),
+      packagePrice: Number(promo.packagePrice || 0),
+      includedPax: promo.includedPax === undefined ? undefined : Number(promo.includedPax),
       status: promoStatus,
       statusCategory,
       roomEligible,

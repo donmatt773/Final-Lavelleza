@@ -49,7 +49,7 @@ export default function DashboardLayout({
   return (
     <div className="flex min-h-screen bg-slate-950">
       {/* Persistent System Control Sidebar */}
-      <aside className={`${isSidebarCollapsed ? 'w-14 sm:w-16' : 'w-64 max-sm:absolute max-sm:z-30 max-sm:h-full'} flex min-h-screen shrink-0 flex-col justify-between border-r border-slate-800 bg-slate-900 p-3 transition-[width] duration-200 sm:p-4 lg:p-6`}>
+      <aside className={`${isSidebarCollapsed ? 'w-14 sm:w-16' : 'w-64 max-sm:absolute max-sm:z-30'} sticky top-0 flex h-screen max-h-screen shrink-0 flex-col justify-between overflow-y-auto border-r border-slate-800 bg-slate-900 p-3 transition-[width] duration-200 sm:p-4 lg:p-6`}>
         <div className="space-y-6">
           {/* Logo Element */}
           <div className={`flex items-center ${isSidebarCollapsed ? 'flex-col justify-center gap-2' : 'justify-between gap-3'} px-1`}>

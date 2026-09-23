@@ -32,6 +32,9 @@ export type FeaturedPromo = {
   description?: string;
   packagePrice: number;
   includedPax?: number;
+  includedRoomIds?: string[];
+  startDate?: string;
+  endDate?: string;
   bannerUrl?: string;
   bannerAlt?: string;
 };

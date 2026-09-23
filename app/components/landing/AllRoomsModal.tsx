@@ -125,7 +125,7 @@ export default function AllRoomsModal({ open, onClose, rooms }: Props) {
               </p>
             </div>
             <Link
-              href="/reservation"
+              href={`/reservation?room=${encodeURIComponent(active._id)}`}
               onClick={onClose}
               className="inline-block whitespace-nowrap rounded-full px-6 py-3 text-center text-sm font-semibold transition hover:opacity-90"
               style={{ backgroundColor: theme.sunset, color: theme.navy }}
