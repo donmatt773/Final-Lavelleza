@@ -4,6 +4,7 @@ import { connectDB } from '@/app/lib/db';
 import Room from '@/app/lib/Room';
 import Promo from '@/app/lib/Promo';
 import RateSettings from '@/app/lib/RateSettings';
+import '@/app/lib/Amenity';
 import DayNightDivider from '@/app/components/landing/DayNightDivider';
 import SiteNav from '@/app/components/landing/SiteNav';
 import RoomsShowcase from '@/app/components/landing/RoomsShowcase';
