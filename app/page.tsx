@@ -184,7 +184,7 @@ export default async function Home() {
               See the resort location, plan your route, and come ready for pool days, family gatherings, and slow mornings by the water.
             </p>
             <p className="mt-5 text-sm font-semibold" style={{ color: theme.royal }}>La Velleza Resort</p>
-            <p className="mt-1 text-sm" style={{ color: `${theme.ink}99` }}>Lapaz (Tinibtiban) , Aurora, Philippines, 7020</p>
+            <p className="mt-1 text-sm" style={{ color: `${theme.ink}99` }}>Lapaz (Tinibtiban), Aurora, Philippines, 7020</p>
             <div className="mt-6 grid gap-3 sm:grid-cols-2 lg:grid-cols-1">
               <div className="rounded-xl border p-3" style={{ borderColor: `${theme.ink}1A`, backgroundColor: `${theme.sand}B8` }}>
                 <p className="text-xs font-semibold uppercase tracking-wider" style={{ color: theme.royal }}>Getting here</p>
