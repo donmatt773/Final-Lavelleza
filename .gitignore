@@ -22,6 +22,7 @@
 
 # large local media assets
 /public/video/
+/app/video/
 
 # misc
 .DS_Store
