@@ -12,6 +12,7 @@ import RealtimeLandingRefresh from '@/components/RealtimeLandingRefresh';
 import { theme } from '@/app/lib/landingTheme';
 import type { FeaturedRoom, FeaturedPromo } from '@/app/lib/landingTypes';
 import logo from '@/app/icons/logo.jpg';
+import poolView from '@/app/icons/pool_view.jpg';
 
 export const dynamic = 'force-dynamic';
 
@@ -105,24 +106,27 @@ export default async function Home() {
       <SiteNav />
 
       {/* HERO */}
-      <section className="relative overflow-hidden" style={{ background: `linear-gradient(135deg, ${theme.navy}, ${theme.royal} 58%, ${theme.navy})` }}>
+      <section
+        className="relative overflow-hidden bg-cover bg-center"
+        style={{
+          backgroundImage: `linear-gradient(135deg, ${theme.navy}B8, ${theme.royal}80 58%, ${theme.navy}B8), url(${poolView.src})`,
+          backgroundPosition: 'center 55%',
+        }}
+      >
         {/* horizon texture */}
         <svg className="pointer-events-none absolute inset-x-0 bottom-0 h-40 w-full opacity-30" viewBox="0 0 1200 160" preserveAspectRatio="none">
           <path d="M0,120 C200,60 400,150 600,90 C800,40 1000,130 1200,80 L1200,160 L0,160 Z" fill={theme.royal} />
         </svg>
-        <div className="pointer-events-none absolute right-16 top-28 h-24 w-24 rounded-full opacity-60 blur-sm" style={{ backgroundColor: theme.sunset }} />
-        <div className="pointer-events-none absolute right-24 top-32 h-14 w-14 rounded-full opacity-70 blur-[2px]" style={{ backgroundColor: theme.gold }} />
-
         <div className="relative mx-auto max-w-5xl px-6 py-28 text-center sm:py-36">
           <p className="text-xs font-semibold uppercase tracking-[0.4em]" style={{ color: theme.gold }}>
             La Velleza Events Place &amp; Hidden Resort
           </p>
           <h1 className="mt-5 font-serif text-4xl leading-tight sm:text-6xl" style={{ color: theme.sand }}>
-            Sunset views, ocean breeze,<br className="hidden sm:block" /> built for slow mornings.
+            Sunset views, natural breeze,<br className="hidden sm:block" /> &quot;The Beauty&quot;.
           </h1>
           <p className="mx-auto mt-6 max-w-xl text-base sm:text-lg" style={{ color: `${theme.sand}CC` }}>
-            Pool days, family reunions, and overnight stays — book directly, no middlemen,
-            and hear back from our team the same day.
+            La Velleza is a Spanish word that means &quot;The Beauty&quot; that really fits the scenery. 
+            It is a perfect place for weddings, birthdays, debut, reception, or other social event.
           </p>
           <div className="mt-10 flex flex-wrap items-center justify-center gap-4">
             <Link
@@ -157,7 +161,8 @@ export default async function Home() {
       {promos.length > 0 ? <PromosShowcase promos={promos} /> : null}
 
       {/* LOCATION */}
-      <section id="location" className="px-6 py-16 sm:py-20" style={{ backgroundColor: `${theme.royal}0D` }}>
+      <section id="location" className="relative px-6 py-16 sm:py-20" style={{ backgroundColor: `${theme.royal}0D` }}>
+        <div className="pointer-events-none absolute inset-x-0 top-0 h-px" style={{ background: `linear-gradient(to right, transparent, ${theme.sunset}66, transparent)` }} />
         <div className="mx-auto grid max-w-6xl gap-8 lg:grid-cols-[1.15fr_0.85fr] lg:items-center">
           <div className="order-2 overflow-hidden rounded-2xl border shadow-sm lg:order-1" style={{ borderColor: `${theme.ink}1A` }}>
             <iframe
@@ -167,6 +172,9 @@ export default async function Home() {
               loading="lazy"
               referrerPolicy="no-referrer-when-downgrade"
             />
+            <p className="border-t px-4 py-3 text-xs" style={{ borderColor: `${theme.ink}1A`, color: `${theme.ink}80` }}>
+              Map preview provided by Google Maps. Use the button beside it for directions.
+            </p>
           </div>
 
           <div className="order-1 lg:order-2">
@@ -176,7 +184,17 @@ export default async function Home() {
               See the resort location, plan your route, and come ready for pool days, family gatherings, and slow mornings by the water.
             </p>
             <p className="mt-5 text-sm font-semibold" style={{ color: theme.royal }}>La Velleza Resort</p>
-            <p className="mt-1 text-sm" style={{ color: `${theme.ink}99` }}>Zamboanga del Norte, Philippines</p>
+            <p className="mt-1 text-sm" style={{ color: `${theme.ink}99` }}>Lapaz (Tinibtiban) , Aurora, Philippines, 7020</p>
+            <div className="mt-6 grid gap-3 sm:grid-cols-2 lg:grid-cols-1">
+              <div className="rounded-xl border p-3" style={{ borderColor: `${theme.ink}1A`, backgroundColor: `${theme.sand}B8` }}>
+                <p className="text-xs font-semibold uppercase tracking-wider" style={{ color: theme.royal }}>Getting here</p>
+                <p className="mt-1 text-xs leading-5" style={{ color: `${theme.ink}99` }}>Use the map for turn-by-turn directions and search for “La Velleza Resort” in Google Maps.</p>
+              </div>
+              <div className="rounded-xl border p-3" style={{ borderColor: `${theme.ink}1A`, backgroundColor: `${theme.sand}B8` }}>
+                <p className="text-xs font-semibold uppercase tracking-wider" style={{ color: theme.royal }}>Before you arrive</p>
+                <p className="mt-1 text-xs leading-5" style={{ color: `${theme.ink}99` }}>Keep your reservation details ready so our team can confirm your stay quickly.</p>
+              </div>
+            </div>
             <a
               href="https://www.google.com/maps/place/La+velleza+resort/@7.9560259,123.5954783,17z/data=!3m1!4b1!4m6!3m5!1s0x325439007a07a1ad:0x73120fd54fab48de!8m2!3d7.9560259!4d123.5980586!16s%2Fg%2F11vpylgs11?entry=ttu&g_ep=EgoyMDI2MDkyMC4wIKXMDSoASAFQAw%3D%3D"
               target="_blank"

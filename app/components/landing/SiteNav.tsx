@@ -15,6 +15,7 @@ const NAV_LINKS = [
 
 export default function SiteNav() {
   const [scrolled, setScrolled] = useState(false);
+  const [menuOpen, setMenuOpen] = useState(false);
 
   useEffect(() => {
     const onScroll = () => setScrolled(window.scrollY > 40);
@@ -48,7 +49,7 @@ export default function SiteNav() {
           opacity: scrolled ? 1 : 0,
         }}
       />
-      <div className="relative z-10 mx-auto flex max-w-6xl items-center justify-between px-6 py-4">
+      <div className="relative z-10 mx-auto flex max-w-6xl items-center justify-between px-4 py-3 sm:px-6 sm:py-4">
         <Link href="/" className="flex items-center gap-3">
           <Image
             src={logo}
@@ -77,14 +78,43 @@ export default function SiteNav() {
           ))}
         </nav>
 
-        <Link
-          href="/reservation"
-          className="rounded-full px-5 py-2 text-sm font-semibold transition-all duration-300 hover:opacity-90"
+        <div className="flex items-center gap-2">
+          <Link
+            href="/reservation"
+            className="rounded-full px-4 py-2 text-sm font-semibold transition-all duration-300 hover:opacity-90 sm:px-5"
           style={{ backgroundColor: scrolled ? theme.navy : theme.sunset, color: scrolled ? theme.caramel : theme.navy }}
-        >
-          Book now
-        </Link>
+          >
+            Book now
+          </Link>
+          <button
+            type="button"
+            onClick={() => setMenuOpen((open) => !open)}
+            aria-expanded={menuOpen}
+            aria-label={menuOpen ? 'Close navigation menu' : 'Open navigation menu'}
+            className="flex h-10 w-10 items-center justify-center rounded-full border text-lg sm:hidden"
+            style={{ borderColor: `${theme.sand}66`, color: theme.sand }}
+          >
+            {menuOpen ? '×' : '☰'}
+          </button>
+        </div>
       </div>
+      {menuOpen ? (
+        <nav className="relative z-10 border-t px-4 py-3 sm:hidden" style={{ borderColor: `${theme.sand}33` }} aria-label="Mobile navigation">
+          <div className="flex flex-col gap-1">
+            {NAV_LINKS.map((link) => (
+              <a
+                key={link.href}
+                href={link.href}
+                onClick={() => setMenuOpen(false)}
+                className="rounded-lg px-3 py-3 text-sm font-medium transition hover:bg-white/10"
+                style={{ color: theme.sand }}
+              >
+                {link.label}
+              </a>
+            ))}
+          </div>
+        </nav>
+      ) : null}
     </header>
   );
 }

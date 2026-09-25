@@ -10,6 +10,11 @@ type PaymentByDateItem = {
   netAmount: number;
 };
 
+type MonthlyRevenueItem = {
+  month: string;
+  amount: number;
+};
+
 type PaymentMethodBreakdownItem = {
   method: string;
   payments: number;
@@ -31,6 +36,7 @@ type PaymentRow = {
 
 type PaymentReport = {
   paymentsByDate: PaymentByDateItem[];
+  monthlyRevenue: MonthlyRevenueItem[];
   cashRevenue: number;
   gcashRevenue: number;
   outstandingBalances: number;
@@ -52,6 +58,7 @@ type Props = {
 
 const emptyReport: PaymentReport = {
   paymentsByDate: [],
+  monthlyRevenue: [],
   cashRevenue: 0,
   gcashRevenue: 0,
   outstandingBalances: 0,
@@ -123,7 +130,11 @@ export default function PaymentReportsPanel({ active }: Props) {
 
   useEffect(() => {
     if (!active) return;
-    void loadReport();
+    const timeoutId = window.setTimeout(() => {
+      void loadReport();
+    }, 0);
+
+    return () => window.clearTimeout(timeoutId);
   }, [active, loadReport]);
 
   const exportReport = async (format: 'CSV' | 'PDF' | 'EXCEL') => {
@@ -153,6 +164,31 @@ export default function PaymentReportsPanel({ active }: Props) {
       setError(exportError instanceof Error ? exportError.message : `Unable to export ${format}.`);
     }
   };
+
+  const revenueChart = useMemo(() => {
+    const chartWidth = 760;
+    const chartHeight = 260;
+    const chartPadding = { top: 20, right: 24, bottom: 42, left: 72 };
+    const plotWidth = chartWidth - chartPadding.left - chartPadding.right;
+    const plotHeight = chartHeight - chartPadding.top - chartPadding.bottom;
+    const values = report.monthlyRevenue;
+    const maximum = Math.max(...values.map((item) => item.amount), 0);
+    const totalRevenue = values.reduce((total, item) => total + item.amount, 0);
+    const scaleMaximum = maximum > 0 ? maximum : 1;
+    const points = values.map((item, index) => {
+      const x = values.length === 1
+        ? chartPadding.left + plotWidth / 2
+        : chartPadding.left + (index / (values.length - 1)) * plotWidth;
+      const y = chartPadding.top + plotHeight - (Math.max(item.amount, 0) / scaleMaximum) * plotHeight;
+      return { ...item, x, y };
+    });
+    const linePath = points.map((point, index) => `${index === 0 ? 'M' : 'L'} ${point.x} ${point.y}`).join(' ');
+    const areaPath = points.length > 0
+      ? `${linePath} L ${points[points.length - 1].x} ${chartPadding.top + plotHeight} L ${points[0].x} ${chartPadding.top + plotHeight} Z`
+      : '';
+
+    return { chartWidth, chartHeight, chartPadding, plotHeight, points, linePath, areaPath, scaleMaximum, totalRevenue };
+  }, [report.monthlyRevenue]);
 
   if (!active) return null;
 
@@ -305,6 +341,68 @@ export default function PaymentReportsPanel({ active }: Props) {
           <p className="text-xs uppercase tracking-wider text-slate-500">Matched Reservations</p>
           <p className="mt-2 text-2xl font-semibold text-white">{report.totals.totalReservations}</p>
         </div>
+      </div>
+
+      <div className="mt-4 rounded-2xl border border-slate-800 bg-linear-to-br from-slate-900 via-slate-950 to-slate-950 p-4 shadow-lg shadow-black/10 sm:p-5">
+        <div className="flex flex-col gap-5 sm:flex-row sm:items-end sm:justify-between">
+          <div>
+            <div className="flex items-center gap-2">
+              <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-sky-500/10 text-sky-300 ring-1 ring-sky-500/20" aria-hidden="true">↗</span>
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-[0.2em] text-sky-300">Revenue Chart</p>
+                <p className="mt-1 text-sm text-slate-400">Net revenue earned by month for the active filters.</p>
+              </div>
+            </div>
+          </div>
+          {revenueChart.points.length > 0 ? (
+            <div className="flex items-end gap-3 self-start sm:self-auto">
+              <div className="text-right">
+                <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-slate-500">Net collected</p>
+                <p className="mt-1 text-xl font-semibold text-white">{formatMoney(revenueChart.totalRevenue)}</p>
+              </div>
+              <span className="rounded-full border border-slate-700 bg-slate-900/80 px-3 py-1 text-xs font-semibold text-slate-300">Peak {formatMoney(revenueChart.scaleMaximum)}</span>
+            </div>
+          ) : null}
+        </div>
+        {revenueChart.points.length === 0 ? (
+          <div className="mt-5 flex min-h-48 items-center justify-center rounded-xl border border-dashed border-slate-700 bg-slate-950/50 px-4 text-center text-sm text-slate-400">
+            No revenue data found for the current filters.
+          </div>
+        ) : (
+          <div className="mt-5 overflow-x-auto rounded-2xl border border-slate-800 bg-slate-950/60 px-2 py-3 shadow-inner shadow-black/10 sm:px-4">
+            <svg viewBox={`0 0 ${revenueChart.chartWidth} ${revenueChart.chartHeight}`} className="h-72 min-w-[620px] w-full" role="img" aria-label="Monthly net revenue line chart">
+              <defs>
+                <linearGradient id="revenue-area-gradient" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="0%" stopColor="#5789C7" stopOpacity="0.28" />
+                  <stop offset="100%" stopColor="#5789C7" stopOpacity="0.02" />
+                </linearGradient>
+              </defs>
+              {[0, 0.25, 0.5, 0.75, 1].map((ratio) => {
+                const y = revenueChart.chartPadding.top + revenueChart.plotHeight * ratio;
+                const value = revenueChart.scaleMaximum * (1 - ratio);
+                return (
+                  <g key={ratio}>
+                    <line x1={revenueChart.chartPadding.left} y1={y} x2={revenueChart.chartWidth - revenueChart.chartPadding.right} y2={y} stroke="#2B3A50" strokeDasharray={ratio === 1 ? undefined : '3 5'} />
+                    <text x={revenueChart.chartPadding.left - 10} y={y + 4} textAnchor="end" fill="#506D95" fontSize="10">{formatMoney(value)}</text>
+                  </g>
+                );
+              })}
+              <path d={revenueChart.areaPath} transform="translate(0 12)" fill="#122236" fillOpacity="0.85" />
+              <path d={revenueChart.areaPath} fill="url(#revenue-area-gradient)" />
+              <path d={revenueChart.linePath} transform="translate(0 12)" fill="none" stroke="#122236" strokeWidth="7" strokeLinecap="round" strokeLinejoin="round" />
+              <path d={revenueChart.linePath} fill="none" stroke="#7DA4D4" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" />
+              {revenueChart.points.map((point) => (
+                <g key={point.month}>
+                  <line x1={point.x} y1={point.y} x2={point.x} y2={point.y + 12} stroke="#122236" strokeWidth="4" />
+                  <circle cx={point.x} cy={point.y} r="7" fill="#1B2432" stroke="#EB8933" strokeWidth="3" />
+                  <circle cx={point.x} cy={point.y} r="2" fill="#F9FAFB" />
+                  <text x={point.x} y={revenueChart.chartHeight - 14} textAnchor="middle" fill="#8199BB" fontSize="11">{point.month}</text>
+                  <text x={point.x} y={point.y - 14} textAnchor="middle" fill="#F9FAFB" fontSize="11" fontWeight="600">{formatMoney(point.amount)}</text>
+                </g>
+              ))}
+            </svg>
+          </div>
+        )}
       </div>
 
       <div className="mt-4 rounded-xl border border-slate-800 bg-slate-950/70 p-4">

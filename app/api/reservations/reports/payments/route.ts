@@ -338,6 +338,7 @@ export async function GET(request: Request) {
     const payments = paymentsRaw as unknown as PaymentListItem[];
 
     const paymentByDateMap = new Map<string, { payments: number; amount: number; refundAmount: number; netAmount: number }>();
+    const monthlyRevenueMap = new Map<string, number>();
     const methodBreakdownMap = new Map<string, { payments: number; amount: number; netRevenue: number }>();
 
     const refunds = {
@@ -366,6 +367,9 @@ export async function GET(request: Request) {
         dateEntry.netAmount += amount;
       }
       paymentByDateMap.set(key, dateEntry);
+
+      const monthKey = key.slice(0, 7);
+      monthlyRevenueMap.set(monthKey, (monthlyRevenueMap.get(monthKey) || 0) + (isRefund ? -amount : amount));
 
       const methodEntry = methodBreakdownMap.get(method || 'UNKNOWN') || { payments: 0, amount: 0, netRevenue: 0 };
       methodEntry.payments += 1;
@@ -445,6 +449,10 @@ export async function GET(request: Request) {
         amount: normalizeMoney(values.amount),
         netRevenue: normalizeMoney(values.netRevenue),
       }));
+
+    const monthlyRevenue = Array.from(monthlyRevenueMap.entries())
+      .sort(([firstMonth], [secondMonth]) => firstMonth.localeCompare(secondMonth))
+      .map(([month, amount]) => ({ month, amount: normalizeMoney(amount) }));
 
     const paymentRows = payments.map((payment) => {
       const paymentDate = payment.paymentDate instanceof Date ? payment.paymentDate : new Date(String(payment.paymentDate || ''));
@@ -542,6 +550,7 @@ export async function GET(request: Request) {
         },
         report: {
           paymentsByDate,
+          monthlyRevenue,
           cashRevenue: summary.cashRevenue,
           gcashRevenue: summary.gcashRevenue,
           outstandingBalances: summary.outstandingBalances,

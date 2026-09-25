@@ -32,7 +32,7 @@ export default function RoomsShowcase({ rooms }: Props) {
             Rooms &amp; Houses
           </p>
           <h2 className="mt-2 font-serif text-3xl" style={{ color: theme.caramel }}>
-            Where you'll actually sleep
+            Where you&apos;ll actually sleep
           </h2>
         </div>
         <button
@@ -48,7 +48,7 @@ export default function RoomsShowcase({ rooms }: Props) {
 
       {rooms.length === 0 ? (
         <div className="rounded-2xl border border-dashed p-10 text-center text-sm" style={{ borderColor: `${theme.ink}33`, color: `${theme.ink}99` }}>
-          Rooms will appear here once they're published from the admin dashboard.
+          Rooms will appear here once they&apos;re published from the admin dashboard.
         </div>
       ) : (
         <>
@@ -58,22 +58,31 @@ export default function RoomsShowcase({ rooms }: Props) {
                 key={room._id}
                 type="button"
                 onClick={() => setSelectedRoom(room)}
-                className="overflow-hidden rounded-2xl border text-left transition hover:-translate-y-1 hover:shadow-lg"
+                className="group overflow-hidden rounded-2xl border text-left transition duration-300 hover:-translate-y-1 hover:shadow-xl focus-visible:-translate-y-1"
                 style={{ borderColor: `${theme.ink}1A`, backgroundColor: '#ffffff' }}
               >
-                <div className="relative h-40 w-full" style={{ backgroundColor: `${theme.royal}1A` }}>
+                <div className="relative h-44 w-full overflow-hidden" style={{ backgroundColor: `${theme.royal}1A` }}>
                   {room.primaryImage ? (
-                    <Image src={room.primaryImage} alt={room.primaryImageAlt || room.name} fill unoptimized className="object-cover" />
+                    <Image src={room.primaryImage} alt={room.primaryImageAlt || room.name} fill unoptimized className="object-cover transition duration-500 group-hover:scale-105" />
                   ) : (
                     <div className="flex h-full w-full items-center justify-center text-xs uppercase tracking-[0.3em]" style={{ color: `${theme.royal}99` }}>
                       {room.code}
                     </div>
                   )}
+                  <span className="absolute left-3 top-3 rounded-full px-2.5 py-1 text-[10px] font-semibold uppercase tracking-wider" style={{ backgroundColor: `${theme.sand}E6`, color: theme.royal }}>
+                    Available
+                  </span>
                 </div>
                 <div className="p-4">
-                  <h3 className="font-serif text-lg" style={{ color: theme.caramel }}>{room.name}</h3>
-                  <p className="mt-1 text-xs" style={{ color: `${theme.ink}99` }}>Up to {room.maxGuests} guests</p>
-                  <p className="mt-3 text-sm font-semibold" style={{ color: theme.royal }}>{peso(room.nightlyRate)} / night</p>
+                  <div className="flex items-start justify-between gap-3">
+                    <h3 className="font-serif text-lg" style={{ color: theme.caramel }}>{room.name}</h3>
+                    <span className="shrink-0 text-[10px] font-semibold uppercase tracking-wider" style={{ color: `${theme.ink}80` }}>{room.code}</span>
+                  </div>
+                  <p className="mt-2 text-xs" style={{ color: `${theme.ink}99` }}>Sleeps up to {room.maxGuests} guests</p>
+                  <div className="mt-4 flex items-end justify-between gap-3">
+                    <p className="text-sm font-semibold" style={{ color: theme.royal }}>{peso(room.nightlyRate)} <span className="text-xs font-normal" style={{ color: `${theme.ink}80` }}>/ night</span></p>
+                    <span className="text-xs font-semibold" style={{ color: theme.coral }}>View details →</span>
+                  </div>
                 </div>
               </button>
             ))}
