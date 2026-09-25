@@ -109,10 +109,26 @@ export default async function Home() {
       <section
         className="relative overflow-hidden bg-cover bg-center"
         style={{
-          backgroundImage: `linear-gradient(135deg, ${theme.navy}B8, ${theme.royal}80 58%, ${theme.navy}B8), url(${poolView.src})`,
+          backgroundImage: `url(${poolView.src})`,
           backgroundPosition: 'center 55%',
         }}
       >
+        <video
+          autoPlay
+          muted
+          loop
+          playsInline
+          poster={poolView.src}
+          aria-hidden="true"
+          className="pointer-events-none absolute inset-0 h-full w-full object-cover"
+        >
+          <source src="/video/lavelleza.mp4" type="video/mp4" />
+        </video>
+        <div
+          aria-hidden="true"
+          className="pointer-events-none absolute inset-0"
+          style={{ background: `linear-gradient(135deg, ${theme.navy}B8, ${theme.royal}80 58%, ${theme.navy}B8)` }}
+        />
         {/* horizon texture */}
         <svg className="pointer-events-none absolute inset-x-0 bottom-0 h-40 w-full opacity-30" viewBox="0 0 1200 160" preserveAspectRatio="none">
           <path d="M0,120 C200,60 400,150 600,90 C800,40 1000,130 1200,80 L1200,160 L0,160 Z" fill={theme.royal} />
