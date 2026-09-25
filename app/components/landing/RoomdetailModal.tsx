@@ -26,6 +26,8 @@ function Pill({ label, tone }: { label: string; tone: 'royal' | 'coral' }) {
 }
 
 export default function RoomDetailModal({ room, open, onClose }: Props) {
+  const [activeImageIndex, setActiveImageIndex] = React.useState(0);
+  const [imageLoading, setImageLoading] = React.useState(true);
   useEffect(() => {
     if (!open) return;
 
@@ -46,6 +48,16 @@ export default function RoomDetailModal({ room, open, onClose }: Props) {
   if (!open || !room) return null;
 
   const bedSummary = (room.beds || []).map((bed) => `${bed.quantity} ${bed.name}`).join(' + ');
+  const roomImages = room.images && room.images.length > 0
+    ? room.images
+    : room.primaryImage
+      ? [{ fileUrl: room.primaryImage, altText: room.primaryImageAlt || room.name }]
+      : [];
+  const activeImage = roomImages[activeImageIndex] || roomImages[0];
+  const changeImage = (nextIndex: number) => {
+    setImageLoading(true);
+    setActiveImageIndex(nextIndex);
+  };
 
   return (
     <div
@@ -54,51 +66,93 @@ export default function RoomDetailModal({ room, open, onClose }: Props) {
       onClick={onClose}
     >
       <div
-        className="relative flex max-h-[90vh] w-full max-w-2xl flex-col overflow-hidden rounded-3xl shadow-2xl"
+        className="relative flex max-h-[90vh] w-full max-w-5xl flex-col overflow-hidden rounded-3xl shadow-2xl md:flex-row"
         style={{ backgroundColor: theme.sand }}
         onClick={(event) => event.stopPropagation()}
       >
-        {/* image */}
-        <div className="relative h-56 w-full shrink-0 sm:h-72" style={{ backgroundColor: `${theme.royal}1A` }}>
-          {room.primaryImage ? (
-            <Image src={room.primaryImage} alt={room.primaryImageAlt || room.name} fill unoptimized className="object-cover" />
+        {/* room image */}
+        <div className="relative h-64 w-full shrink-0 md:h-auto md:min-h-[620px] md:w-[44%]" style={{ backgroundColor: `${theme.royal}1A` }}>
+          {activeImage ? (
+            <Image
+              src={activeImage.fileUrl}
+              alt={activeImage.altText || room.name}
+              fill
+              unoptimized
+              onLoad={() => setImageLoading(false)}
+              className={`object-cover transition-all duration-500 ease-out ${imageLoading ? 'scale-105 opacity-0' : 'scale-100 opacity-100'}`}
+            />
           ) : (
             <div className="flex h-full w-full items-center justify-center text-sm uppercase tracking-[0.3em]" style={{ color: `${theme.royal}99` }}>
               {room.code}
             </div>
           )}
 
-          <button
-            type="button"
-            onClick={onClose}
-            aria-label="Close"
-            className="absolute right-4 top-4 flex h-9 w-9 items-center justify-center rounded-full text-lg font-semibold transition hover:opacity-80"
-            style={{ backgroundColor: `${theme.sand}E6`, color: theme.navy }}
-          >
-            ×
-          </button>
+          {imageLoading && activeImage ? (
+            <div className="absolute inset-0 flex items-center justify-center" style={{ backgroundColor: `${theme.navy}26` }} aria-label="Loading room image">
+              <span className="h-10 w-10 animate-spin rounded-full border-2 border-white/30 border-t-white" aria-hidden="true" />
+            </div>
+          ) : null}
 
-          <div className="absolute inset-x-0 bottom-0 p-6" style={{ background: `linear-gradient(to top, ${theme.navy}F2, transparent)` }}>
-            <h3 className="font-serif text-2xl" style={{ color: theme.sand }}>{room.name}</h3>
-            <p className="mt-1 text-sm" style={{ color: `${theme.sand}CC` }}>Up to {room.maxGuests} guests · {room.code}</p>
-          </div>
+          {roomImages.length > 1 ? (
+            <>
+              <button
+                type="button"
+                onClick={() => changeImage((activeImageIndex - 1 + roomImages.length) % roomImages.length)}
+                aria-label="Previous room image"
+                className="absolute left-4 top-1/2 flex h-10 w-10 -translate-y-1/2 items-center justify-center rounded-full border text-2xl transition hover:scale-105"
+                style={{ borderColor: `${theme.sand}99`, backgroundColor: `${theme.navy}B8`, color: theme.sand }}
+              >
+                ‹
+              </button>
+              <button
+                type="button"
+                onClick={() => changeImage((activeImageIndex + 1) % roomImages.length)}
+                aria-label="Next room image"
+                className="absolute right-4 top-1/2 flex h-10 w-10 -translate-y-1/2 items-center justify-center rounded-full border text-2xl transition hover:scale-105"
+                style={{ borderColor: `${theme.sand}99`, backgroundColor: `${theme.navy}B8`, color: theme.sand }}
+              >
+                ›
+              </button>
+              <span className="absolute bottom-4 left-1/2 -translate-x-1/2 rounded-full px-3 py-1 text-xs font-semibold" style={{ backgroundColor: `${theme.navy}B8`, color: theme.sand }}>
+                {activeImageIndex + 1} / {roomImages.length}
+              </span>
+            </>
+          ) : null}
+
         </div>
 
-        {/* details */}
-        <div className="overflow-y-auto p-6">
+        {/* room details */}
+        <div className="flex min-h-0 flex-1 flex-col overflow-y-auto p-5 sm:p-7">
+          <div className="flex items-start justify-between gap-4 border-b pb-5" style={{ borderColor: `${theme.ink}1A` }}>
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-[0.3em]" style={{ color: theme.coral }}>Room details</p>
+              <h3 className="mt-2 font-serif text-3xl" style={{ color: theme.caramel }}>{room.name}</h3>
+              <p className="mt-2 text-sm" style={{ color: `${theme.ink}99` }}>Up to {room.maxGuests} guests <span className="mx-1" style={{ color: `${theme.ink}55` }}>•</span> {room.code}</p>
+            </div>
+            <button
+              type="button"
+              onClick={onClose}
+              aria-label="Close room details"
+              className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border text-lg font-semibold transition hover:bg-black/5"
+              style={{ borderColor: `${theme.ink}33`, color: theme.navy }}
+            >
+              ×
+            </button>
+          </div>
+
           {room.description ? (
-            <p className="text-sm leading-relaxed" style={{ color: `${theme.ink}CC` }}>{room.description}</p>
+            <p className="mt-5 text-sm leading-relaxed" style={{ color: `${theme.ink}CC` }}>{room.description}</p>
           ) : null}
 
           {bedSummary ? (
-            <div className="mt-5">
+            <div className="mt-6 rounded-xl border p-4" style={{ borderColor: `${theme.ink}1A`, backgroundColor: `${theme.royal}0D` }}>
               <p className="text-xs font-semibold uppercase tracking-[0.25em]" style={{ color: theme.royal }}>Sleeping arrangement</p>
               <p className="mt-2 text-sm" style={{ color: theme.ink }}>{bedSummary}</p>
             </div>
           ) : null}
 
           {room.features && room.features.length > 0 ? (
-            <div className="mt-5">
+            <div className="mt-6">
               <p className="text-xs font-semibold uppercase tracking-[0.25em]" style={{ color: theme.royal }}>Room features</p>
               <div className="mt-2 flex flex-wrap gap-2">
                 {room.features.map((feature) => (
@@ -109,7 +163,7 @@ export default function RoomDetailModal({ room, open, onClose }: Props) {
           ) : null}
 
           {room.amenities && room.amenities.length > 0 ? (
-            <div className="mt-5">
+            <div className="mt-6">
               <p className="text-xs font-semibold uppercase tracking-[0.25em]" style={{ color: theme.coral }}>Amenities included</p>
               <div className="mt-2 flex flex-wrap gap-2">
                 {room.amenities.map((amenity) => (
@@ -120,8 +174,9 @@ export default function RoomDetailModal({ room, open, onClose }: Props) {
           ) : null}
 
           {/* pricing */}
-          <div className="mt-6 rounded-2xl border p-4" style={{ borderColor: `${theme.ink}1A` }}>
-            <div className="grid gap-3 sm:grid-cols-3">
+          <div className="mt-6 rounded-2xl border p-4" style={{ borderColor: `${theme.ink}1A`, backgroundColor: `${theme.sand}CC` }}>
+            <p className="text-xs font-semibold uppercase tracking-[0.2em]" style={{ color: theme.royal }}>Rates</p>
+            <div className="mt-3 grid gap-3 sm:grid-cols-3">
               <div>
                 <p className="text-[11px] uppercase tracking-[0.2em]" style={{ color: `${theme.ink}80` }}>Nightly rate</p>
                 <p className="mt-1 text-lg font-semibold" style={{ color: theme.royal }}>{peso(room.nightlyRate)}</p>
@@ -144,10 +199,10 @@ export default function RoomDetailModal({ room, open, onClose }: Props) {
           <Link
             href={`/reservation?room=${encodeURIComponent(room._id)}`}
             onClick={onClose}
-            className="mt-6 block w-full rounded-full px-6 py-3 text-center text-sm font-semibold transition hover:opacity-90"
+            className="mt-7 block w-full rounded-full px-6 py-3.5 text-center text-sm font-semibold shadow-lg transition hover:-translate-y-0.5 hover:opacity-90"
             style={{ backgroundColor: theme.sunset, color: theme.navy }}
           >
-            Book {room.name}
+            Book this room now
           </Link>
         </div>
       </div>

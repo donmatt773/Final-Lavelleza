@@ -25,6 +25,7 @@ async function loadLandingData() {
     const [roomsRaw, promosRaw, rateSettingsRaw] = await Promise.all([
       Room.find({ isArchived: false, status: 'AVAILABLE' })
         .select('name code description maxGuests nightlyRate images')
+        .populate('amenities', 'name slug')
         .sort({ nightlyRate: -1 })
         .limit(60) // all rooms for a resort this size; RoomsShowcase paginates client-side
         .lean(),
@@ -54,6 +55,10 @@ async function loadLandingData() {
         nightlyRate: Number(room.nightlyRate || 0),
         primaryImage: primary?.fileUrl,
         primaryImageAlt: primary?.altText || room.name,
+        images: images.map((image) => ({ fileUrl: image.fileUrl, altText: image.altText || room.name })),
+        amenities: Array.isArray(room.amenities)
+          ? room.amenities.map((amenity) => typeof amenity === 'object' && amenity !== null && 'name' in amenity ? String(amenity.name || '') : String(amenity)).filter(Boolean)
+          : [],
       };
     });
 

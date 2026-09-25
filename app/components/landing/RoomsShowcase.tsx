@@ -116,8 +116,8 @@ export default function RoomsShowcase({ rooms }: Props) {
         </>
       )}
 
-      <AllRoomsModal open={galleryOpen} onClose={() => setGalleryOpen(false)} rooms={rooms} />
-      <RoomDetailModal room={selectedRoom} open={selectedRoom !== null} onClose={() => setSelectedRoom(null)} />
+      <AllRoomsModal key={galleryOpen ? 'rooms-gallery-open' : 'rooms-gallery-closed'} open={galleryOpen} onClose={() => setGalleryOpen(false)} rooms={rooms} />
+      <RoomDetailModal key={selectedRoom?._id || 'room-detail-closed'} room={selectedRoom} open={selectedRoom !== null} onClose={() => setSelectedRoom(null)} />
     </section>
   );
 }

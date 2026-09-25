@@ -15,18 +15,14 @@ type Props = {
 
 export default function AllRoomsModal({ open, onClose, rooms }: Props) {
   const [activeIndex, setActiveIndex] = useState(0);
-
-  useEffect(() => {
-    if (open) setActiveIndex(0);
-  }, [open]);
+  const [activeImageIndex, setActiveImageIndex] = useState(0);
+  const [imageLoading, setImageLoading] = useState(true);
 
   useEffect(() => {
     if (!open) return;
 
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.key === 'Escape') onClose();
-      if (event.key === 'ArrowRight') setActiveIndex((current) => Math.min(rooms.length - 1, current + 1));
-      if (event.key === 'ArrowLeft') setActiveIndex((current) => Math.max(0, current - 1));
     };
 
     const previousOverflow = document.body.style.overflow;
@@ -42,6 +38,21 @@ export default function AllRoomsModal({ open, onClose, rooms }: Props) {
   if (!open || rooms.length === 0) return null;
 
   const active = rooms[activeIndex] || rooms[0];
+  const roomImages = active.images && active.images.length > 0
+    ? active.images
+    : active.primaryImage
+      ? [{ fileUrl: active.primaryImage, altText: active.primaryImageAlt || active.name }]
+      : [];
+  const activeImage = roomImages[activeImageIndex] || roomImages[0];
+  const changeImage = (nextIndex: number) => {
+    setImageLoading(true);
+    setActiveImageIndex(nextIndex);
+  };
+  const selectRoom = (index: number) => {
+    setActiveIndex(index);
+    setActiveImageIndex(0);
+    setImageLoading(true);
+  };
 
   return (
     <div
@@ -74,95 +85,113 @@ export default function AllRoomsModal({ open, onClose, rooms }: Props) {
           </button>
         </div>
 
-        <div className="overflow-y-auto">
-          {/* hero preview */}
-          <div className="relative h-64 w-full sm:h-80" style={{ backgroundColor: `${theme.royal}1A` }}>
-            {active.primaryImage ? (
-              <Image src={active.primaryImage} alt={active.primaryImageAlt || active.name} fill unoptimized className="object-cover" />
-            ) : (
-              <div className="flex h-full w-full items-center justify-center text-sm uppercase tracking-[0.3em]" style={{ color: `${theme.royal}99` }}>
-                {active.code}
-              </div>
-            )}
-
-            {rooms.length > 1 ? (
-              <>
-                <button
-                  type="button"
-                  onClick={() => setActiveIndex((current) => (current === 0 ? rooms.length - 1 : current - 1))}
-                  aria-label="Previous room"
-                  className="absolute left-3 top-1/2 flex h-9 w-9 -translate-y-1/2 items-center justify-center rounded-full text-lg font-semibold transition hover:opacity-80"
-                  style={{ backgroundColor: `${theme.sand}E6`, color: theme.navy }}
-                >
-                  ‹
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setActiveIndex((current) => (current === rooms.length - 1 ? 0 : current + 1))}
-                  aria-label="Next room"
-                  className="absolute right-3 top-1/2 flex h-9 w-9 -translate-y-1/2 items-center justify-center rounded-full text-lg font-semibold transition hover:opacity-80"
-                  style={{ backgroundColor: `${theme.sand}E6`, color: theme.navy }}
-                >
-                  ›
-                </button>
-              </>
-            ) : null}
-
-            <div className="absolute inset-x-0 bottom-0 p-6" style={{ background: `linear-gradient(to top, ${theme.navy}F2, transparent)` }}>
-              <h4 className="font-serif text-2xl" style={{ color: theme.sand }}>{active.name}</h4>
-              <p className="mt-1 text-sm" style={{ color: `${theme.sand}CC` }}>Up to {active.maxGuests} guests</p>
-            </div>
-          </div>
-
-          {/* details + CTA */}
-          <div className="flex flex-col gap-4 px-6 py-5 sm:flex-row sm:items-center sm:justify-between">
-            <div>
-              {active.description ? (
-                <p className="max-w-lg text-sm" style={{ color: `${theme.ink}99` }}>{active.description}</p>
+        <div className="flex min-h-0 flex-1 flex-col overflow-y-auto md:flex-row">
+          <div className="relative flex min-h-[420px] flex-1 flex-col md:min-h-0 md:w-[58%]">
+            <div className="relative min-h-64 flex-1" style={{ backgroundColor: `${theme.royal}1A` }}>
+              {activeImage ? (
+                <Image
+                  src={activeImage.fileUrl}
+                  alt={activeImage.altText || active.name}
+                  fill
+                  unoptimized
+                  onLoad={() => setImageLoading(false)}
+                  className={`object-cover transition-all duration-500 ease-out ${imageLoading ? 'scale-105 opacity-0' : 'scale-100 opacity-100'}`}
+                />
+              ) : (
+                <div className="flex h-full items-center justify-center text-sm uppercase tracking-[0.3em]" style={{ color: `${theme.royal}99` }}>
+                  {active.code}
+                </div>
+              )}
+              {imageLoading && activeImage ? (
+                <div className="absolute inset-0 flex items-center justify-center" style={{ backgroundColor: `${theme.navy}26` }} aria-label="Loading room image">
+                  <span className="h-10 w-10 animate-spin rounded-full border-2 border-white/30 border-t-white" aria-hidden="true" />
+                </div>
               ) : null}
-              <p className="mt-2 text-lg font-semibold" style={{ color: theme.royal }}>
-                {peso(active.nightlyRate)} <span className="text-sm font-normal" style={{ color: `${theme.ink}80` }}>/ night</span>
-              </p>
+              {roomImages.length > 1 ? (
+                <>
+                  <button
+                    type="button"
+                    onClick={() => changeImage((activeImageIndex - 1 + roomImages.length) % roomImages.length)}
+                    aria-label="Previous room image"
+                    className="absolute left-4 top-1/2 flex h-10 w-10 -translate-y-1/2 items-center justify-center rounded-full text-2xl font-semibold transition hover:scale-105"
+                    style={{ backgroundColor: `${theme.sand}E6`, color: theme.navy }}
+                  >
+                    ‹
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => changeImage((activeImageIndex + 1) % roomImages.length)}
+                    aria-label="Next room image"
+                    className="absolute right-4 top-1/2 flex h-10 w-10 -translate-y-1/2 items-center justify-center rounded-full text-2xl font-semibold transition hover:scale-105"
+                    style={{ backgroundColor: `${theme.sand}E6`, color: theme.navy }}
+                  >
+                    ›
+                  </button>
+                  <span className="absolute bottom-4 left-1/2 -translate-x-1/2 rounded-full px-3 py-1 text-xs font-semibold" style={{ backgroundColor: `${theme.navy}B8`, color: theme.sand }}>
+                    {activeImageIndex + 1} / {roomImages.length}
+                  </span>
+                </>
+              ) : null}
             </div>
-            <Link
-              href={`/reservation?room=${encodeURIComponent(active._id)}`}
-              onClick={onClose}
-              className="inline-block whitespace-nowrap rounded-full px-6 py-3 text-center text-sm font-semibold transition hover:opacity-90"
-              style={{ backgroundColor: theme.sunset, color: theme.navy }}
-            >
-              Book this room
-            </Link>
+            <div className="p-5 sm:p-6">
+              <p className="text-xs font-semibold uppercase tracking-[0.25em]" style={{ color: theme.coral }}>Selected room</p>
+              <h4 className="mt-2 font-serif text-2xl" style={{ color: theme.caramel }}>{active.name}</h4>
+              <p className="mt-1 text-sm" style={{ color: `${theme.ink}99` }}>Up to {active.maxGuests} guests <span className="mx-1">•</span> {active.code}</p>
+              {active.description ? <p className="mt-4 text-sm leading-6" style={{ color: `${theme.ink}99` }}>{active.description}</p> : null}
+              {active.amenities && active.amenities.length > 0 ? (
+                <div className="mt-4">
+                  <p className="text-xs font-semibold uppercase tracking-[0.2em]" style={{ color: theme.coral }}>Amenities included</p>
+                  <div className="mt-2 flex flex-wrap gap-2">
+                    {active.amenities.map((amenity) => (
+                      <span key={amenity} className="rounded-full px-3 py-1 text-xs font-medium" style={{ backgroundColor: `${theme.coral}1A`, color: theme.coral }}>
+                        {amenity}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              ) : null}
+              <p className="mt-4 text-lg font-semibold" style={{ color: theme.royal }}>{peso(active.nightlyRate)} <span className="text-sm font-normal" style={{ color: `${theme.ink}80` }}>/ night</span></p>
+            </div>
           </div>
 
-          {/* thumbnail strip */}
-          <div className="border-t px-6 py-5" style={{ borderColor: `${theme.ink}1A` }}>
-            <div className="grid grid-cols-3 gap-3 sm:grid-cols-4 md:grid-cols-6">
+          <aside className="flex min-h-0 flex-col border-t md:w-[42%] md:border-l md:border-t-0" style={{ borderColor: `${theme.ink}1A` }}>
+            <div className="border-b px-5 py-4" style={{ borderColor: `${theme.ink}1A` }}>
+              <p className="text-xs font-semibold uppercase tracking-[0.25em]" style={{ color: theme.royal }}>Choose a room</p>
+              <p className="mt-1 text-sm" style={{ color: `${theme.ink}99` }}>Select a room to update the preview.</p>
+            </div>
+            <div className="grid flex-1 gap-2 overflow-y-auto p-4 sm:grid-cols-2 md:grid-cols-1">
               {rooms.map((room, index) => (
                 <button
                   key={room._id}
                   type="button"
-                  onClick={() => setActiveIndex(index)}
-                  className="overflow-hidden rounded-xl text-left transition"
+                  onClick={() => selectRoom(index)}
+                  className="flex items-center gap-3 rounded-xl border p-2 text-left transition hover:-translate-y-0.5"
                   style={{
-                    border: `${index === activeIndex ? 2 : 1}px solid ${index === activeIndex ? theme.sunset : `${theme.ink}1A`}`,
+                    borderColor: index === activeIndex ? theme.sunset : `${theme.ink}1A`,
+                    backgroundColor: index === activeIndex ? `${theme.sunset}12` : `${theme.sand}99`,
                   }}
                 >
-                  <div className="relative h-16 w-full" style={{ backgroundColor: `${theme.royal}1A` }}>
-                    {room.primaryImage ? (
-                      <Image src={room.primaryImage} alt={room.primaryImageAlt || room.name} fill unoptimized className="object-cover" />
-                    ) : (
-                      <div className="flex h-full w-full items-center justify-center text-[9px] uppercase tracking-widest" style={{ color: `${theme.royal}99` }}>
-                        {room.code}
-                      </div>
-                    )}
+                  <div className="relative h-14 w-16 shrink-0 overflow-hidden rounded-lg" style={{ backgroundColor: `${theme.royal}1A` }}>
+                    {room.primaryImage ? <Image src={room.primaryImage} alt={room.primaryImageAlt || room.name} fill unoptimized className="object-cover" /> : <span className="flex h-full items-center justify-center text-[9px]" style={{ color: theme.royal }}>{room.code}</span>}
                   </div>
-                  <p className="truncate px-2 py-1 text-[11px] font-medium" style={{ color: theme.ink, backgroundColor: '#ffffff' }}>
-                    {room.name}
-                  </p>
+                  <span className="min-w-0">
+                    <span className="block truncate text-sm font-semibold" style={{ color: theme.navy }}>{room.name}</span>
+                    <span className="mt-1 block text-xs" style={{ color: `${theme.ink}80` }}>{peso(room.nightlyRate)} / night</span>
+                  </span>
                 </button>
               ))}
             </div>
-          </div>
+            <div className="border-t p-4" style={{ borderColor: `${theme.ink}1A` }}>
+              <Link
+                href={`/reservation?room=${encodeURIComponent(active._id)}`}
+                onClick={onClose}
+                className="block w-full rounded-full px-6 py-3 text-center text-sm font-semibold shadow-lg transition hover:-translate-y-0.5 hover:opacity-90"
+                style={{ backgroundColor: theme.sunset, color: theme.navy }}
+              >
+                Book this room
+              </Link>
+            </div>
+          </aside>
         </div>
       </div>
     </div>
