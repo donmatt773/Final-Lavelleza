@@ -3,6 +3,7 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import ReservationCalendar from '@/app/components/ReservationCalendar';
 import ReservationForm from '@/app/components/ReservationForm';
+import { readGcashReferenceNumber, uploadPaymentReceipt } from '@/app/lib/paymentReceiptClient';
 import { DashboardReservationEvent, useDashboardReservationRealtime } from '@/hooks/useDashboardReservationRealtime';
 
 type ReservationStatus = 'PENDING' | 'CONFIRMED' | 'CANCELLED' | 'NO_SHOW' | 'CHECKED_IN' | 'CHECKED_OUT';
@@ -253,6 +254,10 @@ export default function ReservationManagementPanel({ active }: Props) {
   const [paymentActionId, setPaymentActionId] = useState<string | null>(null);
   const [paymentActionType, setPaymentActionType] = useState<'VERIFY' | 'REJECT' | 'GENERATE_RECEIPT' | null>(null);
   const [payments, setPayments] = useState<PaymentRecord[]>([]);
+    const [receiptProcessing, setReceiptProcessing] = useState(false);
+    const [receiptProgress, setReceiptProgress] = useState(0);
+    const [receiptMessage, setReceiptMessage] = useState<string | null>(null);
+    const receiptInputRef = useRef<HTMLInputElement>(null);
   const [paymentSummary, setPaymentSummary] = useState<PaymentSummary | null>(null);
   const [selectedReceipt, setSelectedReceipt] = useState<PaymentRecord | null>(null);
   const [paymentForm, setPaymentForm] = useState({
@@ -332,6 +337,8 @@ export default function ReservationManagementPanel({ active }: Props) {
       notes: '',
       proofOfPaymentUrl: '',
     });
+    setReceiptMessage(null);
+    setReceiptProgress(0);
 
     void loadReservationPayments(reservation._id);
   };
@@ -708,6 +715,9 @@ export default function ReservationManagementPanel({ active }: Props) {
       if (paymentForm.paymentMethod === 'GCASH' && !paymentForm.referenceNumber.trim()) {
         throw new Error('Reference Number is required for GCash payments.');
       }
+      if (paymentForm.paymentMethod === 'GCASH' && paymentForm.paymentType !== 'REFUND' && !paymentForm.proofOfPaymentUrl.trim()) {
+        throw new Error('Upload the GCash receipt image before recording this payment.');
+      }
 
       const outstandingBalance = Number(paymentSummary?.outstandingBalance || 0);
       const recognizedPaid = Number(paymentSummary?.recognizedPaid || 0);
@@ -752,6 +762,8 @@ export default function ReservationManagementPanel({ active }: Props) {
         notes: '',
         proofOfPaymentUrl: '',
       });
+      setReceiptMessage(null);
+      setReceiptProgress(0);
 
       await loadReservationPayments(editingReservation._id);
       const nextStatus = String(data?.reservationPaymentStatus || 'UNPAID').toUpperCase() as ReservationPaymentStatus;
@@ -763,6 +775,34 @@ export default function ReservationManagementPanel({ active }: Props) {
       setMessageType('error');
     } finally {
       setPaymentsSaving(false);
+    }
+  };
+
+  const handleGcashReceiptSelected = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    event.target.value = '';
+    if (!file) return;
+
+    setReceiptProcessing(true);
+    setReceiptProgress(0);
+    setReceiptMessage('Uploading receipt image...');
+    setPaymentForm((current) => ({ ...current, referenceNumber: '', proofOfPaymentUrl: '' }));
+    try {
+      const proofOfPaymentUrl = await uploadPaymentReceipt(file);
+      setPaymentForm((current) => ({ ...current, proofOfPaymentUrl }));
+      setReceiptMessage('Receipt uploaded. Reading reference number...');
+
+      const referenceNumber = await readGcashReferenceNumber(file, setReceiptProgress);
+      if (referenceNumber) {
+        setPaymentForm((current) => ({ ...current, referenceNumber }));
+        setReceiptMessage('Reference number detected. Please verify it before recording the payment.');
+      } else {
+        setReceiptMessage('Receipt uploaded, but the reference number was not detected. Enter it manually and verify it against the receipt.');
+      }
+    } catch (uploadError) {
+      setReceiptMessage(uploadError instanceof Error ? uploadError.message : 'Unable to read the receipt image.');
+    } finally {
+      setReceiptProcessing(false);
     }
   };
 
@@ -1585,18 +1625,52 @@ export default function ReservationManagementPanel({ active }: Props) {
                     placeholder="Amount"
                     className="rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-white outline-none focus:border-emerald-500"
                   />
-                  <input
-                    value={paymentForm.referenceNumber}
-                    onChange={(event) => setPaymentForm((current) => ({ ...current, referenceNumber: event.target.value }))}
-                    placeholder="Reference Number (GCash required)"
-                    className="rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-white outline-none focus:border-emerald-500"
-                  />
-                  <input
-                    value={paymentForm.proofOfPaymentUrl}
-                    onChange={(event) => setPaymentForm((current) => ({ ...current, proofOfPaymentUrl: event.target.value }))}
-                    placeholder="Proof URL (optional)"
-                    className="rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-white outline-none focus:border-emerald-500"
-                  />
+                  {paymentForm.paymentMethod === 'GCASH' ? (
+                    <>
+                      <div className="md:col-span-2">
+                        <input
+                          ref={receiptInputRef}
+                          type="file"
+                          accept="image/jpeg,image/png,image/webp"
+                          className="sr-only"
+                          disabled={receiptProcessing || paymentsSaving}
+                          onChange={(event) => { void handleGcashReceiptSelected(event); }}
+                        />
+                        <div className="flex flex-wrap items-center gap-3">
+                          <button
+                            type="button"
+                            onClick={() => receiptInputRef.current?.click()}
+                            disabled={receiptProcessing || paymentsSaving}
+                            className="rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-sm font-medium text-slate-200 hover:bg-slate-800 disabled:opacity-50"
+                          >
+                            {receiptProcessing ? 'Processing receipt...' : paymentForm.proofOfPaymentUrl ? 'Replace receipt image' : 'Upload GCash receipt'}
+                          </button>
+                          {paymentForm.proofOfPaymentUrl ? (
+                            <a href={paymentForm.proofOfPaymentUrl} target="_blank" rel="noreferrer" className="text-sm text-sky-300 underline hover:text-sky-200">
+                              Preview receipt
+                            </a>
+                          ) : null}
+                        </div>
+                        {receiptProcessing ? (
+                          <div className="mt-2" aria-live="polite">
+                            <p className="text-xs text-slate-400">{receiptMessage}</p>
+                            <div className="mt-1 h-1.5 overflow-hidden rounded-full bg-slate-800">
+                              <div className="h-full bg-emerald-500 transition-[width]" style={{ width: `${Math.round(receiptProgress * 100)}%` }} />
+                            </div>
+                          </div>
+                        ) : receiptMessage ? <p className="mt-2 text-xs text-slate-400" aria-live="polite">{receiptMessage}</p> : null}
+                      </div>
+                      <label className="text-xs text-slate-400 md:col-span-2">
+                        GCash reference number
+                        <input
+                          value={paymentForm.referenceNumber}
+                          onChange={(event) => setPaymentForm((current) => ({ ...current, referenceNumber: event.target.value }))}
+                          placeholder="Read from receipt; verify or edit"
+                          className="mt-1 w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-white outline-none focus:border-emerald-500"
+                        />
+                      </label>
+                    </>
+                  ) : null}
                   <input
                     value={paymentForm.notes}
                     onChange={(event) => setPaymentForm((current) => ({ ...current, notes: event.target.value }))}
@@ -1627,6 +1701,7 @@ export default function ReservationManagementPanel({ active }: Props) {
                       <th className="px-2 py-2">Amount</th>
                       <th className="px-2 py-2">Status</th>
                       <th className="px-2 py-2">Reference</th>
+                      <th className="px-2 py-2">Proof</th>
                       <th className="px-2 py-2">Receipt No.</th>
                       <th className="px-2 py-2">Issued By</th>
                       <th className="px-2 py-2">Actions</th>
@@ -1635,7 +1710,7 @@ export default function ReservationManagementPanel({ active }: Props) {
                   <tbody className="divide-y divide-slate-800">
                     {payments.length === 0 ? (
                       <tr>
-                        <td colSpan={10} className="px-2 py-4 text-center text-slate-500">No payment records yet.</td>
+                        <td colSpan={11} className="px-2 py-4 text-center text-slate-500">No payment records yet.</td>
                       </tr>
                     ) : (
                       payments.map((payment) => (
@@ -1647,6 +1722,7 @@ export default function ReservationManagementPanel({ active }: Props) {
                           <td className="px-2 py-2 text-emerald-300">{formatMoney(Number(payment.amountPaid || 0))}</td>
                           <td className="px-2 py-2">{payment.paymentStatus}</td>
                           <td className="px-2 py-2">{payment.referenceNumber || '—'}</td>
+                          <td className="px-2 py-2">{payment.proofOfPaymentUrl ? <a href={payment.proofOfPaymentUrl} target="_blank" rel="noreferrer" className="text-sky-300 underline hover:text-sky-200">View</a> : '—'}</td>
                           <td className="px-2 py-2 text-emerald-200">{payment.receiptNumber || '—'}</td>
                           <td className="px-2 py-2">{payment.issuedBy || '—'}</td>
                           <td className="px-2 py-2">

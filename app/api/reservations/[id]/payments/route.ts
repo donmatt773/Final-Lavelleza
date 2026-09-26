@@ -120,6 +120,11 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
       errors.push('referenceNumber is required for GCASH payments.');
     }
 
+    const proofOfPaymentUrl = typeof body.proofOfPaymentUrl === 'string' ? body.proofOfPaymentUrl.trim() : '';
+    if (paymentMethod === 'GCASH' && paymentType !== 'REFUND' && !proofOfPaymentUrl) {
+      errors.push('A GCash receipt image is required for GCASH payments.');
+    }
+
     let paymentStatus = String(body.paymentStatus || '').trim().toUpperCase();
     if (!paymentStatus) {
       paymentStatus = paymentMethod === 'GCASH' ? 'PENDING_VERIFICATION' : 'UNPAID';
@@ -130,8 +135,6 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     }
 
     const notes = typeof body.notes === 'string' ? body.notes.trim() : '';
-    const proofOfPaymentUrl = typeof body.proofOfPaymentUrl === 'string' ? body.proofOfPaymentUrl.trim() : '';
-
     const session = getSessionFromRequest(request);
     const receivedBy = typeof body.receivedBy === 'string' && body.receivedBy.trim()
       ? body.receivedBy.trim()
