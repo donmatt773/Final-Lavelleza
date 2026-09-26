@@ -158,6 +158,7 @@ export default function RoomForm({ open, mode, roomId, initialValues, onClose, o
         features: Array.from(new Set(form.features)),
         amenities: Array.from(new Set(form.amenities)),
         images: form.images.map((image) => ({
+          ...( /^[a-f\d]{24}$/i.test(image.id) ? { _id: image.id } : {}),
           fileUrl: image.fileUrl,
           storageKey: image.storageKey,
           altText: image.altText.trim(),
