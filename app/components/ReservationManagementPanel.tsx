@@ -120,6 +120,7 @@ type ReservationRecord = {
     adults: number;
     children: number;
   }>;
+  roomCheckOuts?: Array<{ room: string; checkOut: string }>;
   promo?: {
     _id?: string;
     name?: string;
@@ -159,6 +160,34 @@ function getReservationRoomLabel(reservation: ReservationRecord) {
     typeof assignment.room === 'string' ? 'Room' : assignment.room?.name || 'Room'
   )) || [];
   return assignedRooms.length > 0 ? assignedRooms.join(', ') : reservation.room?.name || '—';
+}
+
+function getReservationRooms(reservation: ReservationRecord) {
+  const checkOuts = new Map((reservation.roomCheckOuts || []).map((item) => [String(item.room), item.checkOut]));
+  const assignments = reservation.roomAssignments?.length
+    ? reservation.roomAssignments.map((assignment) => ({
+        roomId: typeof assignment.room === 'string' ? assignment.room : String(assignment.room?._id || ''),
+        roomName: typeof assignment.room === 'string' ? 'Room' : assignment.room?.name || 'Room',
+        adults: assignment.adults,
+        children: assignment.children,
+      }))
+    : reservation.room?._id
+      ? [{ roomId: reservation.room._id, roomName: reservation.room.name || 'Room', adults: reservation.adults, children: reservation.children }]
+      : [];
+
+  return assignments.map((assignment) => ({
+    ...assignment,
+    checkOut: checkOuts.get(assignment.roomId) || reservation.checkOut,
+  }));
+}
+
+function getLatestSelectedRoomCheckOut(reservation: ReservationRecord, selectedRoomIds: string[]) {
+  const selectedRooms = getReservationRooms(reservation).filter((room) => selectedRoomIds.includes(room.roomId));
+  if (selectedRooms.length === 0) return reservation.checkOut;
+  return selectedRooms.reduce(
+    (latest, room) => new Date(room.checkOut) > new Date(latest) ? room.checkOut : latest,
+    selectedRooms[0].checkOut
+  );
 }
 
 type Props = {
@@ -236,8 +265,9 @@ export default function ReservationManagementPanel({ active, canManageGmail = fa
   const [editingReservation, setEditingReservation] = useState<ReservationRecord | null>(null);
   const [extendingReservation, setExtendingReservation] = useState<ReservationRecord | null>(null);
   const [extensionCheckOut, setExtensionCheckOut] = useState('');
-  const [extensionPricing, setExtensionPricing] = useState<ReservationPricingSummary | null>(null);
-  const [extensionCurrentPricing, setExtensionCurrentPricing] = useState<ReservationPricingSummary | null>(null);
+  const [extensionRoomMode, setExtensionRoomMode] = useState<'ALL' | 'SELECTED'>('ALL');
+  const [extensionRoomIds, setExtensionRoomIds] = useState<string[]>([]);
+  const [extensionPricing, setExtensionPricing] = useState<{ addedAmount: number; newGrandTotal: number } | null>(null);
   const [extensionPricingLoading, setExtensionPricingLoading] = useState(false);
   const [extensionSaving, setExtensionSaving] = useState(false);
   const [checkoutWarningOpen, setCheckoutWarningOpen] = useState(false);
@@ -403,53 +433,48 @@ export default function ReservationManagementPanel({ active, canManageGmail = fa
   };
 
   const openExtendStay = (reservation: ReservationRecord) => {
+    const rooms = getReservationRooms(reservation);
     setExtendingReservation(reservation);
-    setExtensionCheckOut(getNextDateInputValue(reservation.checkOut));
+    setExtensionRoomMode('ALL');
+    setExtensionRoomIds(rooms.map((room) => room.roomId));
+    setExtensionCheckOut(getNextDateInputValue(rooms.reduce((latest, room) => new Date(room.checkOut) > new Date(latest) ? room.checkOut : latest, reservation.checkOut)));
     setExtensionPricing(null);
-    setExtensionCurrentPricing(null);
+  };
+
+  const updateExtensionRooms = (roomIds: string[]) => {
+    if (!extendingReservation) return;
+    setExtensionRoomIds(roomIds);
+    setExtensionPricing(null);
+    if (roomIds.length > 0) setExtensionCheckOut(getNextDateInputValue(getLatestSelectedRoomCheckOut(extendingReservation, roomIds)));
   };
 
   const previewExtensionPricing = async () => {
     if (!extendingReservation || !extensionCheckOut) return;
 
+    const selectedRoomIds = extensionRoomMode === 'ALL'
+      ? getReservationRooms(extendingReservation).map((room) => room.roomId)
+      : extensionRoomIds;
+    if (selectedRoomIds.length === 0) {
+      setMessage('Select at least one room to extend.');
+      setMessageType('error');
+      return;
+    }
+
     setExtensionPricingLoading(true);
     setMessage(null);
     try {
-      const pricingRequest = (checkOut: string) => fetch('/api/reservations/pricing', {
+      const response = await fetch(`/api/reservations/${extendingReservation._id}/extend`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'same-origin',
-        body: JSON.stringify({
-          reservationId: extendingReservation._id,
-          room: extendingReservation.room?._id,
-          roomAssignments: extendingReservation.roomAssignments?.map((assignment) => ({
-            room: typeof assignment.room === 'string' ? assignment.room : assignment.room?._id,
-            adults: assignment.adults,
-            children: assignment.children,
-          })),
-          promo: extendingReservation.promo?._id || null,
-          checkIn: extendingReservation.checkIn,
-          checkOut,
-          adults: extendingReservation.adults,
-          children: extendingReservation.children,
-          addOns: (extendingReservation.addOns || []).map((addOn) => ({ addOnId: addOn.addOnId, quantity: addOn.quantity })),
-        }),
+        body: JSON.stringify({ checkOut: extensionCheckOut, roomIds: selectedRoomIds, preview: true }),
       });
-
-      const [currentResponse, extensionResponse] = await Promise.all([
-        pricingRequest(new Date(extendingReservation.checkOut).toISOString().slice(0, 10)),
-        pricingRequest(extensionCheckOut),
-      ]);
-      const [currentData, extensionData] = await Promise.all([
-        currentResponse.json().catch(() => null),
-        extensionResponse.json().catch(() => null),
-      ]);
-      if (!currentResponse.ok || !currentData?.success || !extensionResponse.ok || !extensionData?.success) {
-        const data = !currentResponse.ok || !currentData?.success ? currentData : extensionData;
-        throw new Error(typeof data?.message === 'string' ? data.message : 'Unable to calculate the extended stay price.');
-      }
-      setExtensionCurrentPricing(currentData.pricingSummary as ReservationPricingSummary);
-      setExtensionPricing(extensionData.pricingSummary as ReservationPricingSummary);
+      const data = await response.json().catch(() => null);
+      if (!response.ok || !data?.success) throw new Error(typeof data?.message === 'string' ? data.message : 'Unable to calculate the extended stay price.');
+      setExtensionPricing({
+        addedAmount: Number(data.extension?.addedAmount || 0),
+        newGrandTotal: Number(data.extension?.newGrandTotal || 0),
+      });
     } catch (error) {
       setExtensionPricing(null);
       setMessage(error instanceof Error ? error.message : 'Unable to calculate the extended stay price.');
@@ -462,27 +487,29 @@ export default function ReservationManagementPanel({ active, canManageGmail = fa
   const saveExtension = async () => {
     if (!extendingReservation || !extensionCheckOut) return;
 
+    const selectedRoomIds = extensionRoomMode === 'ALL'
+      ? getReservationRooms(extendingReservation).map((room) => room.roomId)
+      : extensionRoomIds;
+
     setExtensionSaving(true);
     setMessage(null);
     try {
-      const response = await fetch(`/api/reservations/${extendingReservation._id}`, {
-        method: 'PATCH',
+      const response = await fetch(`/api/reservations/${extendingReservation._id}/extend`, {
+        method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'same-origin',
-        body: JSON.stringify({ checkOut: extensionCheckOut }),
+        body: JSON.stringify({ checkOut: extensionCheckOut, roomIds: selectedRoomIds }),
       });
       const data = await response.json().catch(() => null);
-      if (!response.ok) {
-        const errors = Array.isArray(data?.errors) ? ` ${data.errors.join(' ')}` : '';
-        throw new Error(`${typeof data?.message === 'string' ? data.message : 'Unable to extend the reservation.'}${errors}`.trim());
+      if (!response.ok || !data?.success) {
+        throw new Error(typeof data?.message === 'string' ? data.message : 'Unable to extend the reservation.');
       }
 
       setExtendingReservation(null);
       setExtensionPricing(null);
-      setExtensionCurrentPricing(null);
-      setMessage('Reservation stay extended successfully.');
-      setMessageType('success');
       await loadReservations();
+      setMessage(`Stay extended for ${selectedRoomIds.length === getReservationRooms(extendingReservation).length ? 'all rooms' : `${selectedRoomIds.length} selected room(s)`}. Added ${formatMoney(Number(data.extension?.addedAmount || 0))}.`);
+      setMessageType('success');
     } catch (error) {
       setMessage(error instanceof Error ? error.message : 'Unable to extend the reservation.');
       setMessageType('error');
@@ -1576,12 +1603,66 @@ export default function ReservationManagementPanel({ active, canManageGmail = fa
 
             <div className="rounded-xl border border-slate-800 bg-slate-950/70 p-4">
               <p className="text-sm text-slate-300">
-                Current check-out: <span className="font-semibold text-white">{formatDate(extendingReservation.checkOut)}</span>
+                Choose which rooms to extend. Unselected rooms keep their current check-out.
               </p>
+              <div className="mt-3 flex flex-wrap gap-2" role="group" aria-label="Rooms to extend">
+                <button
+                  type="button"
+                  aria-pressed={extensionRoomMode === 'ALL'}
+                  onClick={() => {
+                    const rooms = getReservationRooms(extendingReservation);
+                    setExtensionRoomMode('ALL');
+                    setExtensionRoomIds(rooms.map((room) => room.roomId));
+                    setExtensionCheckOut(getNextDateInputValue(getLatestSelectedRoomCheckOut(extendingReservation, rooms.map((room) => room.roomId))));
+                    setExtensionPricing(null);
+                  }}
+                  className={`rounded-lg border px-3 py-2 text-xs font-semibold ${extensionRoomMode === 'ALL' ? 'border-amber-500 bg-amber-500/10 text-amber-200' : 'border-slate-700 text-slate-300 hover:bg-slate-800'}`}
+                >
+                  All rooms
+                </button>
+                <button
+                  type="button"
+                  aria-pressed={extensionRoomMode === 'SELECTED'}
+                  onClick={() => {
+                    setExtensionRoomMode('SELECTED');
+                    updateExtensionRooms(getReservationRooms(extendingReservation).map((room) => room.roomId));
+                  }}
+                  className={`rounded-lg border px-3 py-2 text-xs font-semibold ${extensionRoomMode === 'SELECTED' ? 'border-amber-500 bg-amber-500/10 text-amber-200' : 'border-slate-700 text-slate-300 hover:bg-slate-800'}`}
+                >
+                  Choose rooms
+                </button>
+              </div>
+              {extensionRoomMode === 'SELECTED' ? (
+                <div className="mt-3 space-y-2">
+                  {getReservationRooms(extendingReservation).map((room) => (
+                    <label key={room.roomId} className="flex cursor-pointer items-center justify-between gap-3 rounded-lg border border-slate-800 px-3 py-2 text-sm text-slate-200">
+                      <span className="flex items-center gap-2">
+                        <input
+                          type="checkbox"
+                          checked={extensionRoomIds.includes(room.roomId)}
+                          onChange={(event) => updateExtensionRooms(
+                            event.target.checked
+                              ? [...extensionRoomIds, room.roomId]
+                              : extensionRoomIds.filter((roomId) => roomId !== room.roomId)
+                          )}
+                          className="h-4 w-4 accent-amber-500"
+                        />
+                        {room.roomName}
+                      </span>
+                      <span className="text-xs text-slate-500">Out {formatDate(room.checkOut)}</span>
+                    </label>
+                  ))}
+                </div>
+              ) : (
+                <p className="mt-2 text-xs text-slate-500">Current check-out: {formatDate(extendingReservation.checkOut)}. All rooms will share the new date.</p>
+              )}
               <label className="mt-4 block text-xs font-semibold uppercase tracking-wider text-slate-400">New check-out date</label>
               <input
                 type="date"
-                min={getNextDateInputValue(extendingReservation.checkOut)}
+                min={getNextDateInputValue(getLatestSelectedRoomCheckOut(
+                  extendingReservation,
+                  extensionRoomMode === 'ALL' ? getReservationRooms(extendingReservation).map((room) => room.roomId) : extensionRoomIds
+                ))}
                 value={extensionCheckOut}
                 onChange={(event) => {
                   setExtensionCheckOut(event.target.value);
@@ -1589,16 +1670,15 @@ export default function ReservationManagementPanel({ active, canManageGmail = fa
                 }}
                 className="mt-1 w-full rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-white outline-none focus:border-amber-500"
               />
-              <p className="mt-2 text-xs text-slate-500">The new date must be later than the current check-out date and available for every assigned room.</p>
+              <p className="mt-2 text-xs text-slate-500">Extension nights are priced at current room and extra-person rates. Existing add-ons and promo pricing are unchanged.</p>
             </div>
 
             {extensionPricing ? (
               <div className="mt-4 rounded-xl border border-emerald-500/20 bg-emerald-500/5 p-4 text-sm text-slate-300">
-                <p className="text-xs font-semibold uppercase tracking-[0.2em] text-emerald-400">Updated Pricing</p>
+                  <p className="text-xs font-semibold uppercase tracking-[0.2em] text-emerald-400">Extension Pricing</p>
                 <div className="mt-3 grid gap-2 sm:grid-cols-2">
-                  <p>New room total: <span className="font-semibold text-white">{formatMoney(extensionPricing.roomRate)}</span></p>
-                  <p>New grand total: <span className="font-semibold text-emerald-300">{formatMoney(extensionPricing.grandTotal)}</span></p>
-                  <p className="sm:col-span-2">Additional amount: <span className="font-semibold text-amber-300">{formatMoney(extensionPricing.grandTotal - Number(extensionCurrentPricing?.grandTotal || 0))}</span></p>
+                  <p>Added amount: <span className="font-semibold text-amber-300">{formatMoney(extensionPricing.addedAmount)}</span></p>
+                  <p>New reservation total: <span className="font-semibold text-emerald-300">{formatMoney(extensionPricing.newGrandTotal)}</span></p>
                 </div>
               </div>
             ) : null}
@@ -1613,7 +1693,7 @@ export default function ReservationManagementPanel({ active, canManageGmail = fa
               </button>
               <button
                 type="button"
-                disabled={!extensionCheckOut || extensionPricingLoading || extensionSaving}
+                disabled={!extensionCheckOut || (extensionRoomMode === 'SELECTED' && extensionRoomIds.length === 0) || extensionPricingLoading || extensionSaving}
                 onClick={() => { void previewExtensionPricing(); }}
                 className="rounded-lg border border-amber-700/50 px-3 py-2 text-sm font-semibold text-amber-300 hover:bg-amber-900/20 disabled:opacity-40"
               >
@@ -1621,7 +1701,7 @@ export default function ReservationManagementPanel({ active, canManageGmail = fa
               </button>
               <button
                 type="button"
-                disabled={!extensionPricing || extensionSaving}
+                disabled={!extensionPricing || extensionSaving || (extensionRoomMode === 'SELECTED' && extensionRoomIds.length === 0)}
                 onClick={() => { void saveExtension(); }}
                 className="rounded-lg bg-amber-600 px-3 py-2 text-sm font-semibold text-slate-950 hover:bg-amber-500 disabled:opacity-40"
               >

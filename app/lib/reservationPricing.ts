@@ -44,7 +44,7 @@ export type ReservationPricingSummary = {
 
 type PricingInput = {
   roomId?: string;
-  roomAssignments?: Array<{ roomId: string; adults: number; children: number }>;
+  roomAssignments?: Array<{ roomId: string; adults: number; children: number; checkIn?: Date; checkOut?: Date }>;
   promoId?: string | null;
   checkIn: Date;
   checkOut: Date;
@@ -143,9 +143,10 @@ export async function calculateReservationPricing(input: PricingInput): Promise<
       children: Math.floor(assignment.children),
       nightlyRate: Number(room.nightlyRate || 0),
       maxGuests: Math.max(1, Number(room.maxGuests || 1)),
+      nights: getNumberOfNights(assignment.checkIn || input.checkIn, assignment.checkOut || input.checkOut),
     };
   });
-  const roomRate = normalizeMoney(roomDetails.reduce((total, room) => total + room.nightlyRate * nights, 0));
+  const roomRate = normalizeMoney(roomDetails.reduce((total, room) => total + room.nightlyRate * room.nights, 0));
 
   const requestedAddOns = Array.isArray(input.addOns) ? input.addOns : [];
   const requestedAddOnQuantities = new Map<string, number>();
@@ -212,7 +213,8 @@ export async function calculateReservationPricing(input: PricingInput): Promise<
 
       if (isWithinDateRange) {
         packageRoomId = roomDetails.find((room) => isPromoApplicableToRoom(promoDoc!, room.roomId).includedMatch)?.roomId || null;
-        if (packageRoomId) promoPackagePrice = normalizeMoney(Number(promoDoc.packagePrice || 0) * nights);
+        const packageRoomNights = roomDetails.find((room) => room.roomId === packageRoomId)?.nights || nights;
+        if (packageRoomId) promoPackagePrice = normalizeMoney(Number(promoDoc.packagePrice || 0) * packageRoomNights);
       }
     }
   }
@@ -225,9 +227,9 @@ export async function calculateReservationPricing(input: PricingInput): Promise<
     const includedGuests = packageRoom ? Number(promoDoc?.includedPax || 0) : 0;
     const roomCapacity = Math.max(room.maxGuests, includedGuests);
     const overflowGuests = Math.max(0, room.adults + room.children - roomCapacity);
-    const roomExtraPersonFee = normalizeMoney(overflowGuests * extraPersonRate * nights);
+    const roomExtraPersonFee = normalizeMoney(overflowGuests * extraPersonRate * room.nights);
     const roomExtraBedFee = 0;
-    const roomNightlyTotal = normalizeMoney(room.nightlyRate * nights);
+    const roomNightlyTotal = normalizeMoney(room.nightlyRate * room.nights);
     let roomDiscount = 0;
 
     if (!packageRoom) {

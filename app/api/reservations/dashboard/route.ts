@@ -151,7 +151,7 @@ export async function GET(request: Request) {
         checkIn: { $lte: tomorrowStart },
         checkOut: { $gt: todayStart },
       })
-        .select('room roomAssignments.room')
+        .select('room roomAssignments.room roomCheckOuts checkIn checkOut')
         .lean(),
       Reservation.countDocuments({
         checkIn: { $gte: tomorrowStart },
@@ -176,10 +176,16 @@ export async function GET(request: Request) {
         .lean(),
     ]);
 
-    const occupiedRoomIds = new Set(occupiedRoomRefs.flatMap((reservation) => [
-      String(reservation.room || ''),
-      ...(Array.isArray(reservation.roomAssignments) ? reservation.roomAssignments.map((assignment) => String(assignment.room || '')) : []),
-    ]).filter(Boolean));
+    const occupiedRoomIds = new Set(occupiedRoomRefs.flatMap((reservation) => {
+      const roomIds = Array.isArray(reservation.roomAssignments) && reservation.roomAssignments.length > 0
+        ? reservation.roomAssignments.map((assignment) => String(assignment.room || ''))
+        : [String(reservation.room || '')];
+      return roomIds.filter((roomId) => {
+        const roomCheckOut = reservation.roomCheckOuts?.find((assignment) => String(assignment.room) === roomId)?.checkOut
+          || reservation.checkOut;
+        return roomCheckOut > todayStart;
+      });
+    }).filter(Boolean));
     const occupiedRooms = occupiedRoomIds.size;
     const availableRooms = Math.max(totalAvailableRoomInventory - occupiedRooms, 0);
 

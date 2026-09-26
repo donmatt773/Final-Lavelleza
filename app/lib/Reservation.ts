@@ -17,6 +17,10 @@ export interface IReservation {
     adults: number;
     children: number;
   }>;
+  roomCheckOuts?: Array<{
+    room: Types.ObjectId | string;
+    checkOut: Date;
+  }>;
   promo?: Types.ObjectId | string | null;
   adults: number;
   children: number;
@@ -95,6 +99,18 @@ const reservationSchema = new Schema<IReservation>(
             room: { type: Schema.Types.ObjectId, ref: 'Room', required: true },
             adults: { type: Number, required: true, min: 1 },
             children: { type: Number, required: true, min: 0, default: 0 },
+          },
+          { _id: false }
+        ),
+      ],
+      default: [],
+    },
+    roomCheckOuts: {
+      type: [
+        new Schema(
+          {
+            room: { type: Schema.Types.ObjectId, ref: 'Room', required: true },
+            checkOut: { type: Date, required: true },
           },
           { _id: false }
         ),

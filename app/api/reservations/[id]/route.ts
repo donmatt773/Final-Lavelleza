@@ -291,9 +291,23 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
       errors.push('checkOut must be later than checkIn.');
     }
 
+    const existingRoomCheckOuts = new Map(
+      (existingReservation.roomCheckOuts || []).map((assignment) => [String(assignment.room), new Date(assignment.checkOut)])
+    );
     const existingRoomAssignments = Array.isArray(existingReservation.roomAssignments) && existingReservation.roomAssignments.length > 0
       ? existingReservation.roomAssignments.map((assignment) => ({ roomId: String(assignment.room), adults: Number(assignment.adults), children: Number(assignment.children) }))
       : [{ roomId: String(existingReservation.room), adults: Number(existingReservation.adults), children: Number(existingReservation.children) }];
+    const requestedRoomIds = Array.isArray(body.roomAssignments)
+      ? body.roomAssignments.filter((item): item is Record<string, unknown> => isRecord(item)).map((assignment) => String(assignment.room || '')).sort()
+      : body.room !== undefined
+        ? [String(updatePayload.room || body.room)]
+        : null;
+    const existingRoomIds = existingRoomAssignments.map((assignment) => assignment.roomId).sort();
+    const roomSelectionChanged = requestedRoomIds !== null
+      && (requestedRoomIds.length !== existingRoomIds.length || requestedRoomIds.some((roomId, index) => roomId !== existingRoomIds[index]));
+    const existingCheckOutDay = new Date(existingReservation.checkOut).toISOString().slice(0, 10);
+    const candidateCheckOutDay = candidateCheckOut.toISOString().slice(0, 10);
+    const resetRoomCheckOuts = roomSelectionChanged || existingCheckOutDay !== candidateCheckOutDay;
     if (body.roomAssignments === undefined && (body.room !== undefined || body.adults !== undefined || body.children !== undefined)) {
       updatePayload.roomAssignments = [{
         room: String(updatePayload.room || existingReservation.room),
@@ -301,14 +315,24 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
         children: Number(updatePayload.children ?? existingReservation.children ?? 0),
       }];
     }
-    const candidateRoomAssignments = Array.isArray(updatePayload.roomAssignments)
+    const candidateRoomAssignmentsBase = Array.isArray(updatePayload.roomAssignments)
       ? (updatePayload.roomAssignments as Array<{ room: string; adults: number; children: number }>).map((assignment) => ({ roomId: assignment.room, adults: assignment.adults, children: assignment.children }))
       : updatePayload.room !== undefined
         ? [{ roomId: String(updatePayload.room), adults: Number(updatePayload.adults ?? existingReservation.adults), children: Number(updatePayload.children ?? existingReservation.children) }]
         : body.adults !== undefined || body.children !== undefined
           ? [{ roomId: String(existingReservation.room), adults: Number(updatePayload.adults ?? existingReservation.adults), children: Number(updatePayload.children ?? existingReservation.children) }]
           : existingRoomAssignments;
+    const candidateRoomAssignments = candidateRoomAssignmentsBase.map((assignment) => ({
+      ...assignment,
+      checkIn: candidateCheckIn,
+      checkOut: resetRoomCheckOuts
+        ? candidateCheckOut
+        : existingRoomCheckOuts.get(assignment.roomId) || candidateCheckOut,
+    }));
     const candidateRoomIds = candidateRoomAssignments.map((assignment) => assignment.roomId);
+    if (resetRoomCheckOuts || (existingReservation.roomCheckOuts?.length || 0) > 0) {
+      updatePayload.roomCheckOuts = candidateRoomAssignments.map((assignment) => ({ room: assignment.roomId, checkOut: assignment.checkOut }));
+    }
     const candidateRoomId = candidateRoomIds[0];
     const candidateStatus = String(updatePayload.reservationStatus || existingReservation.reservationStatus).toUpperCase();
     const currentStatus = String(existingReservation.reservationStatus || '').toUpperCase();
@@ -342,8 +366,8 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
     }
 
     if (candidateRoomIds.length > 0 && hasValidDateRange({ checkIn: candidateCheckIn, checkOut: candidateCheckOut }) && candidateStatus !== 'CANCELLED' && candidateStatus !== 'CHECKED_OUT') {
-      for (const roomId of candidateRoomIds) {
-        const conflictingReservation = await findConflictingReservation({ roomId, checkIn: candidateCheckIn, checkOut: candidateCheckOut, excludeReservationId: id });
+      for (const assignment of candidateRoomAssignments) {
+        const conflictingReservation = await findConflictingReservation({ roomId: assignment.roomId, checkIn: assignment.checkIn, checkOut: assignment.checkOut, excludeReservationId: id });
         if (conflictingReservation) {
           errors.push(`Date conflict: a selected room is blocked by reservation ${String(conflictingReservation.reservationNumber)}.`);
           break;

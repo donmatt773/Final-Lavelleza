@@ -17,10 +17,36 @@ function roomName(value: unknown) {
   return typeof value.name === 'string' && value.name ? value.name : 'Room';
 }
 
-function roomNames(reservation: { room?: unknown; roomAssignments?: Array<{ room?: unknown }> }) {
-  const assigned = reservation.roomAssignments?.map((assignment) => roomName(assignment.room)).filter(Boolean) || [];
-  if (assigned.length) return Array.from(new Set(assigned)).join(', ');
-  return roomName(reservation.room);
+function roomSummary(reservation: {
+  room?: unknown;
+  roomAssignments?: Array<{ room?: unknown }>;
+  roomCheckOuts?: Array<{ room?: unknown; checkOut?: Date | string }>;
+  checkOut?: Date | string;
+}) {
+  const assignments = reservation.roomAssignments?.length
+    ? reservation.roomAssignments.map((assignment) => ({
+        id: assignment.room && typeof assignment.room === 'object' && '_id' in assignment.room
+          ? String(assignment.room._id)
+          : String(assignment.room || ''),
+        name: roomName(assignment.room),
+      }))
+    : [{
+        id: reservation.room && typeof reservation.room === 'object' && '_id' in reservation.room
+          ? String(reservation.room._id)
+          : String(reservation.room || ''),
+        name: roomName(reservation.room),
+      }];
+  const checkOuts = new Map((reservation.roomCheckOuts || []).map((item) => [String(item.room), item.checkOut]));
+  const dates = assignments.map((assignment) => checkOuts.get(assignment.id) || reservation.checkOut);
+  const hasDifferentCheckOuts = new Set(dates.map((date) => date ? new Date(date).toISOString().slice(0, 10) : '')).size > 1;
+  const uniqueAssignments = assignments.filter((assignment, index) => assignments.findIndex((item) => item.id === assignment.id) === index);
+  return {
+    label: hasDifferentCheckOuts ? 'Room check-outs' : uniqueAssignments.length > 1 ? 'Rooms' : 'Room',
+    names: uniqueAssignments.map((assignment) => {
+      const checkOut = checkOuts.get(assignment.id) || reservation.checkOut;
+      return hasDifferentCheckOuts ? `${assignment.name} (out ${formatDate(checkOut || '')})` : assignment.name;
+    }).join(', '),
+  };
 }
 
 export async function POST(request: Request, { params }: { params: Promise<{ id: string }> }) {
@@ -39,7 +65,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     const reservation = await Reservation.findById(id)
       .populate('room', 'name')
       .populate('roomAssignments.room', 'name')
-      .select('reservationNumber guestName email checkIn checkOut adults children reservationStatus room roomAssignments pricingSummary.grandTotal')
+      .select('reservationNumber guestName email checkIn checkOut roomCheckOuts adults children reservationStatus room roomAssignments pricingSummary.grandTotal')
       .lean();
     if (!reservation) return NextResponse.json({ success: false, message: 'Reservation not found.' }, { status: 404 });
     if (!reservation.email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(reservation.email)) {
@@ -48,6 +74,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
 
     const status = String(reservation.reservationStatus || 'PENDING').replaceAll('_', ' ').toUpperCase();
     const settings = await RateSettings.findOne({ key: 'default' }).select('emailSubject emailBody').lean();
+    const rooms = roomSummary(reservation);
     const values: Record<string, string> = {
       guestName: reservation.guestName,
       reservationNumber: reservation.reservationNumber,
@@ -57,8 +84,8 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
         : status === 'CONFIRMED'
           ? 'Your stay is confirmed. Please keep this reservation number for your records.'
           : 'Please contact La Velleza Resort if you have questions about this status update.',
-      roomLabel: (reservation.roomAssignments?.length || 1) > 1 ? 'Rooms' : 'Room',
-      rooms: roomNames(reservation),
+      roomLabel: rooms.label,
+      rooms: rooms.names,
       checkIn: formatDate(reservation.checkIn),
       checkOut: formatDate(reservation.checkOut),
       adults: String(Number(reservation.adults || 0)),
