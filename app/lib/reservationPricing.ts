@@ -4,11 +4,7 @@ import Promo from '@/app/lib/Promo';
 import RateSettings from '@/app/lib/RateSettings';
 import AddOn from '@/app/lib/AddOn';
 
-const DEFAULT_RATE_SETTINGS = {
-  extraPersonRate: 150,
-  extraSingleBedRate: 300,
-  extraDoubleBedRate: 500,
-};
+const DEFAULT_EXTRA_PERSON_RATE = 150;
 
 export type ReservationPricingSummary = {
   currency: 'PHP';
@@ -128,12 +124,10 @@ export async function calculateReservationPricing(input: PricingInput): Promise<
   }
 
   const rateSettings = await RateSettings.findOne({ key: 'default' })
-    .select('extraPersonRate extraSingleBedRate extraDoubleBedRate')
+    .select('extraPersonRate')
     .lean();
 
-  const extraPersonRate = Number(rateSettings?.extraPersonRate ?? DEFAULT_RATE_SETTINGS.extraPersonRate);
-  const extraSingleBedRate = Number(rateSettings?.extraSingleBedRate ?? DEFAULT_RATE_SETTINGS.extraSingleBedRate);
-  const extraDoubleBedRate = Number(rateSettings?.extraDoubleBedRate ?? DEFAULT_RATE_SETTINGS.extraDoubleBedRate);
+  const extraPersonRate = Number(rateSettings?.extraPersonRate ?? DEFAULT_EXTRA_PERSON_RATE);
 
   const nights = getNumberOfNights(input.checkIn, input.checkOut);
   const roomDetails = assignments.map((assignment) => {
@@ -208,9 +202,7 @@ export async function calculateReservationPricing(input: PricingInput): Promise<
     const roomCapacity = Math.max(room.maxGuests, includedGuests);
     const overflowGuests = Math.max(0, room.adults + room.children - roomCapacity);
     const roomExtraPersonFee = normalizeMoney(overflowGuests * extraPersonRate * nights);
-    const doubleBeds = Math.floor(overflowGuests / 2);
-    const singleBeds = overflowGuests % 2;
-    const roomExtraBedFee = normalizeMoney((doubleBeds * extraDoubleBedRate + singleBeds * extraSingleBedRate) * nights);
+    const roomExtraBedFee = 0;
     const roomNightlyTotal = normalizeMoney(room.nightlyRate * nights);
     let roomDiscount = 0;
 
