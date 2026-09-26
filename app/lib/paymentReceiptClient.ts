@@ -31,6 +31,30 @@ export function extractGcashReferenceNumber(text: string) {
   return standaloneThirteenDigitReference?.[1]?.replace(/\D/g, '') || null;
 }
 
+export function extractGcashAmount(text: string) {
+  const normalized = text
+    .replace(/[\u00a0]/g, ' ')
+    .replace(/[|]/g, ' ')
+    .replace(/[ \t]+/g, ' ');
+  const parseLabeledAmount = (label: RegExp) => {
+    const match = label.exec(normalized);
+    if (!match?.[1]) return null;
+    const amount = Number(match[1].replace(/,/g, ''));
+    return Number.isFinite(amount) && amount > 0 ? amount.toFixed(2) : null;
+  };
+
+  const totalSent = parseLabeledAmount(/\btotal\s+amount\s+sent\s*[:#-]?\s*(?:₱|PHP)?\s*([0-9][0-9,]*(?:\.[0-9]{1,2})?)/i);
+  if (totalSent) return totalSent;
+
+  const amount = parseLabeledAmount(/\bamount\s*[:#-]?\s*(?:₱|PHP)?\s*([0-9][0-9,]*(?:\.[0-9]{1,2})?)/i);
+  if (amount) return amount;
+
+  const currencyAmount = parseLabeledAmount(/(?:₱|PHP)\s*([0-9][0-9,]*(?:\.[0-9]{1,2})?)/i);
+  if (currencyAmount) return currencyAmount;
+
+  return null;
+}
+
 export async function uploadPaymentReceipt(file: File) {
   if (!['image/jpeg', 'image/png', 'image/webp'].includes(file.type)) {
     throw new Error('Choose a JPEG, PNG, or WebP receipt image.');
@@ -63,7 +87,7 @@ export async function uploadPaymentReceipt(file: File) {
   return String(cloudinaryData.secure_url);
 }
 
-export async function readGcashReferenceNumber(file: File, onProgress?: (progress: number) => void) {
+export async function readGcashReceiptDetails(file: File, onProgress?: (progress: number) => void) {
   const { createWorker, PSM } = await import('tesseract.js');
   const worker = await createWorker('eng', 1, {
     logger: (message) => {
@@ -74,7 +98,11 @@ export async function readGcashReferenceNumber(file: File, onProgress?: (progres
   try {
     await worker.setParameters({ tessedit_pageseg_mode: PSM.SPARSE_TEXT });
     const result = await worker.recognize(file);
-    return extractGcashReferenceNumber(result.data.text || '');
+    const text = result.data.text || '';
+    return {
+      referenceNumber: extractGcashReferenceNumber(text),
+      amount: extractGcashAmount(text),
+    };
   } finally {
     await worker.terminate();
   }

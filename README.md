@@ -47,6 +47,21 @@ CLOUDINARY_API_SECRET=your_api_secret
 
 The room image upload endpoint accepts image files up to 4 MB and stores their Cloudinary secure URL and public ID in the room record.
 
+### Connect Gmail for reservation emails
+
+Enable the Gmail API in Google Cloud, configure the OAuth consent screen, and create an OAuth client with application type **Web application**. Add the exact value of `GOOGLE_REDIRECT_URI` to the client's authorized redirect URIs. For local development, use `http://localhost:3000/api/gmail/callback`; add the production callback URL separately for the deployed site. If the OAuth app is in testing mode, add the Gmail account as a test user.
+
+Set these values in `.env` locally and in the Vercel project environment settings:
+
+```env
+GOOGLE_CLIENT_ID=your_google_oauth_web_client_id
+GOOGLE_CLIENT_SECRET=your_google_oauth_web_client_secret
+GOOGLE_REDIRECT_URI=http://localhost:3000/api/gmail/callback
+GOOGLE_TOKEN_ENCRYPTION_KEY=generate_a_64_character_hex_key
+```
+
+Generate the encryption key locally with `node -e "console.log(require('node:crypto').randomBytes(32).toString('hex'))"`. Keep the client secret and encryption key private, and use the same encryption key anywhere this deployment reads its saved Gmail connection. An owner can then connect Gmail from Reservation Management; staff and owners can send generated reservation emails from a reservation's edit view.
+
 ### Seed the production database
 
 Vercel should only run `npm run build` during deployment. Run the initial database seed separately from your local terminal after adding the production `MONGODB_URI` to your local `.env`:

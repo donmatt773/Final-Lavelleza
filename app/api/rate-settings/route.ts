@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { connectDB } from '@/app/lib/db';
-import RateSettings from '@/app/lib/RateSettings';
+import RateSettings, { DEFAULT_EMAIL_BODY, DEFAULT_EMAIL_SUBJECT } from '@/app/lib/RateSettings';
 import { requireOwner } from '@/app/lib/auth';
 import { diffAuditFields, writeAuditLog } from '@/app/lib/auditLogWriter';
 
@@ -15,6 +15,8 @@ const DEFAULT_RATE_SETTINGS = {
   halfDayCutoffTime: '6:00 PM',
   beforeCutoffRateType: 'HALF_DAY',
   afterCutoffRateType: 'WHOLE_DAY',
+  emailSubject: DEFAULT_EMAIL_SUBJECT,
+  emailBody: DEFAULT_EMAIL_BODY,
 };
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -68,6 +70,23 @@ function validatePayload(body: unknown) {
     errors.push('After cutoff rate type must be WHOLE_DAY.');
   }
 
+  if (body.emailSubject !== undefined && (
+    typeof body.emailSubject !== 'string'
+    || !body.emailSubject.trim()
+    || body.emailSubject.trim().length > 200
+    || /[\r\n]/.test(body.emailSubject)
+  )) {
+    errors.push('Email subject must be a single line between 1 and 200 characters.');
+  }
+
+  if (body.emailBody !== undefined && (
+    typeof body.emailBody !== 'string'
+    || !body.emailBody.trim()
+    || body.emailBody.length > 10000
+  )) {
+    errors.push('Email message must contain text and be no longer than 10,000 characters.');
+  }
+
   return errors;
 }
 
@@ -115,7 +134,11 @@ export async function PUT(request: Request) {
   extraSingleBedRate: number;
   extraDoubleBedRate: number;
   halfDayCutoffTime: string;
+  emailSubject?: string;
+  emailBody?: string;
 };
+
+    const existing = await RateSettings.findOne({ key: 'default' }).lean();
 
     const payload = {
       key: 'default',
@@ -128,6 +151,8 @@ export async function PUT(request: Request) {
       halfDayCutoffTime: input.halfDayCutoffTime.trim().toUpperCase(),
       beforeCutoffRateType: 'HALF_DAY',
       afterCutoffRateType: 'WHOLE_DAY',
+      emailSubject: input.emailSubject?.trim() || existing?.emailSubject || DEFAULT_EMAIL_SUBJECT,
+      emailBody: input.emailBody?.trim() || existing?.emailBody || DEFAULT_EMAIL_BODY,
     };
 
     const previous = await RateSettings.findOne({ key: 'default' }).lean();
@@ -142,7 +167,7 @@ export async function PUT(request: Request) {
       entityType: 'RATE_SETTINGS',
       entityId: String(updated?._id || 'default'),
       entityLabel: 'Default rate settings',
-      summary: 'Updated room and resort rate settings.',
+      summary: 'Updated room, resort, and customer email settings.',
       changedFields: diffAuditFields(previous, updated, Object.keys(payload).filter((field) => field !== 'key')),
     });
 

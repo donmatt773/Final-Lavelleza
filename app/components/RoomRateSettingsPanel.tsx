@@ -12,6 +12,8 @@ type RateSettingsForm = {
   halfDayCutoffTime: string;
   beforeCutoffRateType: 'HALF_DAY';
   afterCutoffRateType: 'WHOLE_DAY';
+  emailSubject: string;
+  emailBody: string;
 };
 
 type Props = {
@@ -28,6 +30,24 @@ const defaultForm: RateSettingsForm = {
   halfDayCutoffTime: '6:00 PM',
   beforeCutoffRateType: 'HALF_DAY',
   afterCutoffRateType: 'WHOLE_DAY',
+  emailSubject: 'La Velleza reservation {{reservationNumber}} update',
+  emailBody: [
+    'Dear {{guestName}},',
+    '',
+    'We are contacting you about your reservation {{reservationNumber}}.',
+    'Current status: {{status}}.',
+    '',
+    '{{roomLabel}}: {{rooms}}',
+    'Check-in: {{checkIn}}',
+    'Check-out: {{checkOut}}',
+    'Guests: {{adults}} adult(s), {{children}} child(ren)',
+    'Reservation total: PHP {{total}}',
+    '',
+    '{{statusMessage}}',
+    '',
+    'Regards,',
+    'La Velleza Resort',
+  ].join('\n'),
 };
 
 const peso = new Intl.NumberFormat('en-PH', {
@@ -78,6 +98,8 @@ export default function RoomRateSettingsPanel({ active }: Props) {
         halfDayCutoffTime: settings.halfDayCutoffTime || defaultForm.halfDayCutoffTime,
         beforeCutoffRateType: 'HALF_DAY',
         afterCutoffRateType: 'WHOLE_DAY',
+        emailSubject: settings.emailSubject || defaultForm.emailSubject,
+        emailBody: settings.emailBody || defaultForm.emailBody,
       });
     } catch (error) {
       setMessage(error instanceof Error ? error.message : 'Unable to load settings');
@@ -158,6 +180,8 @@ export default function RoomRateSettingsPanel({ active }: Props) {
           halfDayCutoffTime: form.halfDayCutoffTime,
           beforeCutoffRateType: 'HALF_DAY',
           afterCutoffRateType: 'WHOLE_DAY',
+          emailSubject: form.emailSubject,
+          emailBody: form.emailBody,
         }),
       });
 
@@ -168,7 +192,7 @@ export default function RoomRateSettingsPanel({ active }: Props) {
       }
 
       setMessageType('success');
-      setMessage('Rate settings saved successfully.');
+      setMessage('Rate and email settings saved successfully.');
       await loadSettings();
     } catch (error) {
       setMessageType('error');
@@ -183,8 +207,8 @@ export default function RoomRateSettingsPanel({ active }: Props) {
   return (
     <section className="mt-4 rounded-3xl border border-slate-800 bg-linear-to-br from-slate-900 via-slate-900 to-slate-950 p-4 shadow-2xl shadow-black/30 sm:p-6">
       <div className="mb-6 border-b border-slate-800 pb-5">
-        <p className="text-xs font-semibold uppercase tracking-[0.3em] text-emerald-400">Room / Resort Rate Settings</p>
-        <h2 className="text-2xl font-semibold text-white">Centralized operational and pricing rules</h2>
+        <p className="text-xs font-semibold uppercase tracking-[0.3em] text-emerald-400">Rate Settings & Mail</p>
+        <h2 className="text-2xl font-semibold text-white">Pricing rules and customer email template</h2>
       </div>
 
       {message ? (
@@ -232,6 +256,37 @@ export default function RoomRateSettingsPanel({ active }: Props) {
               <p className="font-medium text-white">Rate Rule Mapping</p>
               <p className="mt-2">Before cutoff: <span className="font-semibold text-emerald-300">Half-Day Room Rate</span></p>
               <p className="mt-1">After cutoff: <span className="font-semibold text-emerald-300">Whole-Day Room Rate</span></p>
+            </div>
+          </section>
+
+          <section className="space-y-4 rounded-2xl border border-slate-800 bg-slate-950/70 p-4">
+            <div>
+              <h3 className="text-base font-semibold text-white">Reservation email</h3>
+              <p className="mt-1 text-xs leading-relaxed text-slate-400">
+                These values are used when an owner or staff member sends a reservation email. Available placeholders: {'{{guestName}}'}, {'{{reservationNumber}}'}, {'{{status}}'}, {'{{statusMessage}}'}, {'{{roomLabel}}'}, {'{{rooms}}'}, {'{{checkIn}}'}, {'{{checkOut}}'}, {'{{adults}}'}, {'{{children}}'}, {'{{total}}'}.
+              </p>
+            </div>
+            <div>
+              <label htmlFor="email-subject" className="mb-2 block text-sm text-slate-300">Email subject</label>
+              <input
+                id="email-subject"
+                value={form.emailSubject}
+                maxLength={200}
+                onChange={(event) => setForm({ ...form, emailSubject: event.target.value })}
+                className="w-full rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-white outline-none focus:border-emerald-500"
+              />
+            </div>
+            <div>
+              <label htmlFor="email-body" className="mb-2 block text-sm text-slate-300">Email message</label>
+              <textarea
+                id="email-body"
+                value={form.emailBody}
+                maxLength={10000}
+                rows={14}
+                onChange={(event) => setForm({ ...form, emailBody: event.target.value })}
+                className="w-full resize-y rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 font-mono text-sm leading-relaxed text-white outline-none focus:border-emerald-500"
+              />
+              <p className="mt-1 text-right text-xs text-slate-500">{form.emailBody.length}/10,000</p>
             </div>
           </section>
 

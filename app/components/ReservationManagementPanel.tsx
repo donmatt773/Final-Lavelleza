@@ -3,7 +3,7 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import ReservationCalendar from '@/app/components/ReservationCalendar';
 import ReservationForm from '@/app/components/ReservationForm';
-import { readGcashReferenceNumber, uploadPaymentReceipt } from '@/app/lib/paymentReceiptClient';
+import { readGcashReceiptDetails, uploadPaymentReceipt } from '@/app/lib/paymentReceiptClient';
 import { DashboardReservationEvent, useDashboardReservationRealtime } from '@/hooks/useDashboardReservationRealtime';
 
 type ReservationStatus = 'PENDING' | 'CONFIRMED' | 'CANCELLED' | 'NO_SHOW' | 'CHECKED_IN' | 'CHECKED_OUT';
@@ -163,6 +163,7 @@ function getReservationRoomLabel(reservation: ReservationRecord) {
 
 type Props = {
   active: boolean;
+  canManageGmail?: boolean;
 };
 
 type RoomOption = {
@@ -219,7 +220,7 @@ function playReservationNotificationSound(context: AudioContext) {
   });
 }
 
-export default function ReservationManagementPanel({ active }: Props) {
+export default function ReservationManagementPanel({ active, canManageGmail = false }: Props) {
   const [reservations, setReservations] = useState<ReservationRecord[]>([]);
   const [loading, setLoading] = useState(false);
   const [search, setSearch] = useState('');
@@ -260,6 +261,10 @@ export default function ReservationManagementPanel({ active }: Props) {
     const receiptInputRef = useRef<HTMLInputElement>(null);
   const [paymentSummary, setPaymentSummary] = useState<PaymentSummary | null>(null);
   const [selectedReceipt, setSelectedReceipt] = useState<PaymentRecord | null>(null);
+  const [gmailStatus, setGmailStatus] = useState<{ connected: boolean; email: string | null }>({ connected: false, email: null });
+  const [gmailLoading, setGmailLoading] = useState(false);
+  const [gmailActionLoading, setGmailActionLoading] = useState(false);
+  const [emailSendingId, setEmailSendingId] = useState<string | null>(null);
   const [paymentForm, setPaymentForm] = useState({
     paymentMethod: 'CASH_ON_ARRIVAL' as PaymentMethod,
     paymentType: 'PARTIAL_PAYMENT' as PaymentType,
@@ -301,6 +306,59 @@ export default function ReservationManagementPanel({ active }: Props) {
       setMessageType('error');
     } finally {
       setPaymentsLoading(false);
+    }
+  };
+
+  const loadGmailStatus = React.useCallback(async () => {
+    setGmailLoading(true);
+    try {
+      const response = await fetch('/api/gmail/status', { credentials: 'same-origin', cache: 'no-store' });
+      const data = await response.json().catch(() => null);
+      if (!response.ok || !data?.success) throw new Error('Unable to check Gmail connection.');
+      setGmailStatus({ connected: Boolean(data.connected), email: typeof data.email === 'string' ? data.email : null });
+    } catch {
+      setGmailStatus({ connected: false, email: null });
+    } finally {
+      setGmailLoading(false);
+    }
+  }, []);
+
+  const disconnectGmail = async () => {
+    setGmailActionLoading(true);
+    setMessage(null);
+    try {
+      const response = await fetch('/api/gmail/status', { method: 'DELETE', credentials: 'same-origin' });
+      const data = await response.json().catch(() => null);
+      if (!response.ok || !data?.success) throw new Error(data?.message || 'Unable to disconnect Gmail.');
+      setGmailStatus({ connected: false, email: null });
+      setMessage('Gmail account disconnected.');
+      setMessageType('success');
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : 'Unable to disconnect Gmail.');
+      setMessageType('error');
+    } finally {
+      setGmailActionLoading(false);
+    }
+  };
+
+  const sendReservationEmail = async (reservation: ReservationRecord) => {
+    if (!window.confirm(`Send a generated reservation email to ${reservation.email}?`)) return;
+    setEmailSendingId(reservation._id);
+    setMessage(null);
+    try {
+      const response = await fetch(`/api/reservations/${reservation._id}/email`, {
+        method: 'POST',
+        credentials: 'same-origin',
+      });
+      const data = await response.json().catch(() => null);
+      if (!response.ok || !data?.success) throw new Error(data?.message || 'Unable to send customer email.');
+      setMessage(data.message || 'Customer email sent.');
+      setMessageType('success');
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : 'Unable to send customer email.');
+      setMessageType('error');
+    } finally {
+      setEmailSendingId(null);
     }
   };
 
@@ -534,6 +592,27 @@ export default function ReservationManagementPanel({ active }: Props) {
 
     return () => window.clearTimeout(timeoutId);
   }, [active, loadReservations]);
+
+  useEffect(() => {
+    if (!active) return;
+    const timeoutId = window.setTimeout(() => {
+      void loadGmailStatus();
+      const url = new URL(window.location.href);
+      const result = url.searchParams.get('gmail');
+      if (result === 'connected') {
+        setMessage('Gmail account connected. Reservation emails are ready to send.');
+        setMessageType('success');
+      } else if (result === 'error') {
+        setMessage('Gmail could not be connected. Check the Google OAuth setup and try again.');
+        setMessageType('error');
+      }
+      if (result) {
+        url.searchParams.delete('gmail');
+        window.history.replaceState(window.history.state, '', url);
+      }
+    }, 0);
+    return () => window.clearTimeout(timeoutId);
+  }, [active, loadGmailStatus]);
 
   const filteredReservations = useMemo(() => {
     if (sourceFilter === 'ALL') return reservations;
@@ -786,19 +865,25 @@ export default function ReservationManagementPanel({ active }: Props) {
     setReceiptProcessing(true);
     setReceiptProgress(0);
     setReceiptMessage('Uploading receipt image...');
-    setPaymentForm((current) => ({ ...current, referenceNumber: '', proofOfPaymentUrl: '' }));
+    setPaymentForm((current) => ({ ...current, amountPaid: '', referenceNumber: '', proofOfPaymentUrl: '' }));
     try {
       const proofOfPaymentUrl = await uploadPaymentReceipt(file);
       setPaymentForm((current) => ({ ...current, proofOfPaymentUrl }));
       setReceiptMessage('Receipt uploaded. Reading reference number...');
 
-      const referenceNumber = await readGcashReferenceNumber(file, setReceiptProgress);
-      if (referenceNumber) {
-        setPaymentForm((current) => ({ ...current, referenceNumber }));
-        setReceiptMessage('Reference number detected. Please verify it before recording the payment.');
-      } else {
-        setReceiptMessage('Receipt uploaded, but the reference number was not detected. Enter it manually and verify it against the receipt.');
-      }
+      const receiptDetails = await readGcashReceiptDetails(file, setReceiptProgress);
+      setPaymentForm((current) => ({
+        ...current,
+        ...(receiptDetails.referenceNumber ? { referenceNumber: receiptDetails.referenceNumber } : {}),
+        ...(receiptDetails.amount ? { amountPaid: receiptDetails.amount } : {}),
+      }));
+      const detected = [
+        receiptDetails.referenceNumber ? 'reference number' : null,
+        receiptDetails.amount ? 'amount' : null,
+      ].filter(Boolean);
+      setReceiptMessage(detected.length > 0
+        ? `Receipt ${detected.join(' and ')} detected. Please verify before recording the payment.`
+        : 'Receipt uploaded, but the reference number and amount were not detected. Enter them manually and verify against the receipt.');
     } catch (uploadError) {
       setReceiptMessage(uploadError instanceof Error ? uploadError.message : 'Unable to read the receipt image.');
     } finally {
@@ -1083,6 +1168,30 @@ export default function ReservationManagementPanel({ active }: Props) {
         <div>
           <p className="text-xs font-semibold uppercase tracking-[0.3em] text-emerald-400">Reservation Management</p>
           <h2 className="text-2xl font-semibold text-white">Review public reservation requests</h2>
+          <div className="mt-2 flex flex-wrap items-center gap-2 text-xs">
+            {gmailLoading ? <span className="text-slate-500">Checking Gmail...</span> : gmailStatus.connected ? (
+              <span className="text-emerald-300">Gmail connected: {gmailStatus.email}</span>
+            ) : <span className="text-slate-500">Gmail is not connected</span>}
+            {canManageGmail ? gmailStatus.connected ? (
+              <button
+                type="button"
+                disabled={gmailActionLoading}
+                onClick={() => { void disconnectGmail(); }}
+                className="rounded border border-slate-700 px-2 py-1 text-slate-400 hover:bg-slate-800 disabled:opacity-50"
+              >
+                {gmailActionLoading ? 'Disconnecting...' : 'Disconnect'}
+              </button>
+            ) : (
+              <button
+                type="button"
+                disabled={gmailActionLoading || gmailLoading}
+                onClick={() => window.location.assign('/api/gmail/connect')}
+                className="rounded border border-emerald-700/50 px-2 py-1 font-semibold text-emerald-300 hover:bg-emerald-900/20 disabled:opacity-50"
+              >
+                Connect Gmail
+              </button>
+            ) : null}
+          </div>
         </div>
         <div className="flex flex-wrap gap-2">
           <button
@@ -1468,13 +1577,24 @@ export default function ReservationManagementPanel({ active }: Props) {
           <div className="w-full max-w-5xl max-h-[90vh] overflow-y-auto rounded-2xl border border-slate-800 bg-slate-900 p-5">
             <div className="mb-4 flex items-center justify-between">
               <h3 className="text-lg font-semibold text-white">Edit Reservation {editingReservation.reservationNumber}</h3>
-              <button
-                type="button"
-                onClick={() => setEditingReservation(null)}
-                className="rounded-lg border border-slate-700 px-2 py-1 text-xs text-slate-300 hover:bg-slate-800"
-              >
-                Close
-              </button>
+              <div className="flex gap-2">
+                <button
+                  type="button"
+                  disabled={!gmailStatus.connected || !editingReservation.email || emailSendingId === editingReservation._id}
+                  onClick={() => { void sendReservationEmail(editingReservation); }}
+                  title={!gmailStatus.connected ? 'Connect Gmail to send reservation emails' : undefined}
+                  className="rounded-lg border border-sky-700/50 px-3 py-1.5 text-xs font-semibold text-sky-300 hover:bg-sky-900/20 disabled:cursor-not-allowed disabled:opacity-40"
+                >
+                  {emailSendingId === editingReservation._id ? 'Sending...' : 'Email customer'}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setEditingReservation(null)}
+                  className="rounded-lg border border-slate-700 px-2 py-1 text-xs text-slate-300 hover:bg-slate-800"
+                >
+                  Close
+                </button>
+              </div>
             </div>
 
             {editingReservation.reservationStatus === 'CHECKED_OUT' ? (

@@ -12,9 +12,30 @@ export interface IRateSettings {
   halfDayCutoffTime: string;
   beforeCutoffRateType: 'HALF_DAY';
   afterCutoffRateType: 'WHOLE_DAY';
+  emailSubject: string;
+  emailBody: string;
   createdAt?: Date;
   updatedAt?: Date;
 }
+
+export const DEFAULT_EMAIL_SUBJECT = 'La Velleza reservation {{reservationNumber}} update';
+export const DEFAULT_EMAIL_BODY = [
+  'Dear {{guestName}},',
+  '',
+  'We are contacting you about your reservation {{reservationNumber}}.',
+  'Current status: {{status}}.',
+  '',
+  '{{roomLabel}}: {{rooms}}',
+  'Check-in: {{checkIn}}',
+  'Check-out: {{checkOut}}',
+  'Guests: {{adults}} adult(s), {{children}} child(ren)',
+  'Reservation total: PHP {{total}}',
+  '',
+  '{{statusMessage}}',
+  '',
+  'Regards,',
+  'La Velleza Resort',
+].join('\n');
 
 const rateSettingsSchema = new Schema<IRateSettings>(
   {
@@ -28,6 +49,8 @@ const rateSettingsSchema = new Schema<IRateSettings>(
     halfDayCutoffTime: { type: String, required: true, default: '6:00 PM', trim: true },
     beforeCutoffRateType: { type: String, required: true, enum: ['HALF_DAY'], default: 'HALF_DAY' },
     afterCutoffRateType: { type: String, required: true, enum: ['WHOLE_DAY'], default: 'WHOLE_DAY' },
+    emailSubject: { type: String, required: true, default: DEFAULT_EMAIL_SUBJECT, trim: true, maxlength: 200 },
+    emailBody: { type: String, required: true, default: DEFAULT_EMAIL_BODY, maxlength: 10000 },
   },
   {
     timestamps: true,
