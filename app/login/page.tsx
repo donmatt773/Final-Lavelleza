@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState } from 'react';
+import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 
 
@@ -134,6 +135,12 @@ export default function LoginPage() {
           >
             {loading ? 'Authenticating...' : 'Authenticate & Access Terminal'}
           </button>
+          <Link
+            href="/"
+            className="block pt-1 text-center text-sm text-slate-400 transition hover:text-slate-200 focus-visible:outline-none focus-visible:underline"
+          >
+            Back to home
+          </Link>
         </form>
 
         <div className="mt-6 p-3 rounded-lg bg-slate-950/60 border border-slate-800 text-[11px] text-slate-400 space-y-1">
