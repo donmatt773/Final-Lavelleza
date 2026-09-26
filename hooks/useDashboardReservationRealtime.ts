@@ -3,7 +3,17 @@
 import { useEffect } from 'react';
 import Pusher from 'pusher-js';
 
-export function useDashboardReservationRealtime(refetch: () => Promise<unknown>) {
+export type DashboardReservationEvent = {
+  reservationId?: string;
+  reservationStatus?: string;
+  reservationSource?: string;
+  type?: string;
+};
+
+export function useDashboardReservationRealtime(
+  refetch: () => Promise<unknown>,
+  onReservationCreated?: (event: DashboardReservationEvent) => void
+) {
   useEffect(() => {
     const key = process.env.NEXT_PUBLIC_PUSHER_KEY;
     const cluster = process.env.NEXT_PUBLIC_PUSHER_CLUSTER;
@@ -20,7 +30,8 @@ export function useDashboardReservationRealtime(refetch: () => Promise<unknown>)
 
     const channel = pusher.subscribe('dashboard-updates');
 
-    channel.bind('reservation-updated', async () => {
+    channel.bind('reservation-updated', async (event: DashboardReservationEvent) => {
+      if (event?.type === 'reservation-created') onReservationCreated?.(event);
       try {
         await refetch();
       } catch (error) {
@@ -41,5 +52,5 @@ export function useDashboardReservationRealtime(refetch: () => Promise<unknown>)
       pusher.unsubscribe('dashboard-updates');
       pusher.disconnect();
     };
-  }, [refetch]);
+  }, [refetch, onReservationCreated]);
 }

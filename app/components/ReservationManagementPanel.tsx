@@ -1,9 +1,9 @@
 'use client';
 
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import ReservationCalendar from '@/app/components/ReservationCalendar';
 import ReservationForm from '@/app/components/ReservationForm';
-import { useDashboardReservationRealtime } from '@/hooks/useDashboardReservationRealtime';
+import { DashboardReservationEvent, useDashboardReservationRealtime } from '@/hooks/useDashboardReservationRealtime';
 
 type ReservationStatus = 'PENDING' | 'CONFIRMED' | 'CANCELLED' | 'NO_SHOW' | 'CHECKED_IN' | 'CHECKED_OUT';
 
@@ -197,6 +197,27 @@ const getNextDateInputValue = (value: string) => {
   return date.toISOString().slice(0, 10);
 };
 
+function playReservationNotificationSound(context: AudioContext) {
+  if (context.state !== 'running') return;
+
+  const now = context.currentTime;
+  const masterGain = context.createGain();
+  masterGain.gain.setValueAtTime(0.0001, now);
+  masterGain.gain.exponentialRampToValueAtTime(0.12, now + 0.025);
+  masterGain.gain.exponentialRampToValueAtTime(0.0001, now + 0.42);
+  masterGain.connect(context.destination);
+
+  [880, 1174.66].forEach((frequency, index) => {
+    const oscillator = context.createOscillator();
+    const start = now + index * 0.14;
+    oscillator.type = 'sine';
+    oscillator.frequency.setValueAtTime(frequency, start);
+    oscillator.connect(masterGain);
+    oscillator.start(start);
+    oscillator.stop(start + 0.24);
+  });
+}
+
 export default function ReservationManagementPanel({ active }: Props) {
   const [reservations, setReservations] = useState<ReservationRecord[]>([]);
   const [loading, setLoading] = useState(false);
@@ -225,6 +246,8 @@ export default function ReservationManagementPanel({ active }: Props) {
   const [walkInRooms, setWalkInRooms] = useState<RoomOption[]>([]);
   const [notificationsOpen, setNotificationsOpen] = useState(false);
   const [seenReservationIds, setSeenReservationIds] = useState<string[]>([]);
+  const audioContextRef = useRef<AudioContext | null>(null);
+  const handledNotificationIdsRef = useRef<Set<string>>(new Set());
   const [paymentsLoading, setPaymentsLoading] = useState(false);
   const [paymentsSaving, setPaymentsSaving] = useState(false);
   const [paymentActionId, setPaymentActionId] = useState<string | null>(null);
@@ -434,7 +457,49 @@ export default function ReservationManagementPanel({ active }: Props) {
     }
   }, [search, reservationStatusFilter, paymentStatusFilter, sourceFilter, startDateFilter, endDateFilter]);
 
-  useDashboardReservationRealtime(loadReservations);
+  const handleNewReservationEvent = React.useCallback((event: DashboardReservationEvent) => {
+    const reservationId = event.reservationId;
+    if (!reservationId || event.reservationStatus !== 'PENDING' || event.reservationSource !== 'ONLINE') return;
+    if (handledNotificationIdsRef.current.has(reservationId)) return;
+    handledNotificationIdsRef.current.add(reservationId);
+
+    try {
+      const seenIds = JSON.parse(window.localStorage.getItem(SEEN_RESERVATION_NOTIFICATIONS_KEY) || '[]');
+      if (Array.isArray(seenIds) && seenIds.includes(reservationId)) return;
+    } catch {
+      // A malformed notification cache must not prevent the new-request chime.
+    }
+
+    if (audioContextRef.current) playReservationNotificationSound(audioContextRef.current);
+  }, []);
+
+  useDashboardReservationRealtime(loadReservations, handleNewReservationEvent);
+
+  useEffect(() => {
+    const unlockNotificationAudio = () => {
+      try {
+        const AudioContextConstructor = window.AudioContext;
+        if (!AudioContextConstructor) return;
+        const context = audioContextRef.current || new AudioContextConstructor();
+        audioContextRef.current = context;
+        if (context.state === 'suspended') void context.resume().catch(() => undefined);
+      } catch {
+        audioContextRef.current = null;
+      }
+    };
+
+    document.addEventListener('pointerdown', unlockNotificationAudio);
+    document.addEventListener('keydown', unlockNotificationAudio);
+
+    return () => {
+      document.removeEventListener('pointerdown', unlockNotificationAudio);
+      document.removeEventListener('keydown', unlockNotificationAudio);
+      if (audioContextRef.current) {
+        void audioContextRef.current.close().catch(() => undefined);
+        audioContextRef.current = null;
+      }
+    };
+  }, []);
 
   useEffect(() => {
     const timeoutId = window.setTimeout(() => {

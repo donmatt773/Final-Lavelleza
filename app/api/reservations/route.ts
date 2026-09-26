@@ -495,6 +495,7 @@ export async function POST(request: Request) {
     await triggerReservationUpdate(String(reservation._id), {
       type: 'reservation-created',
       reservationStatus: reservation.reservationStatus,
+      reservationSource: reservation.reservationSource,
       paymentStatus: reservation.paymentStatus,
     });
 
