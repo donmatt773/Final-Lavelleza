@@ -151,7 +151,7 @@ export async function GET(request: Request) {
         checkIn: { $lte: tomorrowStart },
         checkOut: { $gt: todayStart },
       })
-        .select('room')
+        .select('room roomAssignments.room')
         .lean(),
       Reservation.countDocuments({
         checkIn: { $gte: tomorrowStart },
@@ -161,8 +161,9 @@ export async function GET(request: Request) {
         checkIn: { $gte: monthStart, $lt: nextMonthStart },
         reservationStatus: { $nin: ['CANCELLED', 'NO_SHOW'] },
       })
-        .select('room reservationStatus reservationSource pricingSummary.grandTotal')
+        .select('room roomAssignments.room reservationStatus reservationSource pricingSummary.grandTotal')
         .populate('room', 'name code')
+        .populate('roomAssignments.room', 'name code')
         .lean(),
       Payment.find({ paymentDate: { $gte: monthStart, $lt: nextMonthStart } })
         .select('paymentMethod paymentStatus paymentType amountPaid')
@@ -175,7 +176,10 @@ export async function GET(request: Request) {
         .lean(),
     ]);
 
-    const occupiedRoomIds = new Set(occupiedRoomRefs.map((reservation) => String(reservation.room || '')));
+    const occupiedRoomIds = new Set(occupiedRoomRefs.flatMap((reservation) => [
+      String(reservation.room || ''),
+      ...(Array.isArray(reservation.roomAssignments) ? reservation.roomAssignments.map((assignment) => String(assignment.room || '')) : []),
+    ]).filter(Boolean));
     const occupiedRooms = occupiedRoomIds.size;
     const availableRooms = Math.max(totalAvailableRoomInventory - occupiedRooms, 0);
 
@@ -211,24 +215,21 @@ export async function GET(request: Request) {
         }
       }
 
-      const room = (reservation as { room?: { _id?: unknown; name?: unknown; code?: unknown } | string | null }).room;
-      const roomId = typeof room === 'string' ? room : String(room?._id || '');
-      if (!roomId) return;
-
-      const roomName = typeof room === 'string' ? 'Unknown Room' : String(room?.name || 'Unknown Room');
-      const roomCode = typeof room === 'string' ? 'N/A' : String(room?.code || 'N/A');
-      const existing = roomBookingMap.get(roomId);
-
-      if (existing) {
-        existing.reservations += 1;
-      } else {
-        roomBookingMap.set(roomId, {
-          roomId,
-          roomName,
-          roomCode,
-          reservations: 1,
-        });
-      }
+      const reservationRooms = Array.isArray((reservation as { roomAssignments?: Array<{ room?: { _id?: unknown; name?: unknown; code?: unknown } | string }> }).roomAssignments)
+        ? (reservation as { roomAssignments: Array<{ room?: { _id?: unknown; name?: unknown; code?: unknown } | string }> }).roomAssignments.map((assignment) => assignment.room)
+        : [];
+      const roomRefs = reservationRooms.length > 0
+        ? reservationRooms
+        : [(reservation as { room?: { _id?: unknown; name?: unknown; code?: unknown } | string | null }).room];
+      roomRefs.forEach((room) => {
+        const roomId = typeof room === 'string' ? room : String(room?._id || '');
+        if (!roomId) return;
+        const roomName = typeof room === 'string' ? 'Unknown Room' : String(room?.name || 'Unknown Room');
+        const roomCode = typeof room === 'string' ? 'N/A' : String(room?.code || 'N/A');
+        const existing = roomBookingMap.get(roomId);
+        if (existing) existing.reservations += 1;
+        else roomBookingMap.set(roomId, { roomId, roomName, roomCode, reservations: 1 });
+      });
     });
 
     const mostBookedRooms = Array.from(roomBookingMap.values())

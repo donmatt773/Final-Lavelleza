@@ -20,6 +20,7 @@ export type PromoEligibilityItem = {
   status: string;
   statusCategory: PromoStatusCategory;
   roomEligible: boolean;
+  includedRoomIds: string[];
   dateEligible: boolean;
   eligible: boolean;
   ineligibilityReasons: string[];
@@ -27,7 +28,8 @@ export type PromoEligibilityItem = {
 };
 
 type EligibilityInput = {
-  roomId: string;
+  roomId?: string;
+  roomIds?: string[];
   checkIn: Date;
   checkOut: Date;
 };
@@ -90,7 +92,8 @@ export async function evaluatePromosForReservation(input: EligibilityInput) {
     const expired = isPromoExpired(promoStatus, endDate, now);
     const inactive = !expired && promoStatus !== 'ACTIVE';
 
-    const roomEligible = isRoomEligible(promo.includedRoomIds, input.roomId);
+    const roomIds = input.roomIds?.length ? input.roomIds : input.roomId ? [input.roomId] : [];
+    const roomEligible = roomIds.length === 0 || roomIds.some((roomId) => isRoomEligible(promo.includedRoomIds, roomId));
     const dateEligible = isDateEligible(startDate, endDate, input.checkIn, input.checkOut);
 
     const statusCategory: PromoStatusCategory = expired ? 'EXPIRED' : inactive ? 'INACTIVE' : 'VALID';
@@ -112,6 +115,7 @@ export async function evaluatePromosForReservation(input: EligibilityInput) {
       status: promoStatus,
       statusCategory,
       roomEligible,
+      includedRoomIds: Array.isArray(promo.includedRoomIds) ? promo.includedRoomIds.map((id) => String(id)) : [],
       dateEligible,
       eligible,
       ineligibilityReasons,
@@ -136,11 +140,13 @@ export async function evaluatePromosForReservation(input: EligibilityInput) {
 export async function validateSelectedPromoEligibility({
   promoId,
   roomId,
+  roomIds,
   checkIn,
   checkOut,
 }: {
   promoId: string;
-  roomId: string;
+  roomId?: string;
+  roomIds?: string[];
   checkIn: Date;
   checkOut: Date;
 }) {
@@ -152,7 +158,7 @@ export async function validateSelectedPromoEligibility({
     };
   }
 
-  const catalog = await evaluatePromosForReservation({ roomId, checkIn, checkOut });
+  const catalog = await evaluatePromosForReservation({ roomId, roomIds, checkIn, checkOut });
   const selected = catalog.items.find((item) => item._id === promoId) || null;
 
   if (!selected) {

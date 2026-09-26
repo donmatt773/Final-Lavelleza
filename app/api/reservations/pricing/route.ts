@@ -40,12 +40,21 @@ export async function POST(request: Request) {
 
     const errors: string[] = [];
 
+    const roomAssignments = Array.isArray(body.roomAssignments)
+      ? body.roomAssignments.filter((item): item is Record<string, unknown> => isRecord(item))
+          .map((item) => ({ roomId: typeof item.room === 'string' ? item.room.trim() : '', adults: Number(item.adults), children: Number(item.children) }))
+      : [];
     const roomId = typeof body.room === 'string' ? body.room.trim() : '';
-    if (!roomId) {
-      errors.push('Room is required.');
-    } else if (!mongoose.Types.ObjectId.isValid(roomId)) {
-      errors.push('Room must be a valid room ID.');
-    }
+    const selectedRoomIds = roomAssignments.length > 0 ? roomAssignments.map((assignment) => assignment.roomId) : roomId ? [roomId] : [];
+    if (selectedRoomIds.length === 0) errors.push('At least one room is required.');
+    if (new Set(selectedRoomIds).size !== selectedRoomIds.length) errors.push('Rooms must be unique.');
+    selectedRoomIds.forEach((id) => {
+      if (!mongoose.Types.ObjectId.isValid(id)) errors.push('Each room must have a valid room ID.');
+    });
+    roomAssignments.forEach((assignment) => {
+      if (!Number.isInteger(assignment.adults) || assignment.adults < 1) errors.push('Adults for each room must be a whole number of at least 1.');
+      if (!Number.isInteger(assignment.children) || assignment.children < 0) errors.push('Children for each room must be a non-negative whole number.');
+    });
 
     const promoIdRaw = typeof body.promo === 'string' ? body.promo.trim() : '';
     const promoId = promoIdRaw || null;
@@ -77,7 +86,7 @@ export async function POST(request: Request) {
     if (promoId) {
       const promoEligibility = await validateSelectedPromoEligibility({
         promoId,
-        roomId,
+        roomIds: selectedRoomIds,
         checkIn: checkIn as Date,
         checkOut: checkOut as Date,
       });
@@ -88,7 +97,8 @@ export async function POST(request: Request) {
     }
 
     const pricingSummary = await calculateReservationPricing({
-      roomId,
+      roomId: selectedRoomIds[0],
+      roomAssignments: roomAssignments.length > 0 ? roomAssignments : undefined,
       promoId,
       checkIn: checkIn as Date,
       checkOut: checkOut as Date,

@@ -29,18 +29,45 @@ export type ReservationPricingSummary = {
   promoPackagePrice: number;
   promoDiscount: number;
   additionalRoomDiscount: number;
+  roomBreakdown: Array<{
+    roomId: string;
+    roomName: string;
+    adults: number;
+    children: number;
+    roomRate: number;
+    packageRoom: boolean;
+    additionalRoomDiscount: number;
+    extraPersonFee: number;
+    extraBedFee: number;
+  }>;
   subtotal: number;
   grandTotal: number;
 };
 
 type PricingInput = {
-  roomId: string;
+  roomId?: string;
+  roomAssignments?: Array<{ roomId: string; adults: number; children: number }>;
   promoId?: string | null;
   checkIn: Date;
   checkOut: Date;
   adults: number;
   children: number;
   addOns?: Array<{ addOnId: string; quantity: number }>;
+};
+
+type PricingPromo = {
+  status?: string;
+  startDate?: Date;
+  endDate?: Date;
+  packagePrice?: number;
+  includedPax?: number;
+  includedRoomIds?: Array<string | mongoose.Types.ObjectId>;
+  additionalRoomDiscount?: {
+    mode: 'PERCENT' | 'FIXED_AMOUNT';
+    value: number;
+    appliesToRoomIds?: Array<string | mongoose.Types.ObjectId>;
+    maxDiscountAmount?: number;
+  } | null;
 };
 
 function toStartOfLocalDay(date: Date) {
@@ -82,9 +109,22 @@ function isPromoApplicableToRoom(promo: {
 }
 
 export async function calculateReservationPricing(input: PricingInput): Promise<ReservationPricingSummary> {
-  const roomDoc = await Room.findOne({ _id: input.roomId, isArchived: false }).select('nightlyRate maxGuests').lean();
-  if (!roomDoc) {
-    throw new Error('Room not found for pricing computation.');
+  const assignments = input.roomAssignments?.length
+    ? input.roomAssignments
+    : input.roomId
+      ? [{ roomId: input.roomId, adults: input.adults, children: input.children }]
+      : [];
+  const roomIds = assignments.map((assignment) => assignment.roomId);
+  if (assignments.length === 0 || new Set(roomIds).size !== roomIds.length) {
+    throw new Error('Select one or more unique rooms for pricing.');
+  }
+
+  const roomDocs = await Room.find({ _id: { $in: roomIds }, isArchived: false })
+    .select('name nightlyRate maxGuests')
+    .lean();
+  const roomsById = new Map(roomDocs.map((room) => [String(room._id), room]));
+  if (roomsById.size !== roomIds.length) {
+    throw new Error('One or more selected rooms could not be found.');
   }
 
   const rateSettings = await RateSettings.findOne({ key: 'default' })
@@ -96,17 +136,18 @@ export async function calculateReservationPricing(input: PricingInput): Promise<
   const extraDoubleBedRate = Number(rateSettings?.extraDoubleBedRate ?? DEFAULT_RATE_SETTINGS.extraDoubleBedRate);
 
   const nights = getNumberOfNights(input.checkIn, input.checkOut);
-  const roomRate = normalizeMoney(Number(roomDoc.nightlyRate || 0) * nights);
-
-  const totalGuests = Math.max(0, Math.floor(input.adults) + Math.floor(input.children));
-  const roomCapacity = Math.max(1, Number(roomDoc.maxGuests || 1));
-  const overflowGuests = Math.max(0, totalGuests - roomCapacity);
-
-  let extraPersonFee = normalizeMoney(overflowGuests * extraPersonRate * nights);
-
-  const doubleBeds = Math.floor(overflowGuests / 2);
-  const singleBeds = overflowGuests % 2;
-  let extraBedFee = normalizeMoney((doubleBeds * extraDoubleBedRate + singleBeds * extraSingleBedRate) * nights);
+  const roomDetails = assignments.map((assignment) => {
+    const room = roomsById.get(assignment.roomId)!;
+    return {
+      roomId: assignment.roomId,
+      roomName: String(room.name || 'Room'),
+      adults: Math.floor(assignment.adults),
+      children: Math.floor(assignment.children),
+      nightlyRate: Number(room.nightlyRate || 0),
+      maxGuests: Math.max(1, Number(room.maxGuests || 1)),
+    };
+  });
+  const roomRate = normalizeMoney(roomDetails.reduce((total, room) => total + room.nightlyRate * nights, 0));
 
   const requestedAddOns = Array.isArray(input.addOns) ? input.addOns : [];
   const addOnIds = requestedAddOns.map((item) => String(item.addOnId));
@@ -139,10 +180,12 @@ export async function calculateReservationPricing(input: PricingInput): Promise<
   let promoDiscount = 0;
   let promoPackagePrice = 0;
   let additionalRoomDiscount = 0;
+  let packageRoomId: string | null = null;
+  let promoDoc: PricingPromo | null = null;
 
   if (input.promoId && mongoose.Types.ObjectId.isValid(input.promoId)) {
-    const promoDoc = await Promo.findOne({ _id: input.promoId, isArchived: false })
-      .select('status startDate endDate packagePrice includedRoomIds additionalRoomDiscount')
+    promoDoc = await Promo.findOne({ _id: input.promoId, isArchived: false })
+      .select('status startDate endDate packagePrice includedPax includedRoomIds additionalRoomDiscount')
       .lean();
 
     if (promoDoc && promoDoc.status === 'ACTIVE') {
@@ -150,39 +193,61 @@ export async function calculateReservationPricing(input: PricingInput): Promise<
         && (!promoDoc.endDate || toUtcDay(input.checkOut) <= toUtcDay(promoDoc.endDate));
 
       if (isWithinDateRange) {
-        const applicability = isPromoApplicableToRoom(promoDoc, input.roomId);
-        if (applicability.includedMatch) {
-          promoPackagePrice = normalizeMoney(Number(promoDoc.packagePrice || 0) * nights);
-        }
-
-        if (promoDoc.additionalRoomDiscount && applicability.additionalMatch) {
-          const discountBase = Math.max(promoPackagePrice || roomRate, 0);
-          if (promoDoc.additionalRoomDiscount.mode === 'PERCENT') {
-            additionalRoomDiscount = normalizeMoney(discountBase * (Number(promoDoc.additionalRoomDiscount.value || 0) / 100));
-          } else {
-            additionalRoomDiscount = normalizeMoney(Number(promoDoc.additionalRoomDiscount.value || 0));
-          }
-
-          const maxDiscountAmount = Number(promoDoc.additionalRoomDiscount.maxDiscountAmount || 0);
-          if (maxDiscountAmount > 0) {
-            additionalRoomDiscount = Math.min(additionalRoomDiscount, normalizeMoney(maxDiscountAmount));
-          }
-
-          additionalRoomDiscount = Math.min(additionalRoomDiscount, discountBase);
-        }
+        packageRoomId = roomDetails.find((room) => isPromoApplicableToRoom(promoDoc!, room.roomId).includedMatch)?.roomId || null;
+        if (packageRoomId) promoPackagePrice = normalizeMoney(Number(promoDoc.packagePrice || 0) * nights);
       }
     }
   }
 
-  if (promoPackagePrice > 0) {
-    // A package price already covers the room and included guest capacity.
-    extraPersonFee = 0;
-    extraBedFee = 0;
-    promoDiscount = 0;
-    additionalRoomDiscount = 0;
-  }
+  let extraPersonFee = 0;
+  let extraBedFee = 0;
+  let additionalRoomCharge = 0;
+  const roomBreakdown = roomDetails.map((room) => {
+    const packageRoom = room.roomId === packageRoomId && promoPackagePrice > 0;
+    const includedGuests = packageRoom ? Number(promoDoc?.includedPax || 0) : 0;
+    const roomCapacity = Math.max(room.maxGuests, includedGuests);
+    const overflowGuests = Math.max(0, room.adults + room.children - roomCapacity);
+    const roomExtraPersonFee = normalizeMoney(overflowGuests * extraPersonRate * nights);
+    const doubleBeds = Math.floor(overflowGuests / 2);
+    const singleBeds = overflowGuests % 2;
+    const roomExtraBedFee = normalizeMoney((doubleBeds * extraDoubleBedRate + singleBeds * extraSingleBedRate) * nights);
+    const roomNightlyTotal = normalizeMoney(room.nightlyRate * nights);
+    let roomDiscount = 0;
 
-  const baseRoomCharge = promoPackagePrice || roomRate;
+    if (!packageRoom) {
+      additionalRoomCharge += roomNightlyTotal;
+      const applicability = promoDoc ? isPromoApplicableToRoom(promoDoc, room.roomId) : null;
+      if (packageRoomId && promoDoc?.additionalRoomDiscount && applicability?.additionalMatch) {
+        const discount = promoDoc.additionalRoomDiscount.mode === 'PERCENT'
+          ? roomNightlyTotal * (Number(promoDoc.additionalRoomDiscount.value || 0) / 100)
+          : Number(promoDoc.additionalRoomDiscount.value || 0);
+        const discountCap = Number(promoDoc.additionalRoomDiscount.maxDiscountAmount || 0);
+        roomDiscount = Math.min(normalizeMoney(discount), roomNightlyTotal);
+        if (discountCap > 0) roomDiscount = Math.min(roomDiscount, Math.max(0, discountCap - additionalRoomDiscount));
+        additionalRoomDiscount += roomDiscount;
+      }
+    }
+
+    extraPersonFee += roomExtraPersonFee;
+    extraBedFee += roomExtraBedFee;
+    return {
+      roomId: room.roomId,
+      roomName: room.roomName,
+      adults: room.adults,
+      children: room.children,
+      roomRate: roomNightlyTotal,
+      packageRoom,
+      additionalRoomDiscount: roomDiscount,
+      extraPersonFee: roomExtraPersonFee,
+      extraBedFee: roomExtraBedFee,
+    };
+  });
+  extraPersonFee = normalizeMoney(extraPersonFee);
+  extraBedFee = normalizeMoney(extraBedFee);
+  additionalRoomDiscount = normalizeMoney(additionalRoomDiscount);
+  promoDiscount = 0;
+
+  const baseRoomCharge = promoPackagePrice + additionalRoomCharge;
   const subtotal = normalizeMoney(baseRoomCharge + extraPersonFee + extraBedFee + addOnTotal);
   const grandTotal = normalizeMoney(Math.max(subtotal - additionalRoomDiscount, 0));
 
@@ -197,6 +262,7 @@ export async function calculateReservationPricing(input: PricingInput): Promise<
     promoPackagePrice,
     promoDiscount,
     additionalRoomDiscount,
+    roomBreakdown,
     subtotal,
     grandTotal,
   };

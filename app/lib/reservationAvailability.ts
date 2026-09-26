@@ -36,7 +36,7 @@ export function hasValidDateRange(range: DateRange) {
 
 export async function findConflictingReservation({ roomId, checkIn, checkOut, excludeReservationId }: OverlapQueryInput) {
   const query: Record<string, unknown> = {
-    room: roomId,
+    $or: [{ room: roomId }, { 'roomAssignments.room': roomId }],
     reservationStatus: { $in: BLOCKING_RESERVATION_STATUSES },
     checkIn: { $lt: checkOut },
     checkOut: { $gt: checkIn },
@@ -60,25 +60,31 @@ export async function getRoomAvailabilityLabels(roomIds: string[], referenceDate
   const nextDayStart = toLocalDayEndExclusive(referenceDate);
 
   const activeToday = await Reservation.find({
-    room: { $in: uniqueRoomIds },
+    $or: [{ room: { $in: uniqueRoomIds } }, { 'roomAssignments.room': { $in: uniqueRoomIds } }],
     reservationStatus: { $in: BLOCKING_RESERVATION_STATUSES },
     checkIn: { $lt: nextDayStart },
     checkOut: { $gt: dayStart },
   })
-    .select('room')
+    .select('room roomAssignments.room')
     .lean();
 
-  const activeTodayRoomSet = new Set(activeToday.map((reservation) => String(reservation.room)));
+  const activeTodayRoomSet = new Set(activeToday.flatMap((reservation) => [
+    String(reservation.room || ''),
+    ...(Array.isArray(reservation.roomAssignments) ? reservation.roomAssignments.map((assignment) => String(assignment.room || '')) : []),
+  ]).filter(Boolean));
 
   const upcoming = await Reservation.find({
-    room: { $in: uniqueRoomIds },
+    $or: [{ room: { $in: uniqueRoomIds } }, { 'roomAssignments.room': { $in: uniqueRoomIds } }],
     reservationStatus: { $in: BLOCKING_RESERVATION_STATUSES },
     checkIn: { $gte: nextDayStart },
   })
-    .select('room')
+    .select('room roomAssignments.room')
     .lean();
 
-  const upcomingRoomSet = new Set(upcoming.map((reservation) => String(reservation.room)));
+  const upcomingRoomSet = new Set(upcoming.flatMap((reservation) => [
+    String(reservation.room || ''),
+    ...(Array.isArray(reservation.roomAssignments) ? reservation.roomAssignments.map((assignment) => String(assignment.room || '')) : []),
+  ]).filter(Boolean));
 
   uniqueRoomIds.forEach((roomId) => {
     if (activeTodayRoomSet.has(roomId)) {

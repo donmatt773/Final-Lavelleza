@@ -8,15 +8,15 @@ export async function GET(request: Request) {
     await connectDB();
 
     const { searchParams } = new URL(request.url);
-    const roomId = (searchParams.get('room') || '').trim();
+    const roomIds = searchParams.getAll('room').map((roomId) => roomId.trim()).filter(Boolean);
     const checkInRaw = (searchParams.get('checkIn') || '').trim();
     const checkOutRaw = (searchParams.get('checkOut') || '').trim();
 
-    if (!roomId || !checkInRaw || !checkOutRaw) {
+    if (!checkInRaw || !checkOutRaw) {
       return NextResponse.json({ success: true, eligiblePromos: [], validPromos: [], expiredPromos: [], inactivePromos: [], summary: { validPromos: 0, expiredPromos: 0, inactivePromos: 0, eligiblePromos: 0 } }, { status: 200 });
     }
 
-    if (!mongoose.Types.ObjectId.isValid(roomId)) {
+    if (roomIds.some((roomId) => !mongoose.Types.ObjectId.isValid(roomId))) {
       return NextResponse.json({ success: false, message: 'Room must be a valid room ID.' }, { status: 400 });
     }
 
@@ -31,7 +31,7 @@ export async function GET(request: Request) {
       return NextResponse.json({ success: false, message: 'Check-out date must be later than check-in date.' }, { status: 400 });
     }
 
-    const catalog = await evaluatePromosForReservation({ roomId, checkIn, checkOut });
+    const catalog = await evaluatePromosForReservation({ roomIds, checkIn, checkOut });
 
     return NextResponse.json(
       {

@@ -33,6 +33,7 @@ type PromoOption = {
   statusCategory?: 'VALID' | 'EXPIRED' | 'INACTIVE';
   roomEligible?: boolean;
   dateEligible?: boolean;
+  includedRoomIds?: string[];
   inclusions?: Array<{
     _id?: string;
     type?: string;
@@ -59,6 +60,17 @@ type PricingSummary = {
   promoPackagePrice: number;
   promoDiscount: number;
   additionalRoomDiscount: number;
+  roomBreakdown?: Array<{
+    roomId: string;
+    roomName: string;
+    adults: number;
+    children: number;
+    roomRate: number;
+    packageRoom: boolean;
+    additionalRoomDiscount: number;
+    extraPersonFee: number;
+    extraBedFee: number;
+  }>;
   subtotal: number;
   grandTotal: number;
 };
@@ -85,12 +97,19 @@ const formatPeso = (value: number) => new Intl.NumberFormat('en-PH', {
   maximumFractionDigits: 2,
 }).format(Number(value || 0));
 
+function resolvePromoRoomId(promo: PromoOption, selectedRoomIds: string[], rooms: RoomOption[]) {
+  const includedRoomIds = promo.includedRoomIds || [];
+  const isEligibleRoom = (roomId: string) => includedRoomIds.length === 0 || includedRoomIds.includes(roomId);
+  return selectedRoomIds.find(isEligibleRoom) || rooms.find((room) => isEligibleRoom(room._id))?._id || null;
+}
+
 type FormState = {
   guestName: string;
   email: string;
   phone: string;
   address: string;
-  room: string;
+  rooms: string[];
+  roomGuests: Record<string, { adults: string; children: string }>;
   promo: string;
   checkIn: string;
   checkOut: string;
@@ -121,7 +140,8 @@ function createInitialForm(): FormState {
     email: '',
     phone: '',
     address: '',
-    room: '',
+    rooms: [],
+    roomGuests: {},
     promo: '',
     checkIn: formatDateInput(checkIn),
     checkOut: formatDateInput(checkOut),
@@ -149,7 +169,8 @@ export default function ReservationForm({ rooms, initialSelection, mode = 'publi
 
     return {
       ...defaults,
-      room,
+      rooms: room ? [room] : [],
+      roomGuests: room ? { [room]: { adults: '1', children: '0' } } : {},
       promo: initialSelection.promo || '',
       checkIn: initialSelection.checkIn || defaults.checkIn,
       checkOut: initialSelection.checkOut || defaults.checkOut,
@@ -178,32 +199,38 @@ export default function ReservationForm({ rooms, initialSelection, mode = 'publi
   }, []);
 
   const canComputePricing = useMemo(
-    () => Boolean(form.room && form.checkIn && form.checkOut && Number(form.adults) >= 1 && Number(form.children) >= 0),
-    [form.room, form.checkIn, form.checkOut, form.adults, form.children]
+    () => Boolean(form.rooms.length > 0 && form.checkIn && form.checkOut && form.rooms.every((roomId) => Number(form.roomGuests[roomId]?.adults) >= 1 && Number(form.roomGuests[roomId]?.children) >= 0)),
+    [form.rooms, form.roomGuests, form.checkIn, form.checkOut]
   );
 
   const selectedPromoDetails = useMemo(
-    () => (form.room && form.checkIn && form.checkOut ? eligiblePromos.find((promo) => promo._id === form.promo) || null : null),
-    [eligiblePromos, form.promo, form.room, form.checkIn, form.checkOut]
+    () => (form.checkIn && form.checkOut ? eligiblePromos.find((promo) => promo._id === form.promo) || null : null),
+    [eligiblePromos, form.promo, form.checkIn, form.checkOut]
   );
 
   const displayedEligiblePromos = useMemo(
-    () => (form.room && form.checkIn && form.checkOut ? eligiblePromos : []),
-    [eligiblePromos, form.room, form.checkIn, form.checkOut]
+    () => (form.checkIn && form.checkOut ? eligiblePromos : []),
+    [eligiblePromos, form.checkIn, form.checkOut]
   );
 
   const displayedPromoSummary = useMemo(
-    () => (form.room && form.checkIn && form.checkOut ? promoSummary : emptyPromoSummary),
-    [promoSummary, form.room, form.checkIn, form.checkOut]
+    () => (form.checkIn && form.checkOut ? promoSummary : emptyPromoSummary),
+    [promoSummary, form.checkIn, form.checkOut]
   );
 
   const selectedRoomDetails = useMemo(
-    () => rooms.find((room) => room._id === form.room) || null,
-    [rooms, form.room]
+    () => rooms.filter((room) => form.rooms.includes(room._id)),
+    [rooms, form.rooms]
   );
 
+  const packageRoomId = useMemo(() => {
+    if (!selectedPromoDetails || form.rooms.length === 0) return null;
+    const includedRoomIds = selectedPromoDetails.includedRoomIds || [];
+    return form.rooms.find((roomId) => includedRoomIds.length === 0 || includedRoomIds.includes(roomId)) || null;
+  }, [form.rooms, selectedPromoDetails]);
+
   const packageIncludesGuests = Boolean(selectedPromoDetails?.includedPax);
-  const canChoosePromo = Boolean(form.room && form.checkIn && form.checkOut && !promoLoading);
+  const canChoosePromo = Boolean(form.checkIn && form.checkOut && !promoLoading);
 
   useEffect(() => {
     if (!selectionPicker) return;
@@ -219,23 +246,110 @@ export default function ReservationForm({ rooms, initialSelection, mode = 'publi
   const updateField = (field: keyof FormState, value: string) => {
     setForm((current) => {
       const next = { ...current, [field]: value };
-      if ((field === 'room' || field === 'checkIn' || field === 'checkOut') && current.promo) {
+      if ((field === 'checkIn' || field === 'checkOut') && current.promo) {
         next.promo = '';
-        next.adults = '1';
+        next.roomGuests = Object.fromEntries(current.rooms.map((roomId) => [roomId, { adults: '1', children: '0' }]));
+        next.adults = String(current.rooms.length);
         next.children = '0';
       }
       if (field === 'promo') {
         const selectedPromo = eligiblePromos.find((promo) => promo._id === value);
         if (selectedPromo?.includedPax) {
-          next.adults = String(selectedPromo.includedPax);
-          next.children = '0';
+          const includedRoomIds = selectedPromo.includedRoomIds || [];
+          const selectedPackageRoom = current.rooms.find((roomId) => includedRoomIds.length === 0 || includedRoomIds.includes(roomId));
+          next.roomGuests = { ...current.roomGuests };
+          if (selectedPackageRoom) {
+            next.roomGuests[selectedPackageRoom] = { adults: String(selectedPromo.includedPax), children: '0' };
+          }
         } else if (!value) {
-          next.adults = '1';
-          next.children = '0';
+          next.roomGuests = Object.fromEntries(current.rooms.map((roomId) => [roomId, { adults: '1', children: '0' }]));
         }
+      }
+      if (field === 'promo' || field === 'roomGuests') {
+        next.adults = String(Object.values(next.roomGuests).reduce((total, guests) => total + (Number(guests.adults) || 0), 0));
+        next.children = String(Object.values(next.roomGuests).reduce((total, guests) => total + (Number(guests.children) || 0), 0));
       }
       return next;
     });
+  };
+
+  const toggleRoomSelection = (roomId: string) => {
+    setForm((current) => {
+      const selected = current.rooms.includes(roomId);
+      const nextRooms = selected ? current.rooms.filter((id) => id !== roomId) : [...current.rooms, roomId];
+      const nextRoomGuests = { ...current.roomGuests };
+      if (selected) {
+        delete nextRoomGuests[roomId];
+      } else {
+        const selectedPromo = eligiblePromos.find((promo) => promo._id === current.promo);
+        const includedRoomIds = selectedPromo?.includedRoomIds || [];
+        const isPackageRoom = Boolean(selectedPromo?.includedPax)
+          && (includedRoomIds.length === 0 || includedRoomIds.includes(roomId))
+          && !nextRooms.some((id) => includedRoomIds.length === 0 || includedRoomIds.includes(id));
+        nextRoomGuests[roomId] = {
+          adults: isPackageRoom ? String(selectedPromo?.includedPax) : '1',
+          children: '0',
+        };
+      }
+      const selectedPromo = eligiblePromos.find((promo) => promo._id === current.promo);
+      const includedRoomIds = selectedPromo?.includedRoomIds || [];
+      const nextPackageRoom = nextRooms.find((id) => includedRoomIds.length === 0 || includedRoomIds.includes(id));
+      if (selectedPromo?.includedPax && nextPackageRoom) {
+        nextRoomGuests[nextPackageRoom] = { adults: String(selectedPromo.includedPax), children: '0' };
+      }
+      return {
+        ...current,
+        rooms: nextRooms,
+        roomGuests: nextRoomGuests,
+        adults: String(Object.values(nextRoomGuests).reduce((total, guests) => total + (Number(guests.adults) || 0), 0)),
+        children: String(Object.values(nextRoomGuests).reduce((total, guests) => total + (Number(guests.children) || 0), 0)),
+      };
+    });
+  };
+
+  const updateRoomGuests = (roomId: string, field: 'adults' | 'children', value: string) => {
+    setForm((current) => {
+      const roomGuests = {
+        ...current.roomGuests,
+        [roomId]: { ...current.roomGuests[roomId], [field]: value },
+      };
+      return {
+        ...current,
+        roomGuests,
+        adults: String(Object.values(roomGuests).reduce((total, guests) => total + (Number(guests.adults) || 0), 0)),
+        children: String(Object.values(roomGuests).reduce((total, guests) => total + (Number(guests.children) || 0), 0)),
+      };
+    });
+  };
+
+  const selectPromo = (promo: PromoOption) => {
+    const promoRoomId = resolvePromoRoomId(promo, form.rooms, rooms);
+    if (!promoRoomId) {
+      setError('No available rooms can use this promo package.');
+      return;
+    }
+
+    setError(null);
+    setForm((current) => {
+      const selectedRoomId = resolvePromoRoomId(promo, current.rooms, rooms) || promoRoomId;
+      const nextRooms = current.rooms.includes(selectedRoomId) ? current.rooms : [...current.rooms, selectedRoomId];
+      const roomGuests = {
+        ...current.roomGuests,
+        [selectedRoomId]: current.roomGuests[selectedRoomId] || { adults: '1', children: '0' },
+      };
+      if (promo.includedPax) {
+        roomGuests[selectedRoomId] = { adults: String(promo.includedPax), children: '0' };
+      }
+      return {
+        ...current,
+        promo: promo._id,
+        rooms: nextRooms,
+        roomGuests,
+        adults: String(Object.values(roomGuests).reduce((total, guests) => total + (Number(guests.adults) || 0), 0)),
+        children: String(Object.values(roomGuests).reduce((total, guests) => total + (Number(guests.children) || 0), 0)),
+      };
+    });
+    setSelectionPicker(null);
   };
 
   const validate = () => {
@@ -244,15 +358,15 @@ export default function ReservationForm({ rooms, initialSelection, mode = 'publi
     if (!form.guestName.trim()) errors.push('Guest full name is required.');
     if (!form.email.trim()) errors.push('Email address is required.');
     if (!form.phone.trim()) errors.push('Mobile number is required.');
-    if (!form.room) errors.push('Selected room is required.');
+    if (form.rooms.length === 0) errors.push('Select at least one room.');
     if (!form.checkIn) errors.push('Check-in date is required.');
     if (!form.checkOut) errors.push('Check-out date is required.');
 
-    const adults = Number(form.adults);
-    if (!Number.isFinite(adults) || adults < 1) errors.push('Adults must be at least 1.');
-
-    const children = Number(form.children);
-    if (!Number.isFinite(children) || children < 0) errors.push('Children cannot be negative.');
+    form.rooms.forEach((roomId) => {
+      const guests = form.roomGuests[roomId];
+      if (!Number.isFinite(Number(guests?.adults)) || Number(guests?.adults) < 1) errors.push('Adults for each room must be at least 1.');
+      if (!Number.isFinite(Number(guests?.children)) || Number(guests?.children) < 0) errors.push('Children for each room cannot be negative.');
+    });
 
     if (!isWalkInMode && form.paymentMethod === 'GCASH') {
       const gcashAmount = Number(form.gcashAmountPaid);
@@ -299,7 +413,12 @@ export default function ReservationForm({ rooms, initialSelection, mode = 'publi
           email: form.email.trim(),
           phone: form.phone.trim(),
           address: form.address.trim(),
-          room: form.room,
+          room: form.rooms[0],
+          roomAssignments: form.rooms.map((roomId) => ({
+            room: roomId,
+            adults: Number(form.roomGuests[roomId]?.adults || 0),
+            children: Number(form.roomGuests[roomId]?.children || 0),
+          })),
           promo: form.promo || null,
           checkIn: form.checkIn,
           checkOut: form.checkOut,
@@ -365,31 +484,70 @@ export default function ReservationForm({ rooms, initialSelection, mode = 'publi
   }, []);
 
   useEffect(() => {
-    if (!form.room || !form.checkIn || !form.checkOut) return;
+    let cancelled = false;
+    if (!form.checkIn || !form.checkOut) {
+      return () => {
+        cancelled = true;
+      };
+    }
 
     const timeoutId = window.setTimeout(async () => {
       setPromoLoading(true);
       try {
-        const query = new URLSearchParams({
-          room: form.room,
+        const queryParams = new URLSearchParams({
           checkIn: form.checkIn,
           checkOut: form.checkOut,
-        }).toString();
+        });
+        form.rooms.forEach((roomId) => queryParams.append('room', roomId));
 
-        const response = await fetch(`/api/reservations/promos?${query}`);
+        const response = await fetch(`/api/reservations/promos?${queryParams.toString()}`);
         const data = await response.json().catch(() => null);
 
         if (!response.ok || !data?.success) {
-          setEligiblePromos([]);
-          setPromoSummary(emptyPromoSummary);
+          if (!cancelled) {
+            setEligiblePromos([]);
+            setPromoSummary(emptyPromoSummary);
+          }
           return;
         }
 
         const nextPromos = Array.isArray(data.eligiblePromos) ? data.eligiblePromos as PromoOption[] : [];
+        if (cancelled) return;
         setEligiblePromos(nextPromos);
         const prefilledPromo = nextPromos.find((promo) => promo._id === form.promo);
-        if (prefilledPromo?.includedPax) {
-          setForm((current) => ({ ...current, adults: String(prefilledPromo.includedPax), children: '0' }));
+        if (form.promo && !prefilledPromo) {
+          setForm((current) => current.promo === form.promo ? {
+            ...current,
+            promo: '',
+            adults: String(Object.values(current.roomGuests).reduce((total, guests) => total + (Number(guests.adults) || 0), 0)),
+            children: String(Object.values(current.roomGuests).reduce((total, guests) => total + (Number(guests.children) || 0), 0)),
+          } : current);
+        }
+        if (prefilledPromo) {
+          const promoRoomId = resolvePromoRoomId(prefilledPromo, form.rooms, rooms);
+          if (promoRoomId) {
+            setForm((current) => {
+              if (current.promo !== prefilledPromo._id) return current;
+              const selectedRoomId = resolvePromoRoomId(prefilledPromo, current.rooms, rooms) || promoRoomId;
+              const nextRooms = current.rooms.includes(selectedRoomId) ? current.rooms : [...current.rooms, selectedRoomId];
+              const roomGuests = {
+                ...current.roomGuests,
+                [selectedRoomId]: current.roomGuests[selectedRoomId] || { adults: '1', children: '0' },
+              };
+              if (prefilledPromo.includedPax) {
+                roomGuests[selectedRoomId] = { adults: String(prefilledPromo.includedPax), children: '0' };
+              }
+              return {
+                ...current,
+                rooms: nextRooms,
+                roomGuests,
+                adults: String(Object.values(roomGuests).reduce((total, guests) => total + (Number(guests.adults) || 0), 0)),
+                children: String(Object.values(roomGuests).reduce((total, guests) => total + (Number(guests.children) || 0), 0)),
+              };
+            });
+          } else {
+            setError('No available rooms can use this promo package.');
+          }
         }
         setPromoSummary({
           validPromos: Number(data?.summary?.validPromos || 0),
@@ -399,16 +557,20 @@ export default function ReservationForm({ rooms, initialSelection, mode = 'publi
         });
 
       } catch {
-        setEligiblePromos([]);
+        if (!cancelled) {
+          setEligiblePromos([]);
+          setPromoSummary(emptyPromoSummary);
+        }
       } finally {
-        setPromoLoading(false);
+        if (!cancelled) setPromoLoading(false);
       }
     }, 200);
 
     return () => {
+      cancelled = true;
       window.clearTimeout(timeoutId);
     };
-  }, [form.room, form.promo, form.checkIn, form.checkOut]);
+  }, [form.rooms, form.promo, form.checkIn, form.checkOut, rooms]);
 
   useEffect(() => {
     if (!canComputePricing) return;
@@ -420,7 +582,12 @@ export default function ReservationForm({ rooms, initialSelection, mode = 'publi
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
-            room: form.room,
+            room: form.rooms[0],
+            roomAssignments: form.rooms.map((roomId) => ({
+              room: roomId,
+              adults: Number(form.roomGuests[roomId]?.adults || 0),
+              children: Number(form.roomGuests[roomId]?.children || 0),
+            })),
             promo: form.promo || null,
             checkIn: form.checkIn,
             checkOut: form.checkOut,
@@ -447,7 +614,7 @@ export default function ReservationForm({ rooms, initialSelection, mode = 'publi
     return () => {
       window.clearTimeout(timeoutId);
     };
-  }, [canComputePricing, form.room, form.promo, form.checkIn, form.checkOut, form.adults, form.children, form.addOns]);
+  }, [canComputePricing, form.rooms, form.roomGuests, form.promo, form.checkIn, form.checkOut, form.adults, form.children, form.addOns]);
 
   if (success) {
     return (
@@ -510,16 +677,19 @@ export default function ReservationForm({ rooms, initialSelection, mode = 'publi
       <div className="mb-5 rounded-2xl border p-4" style={{ borderColor: `${theme.royal}33`, backgroundColor: `${theme.royal}0D` }}>
         <div className="mb-3">
           <p className="text-xs font-semibold uppercase tracking-[0.2em]" style={{ color: theme.royal }}>Stay selection</p>
-          <p className="mt-1 text-xs" style={{ color: `${theme.ink}99` }}>Choose your room before entering guest details. Select a package after choosing your stay dates.</p>
+          <p className="mt-1 text-xs" style={{ color: `${theme.ink}99` }}>Choose one or more rooms for the same stay. Select a package after choosing your stay dates.</p>
         </div>
         <div className="grid gap-3 sm:grid-cols-2">
           <div className="rounded-xl border p-3 sm:col-span-2" style={{ borderColor: `${theme.ink}1A`, backgroundColor: `${theme.sand}CC` }}>
             <div className="grid gap-6 md:grid-cols-[minmax(0,0.8fr)_minmax(0,1.2fr)] md:items-start">
               <div>
-                <p className="text-xs font-semibold uppercase tracking-[0.2em]" style={{ color: `${theme.ink}80` }}>Selected room</p>
-                <p className="mt-2 text-sm font-semibold" style={{ color: theme.navy }}>{selectedRoomDetails ? selectedRoomDetails.name : 'No room selected'}</p>
-                {selectedRoomDetails ? <p className="mt-1 text-xs" style={{ color: `${theme.ink}99` }}>{selectedRoomDetails.code}</p> : null}
-                {selectedRoomDetails?.description ? <p className="mt-3 text-xs leading-5" style={{ color: `${theme.ink}99` }}>{selectedRoomDetails.description}</p> : null}
+                <p className="text-xs font-semibold uppercase tracking-[0.2em]" style={{ color: `${theme.ink}80` }}>Selected rooms</p>
+                {selectedRoomDetails.length > 0 ? selectedRoomDetails.map((room) => (
+                  <div key={room._id} className="mt-2">
+                    <p className="text-sm font-semibold" style={{ color: theme.navy }}>{room.name}</p>
+                    <p className="text-xs" style={{ color: `${theme.ink}99` }}>{room.code}</p>
+                  </div>
+                )) : <p className="mt-2 text-sm font-semibold" style={{ color: theme.navy }}>No rooms selected</p>}
                 <button
                   type="button"
                   onClick={() => setSelectionPicker('room')}
@@ -528,24 +698,17 @@ export default function ReservationForm({ rooms, initialSelection, mode = 'publi
                   View &amp; change room
                 </button>
               </div>
-              {selectedRoomDetails ? (
-                <div className="grid grid-cols-2 gap-x-6 gap-y-4 border-t pt-4 text-sm md:border-l md:border-t-0 md:pl-7 md:pt-0" style={{ borderColor: `${theme.ink}1A` }}>
-                  <div>
-                    <p className="text-[10px] uppercase tracking-wider" style={{ color: `${theme.ink}80` }}>Capacity</p>
-                    <p className="mt-1 font-semibold" style={{ color: theme.royal }}>{selectedRoomDetails.maxGuests ? `${selectedRoomDetails.maxGuests} guests` : 'Not specified'}</p>
-                  </div>
-                  <div>
-                    <p className="text-[10px] uppercase tracking-wider" style={{ color: `${theme.ink}80` }}>Nightly rate</p>
-                    <p className="mt-1 font-semibold" style={{ color: theme.coral }}>{selectedRoomDetails.nightlyRate !== undefined ? formatPeso(selectedRoomDetails.nightlyRate) : 'Not available'}</p>
-                  </div>
-                  <div>
-                    <p className="text-[10px] uppercase tracking-wider" style={{ color: `${theme.ink}80` }}>Half day</p>
-                    <p className="mt-1 font-semibold" style={{ color: theme.navy }}>{selectedRoomDetails.halfDayRate !== undefined ? formatPeso(selectedRoomDetails.halfDayRate) : 'Not available'}</p>
-                  </div>
-                  <div>
-                    <p className="text-[10px] uppercase tracking-wider" style={{ color: `${theme.ink}80` }}>Whole day</p>
-                    <p className="mt-1 font-semibold" style={{ color: theme.navy }}>{selectedRoomDetails.wholeDayRate !== undefined ? formatPeso(selectedRoomDetails.wholeDayRate) : 'Not available'}</p>
-                  </div>
+              {selectedRoomDetails.length > 0 ? (
+                <div className="space-y-2 border-t pt-4 text-sm md:border-l md:border-t-0 md:pl-7 md:pt-0" style={{ borderColor: `${theme.ink}1A` }}>
+                  {selectedRoomDetails.map((room) => (
+                    <div key={room._id} className="grid grid-cols-2 gap-2 rounded-lg border p-2" style={{ borderColor: `${theme.ink}1A` }}>
+                      <p className="col-span-2 text-xs font-semibold" style={{ color: theme.navy }}>{room.name}</p>
+                      <p className="text-[10px]" style={{ color: `${theme.ink}80` }}>Capacity: {room.maxGuests || '—'}</p>
+                      <p className="text-[10px]" style={{ color: `${theme.ink}80` }}>Night: {formatPeso(Number(room.nightlyRate || 0))}</p>
+                      <p className="text-[10px]" style={{ color: `${theme.ink}80` }}>Half day: {formatPeso(Number(room.halfDayRate || 0))}</p>
+                      <p className="text-[10px]" style={{ color: `${theme.ink}80` }}>Whole day: {formatPeso(Number(room.wholeDayRate || 0))}</p>
+                    </div>
+                  ))}
                 </div>
               ) : (
                 <div className="flex items-center border-t pt-4 text-xs md:border-l md:border-t-0 md:pl-7 md:pt-0" style={{ borderColor: `${theme.ink}1A`, color: `${theme.ink}99` }}>
@@ -633,8 +796,8 @@ export default function ReservationForm({ rooms, initialSelection, mode = 'publi
                 >
                   {promoLoading ? 'Loading packages...' : 'View & change package'}
                 </button>
-                {!form.room || !form.checkIn || !form.checkOut ? (
-                  <p className="mt-2 text-xs text-slate-500">Select a room and both stay dates to view eligible packages.</p>
+                {!form.checkIn || !form.checkOut ? (
+                  <p className="mt-2 text-xs text-slate-500">Select both stay dates to view available packages.</p>
                 ) : null}
               </div>
               {selectedPromoDetails ? (
@@ -671,33 +834,48 @@ export default function ReservationForm({ rooms, initialSelection, mode = 'publi
               )}
             </div>
           </div>
-          <div>
-            <label className="mb-1 block text-xs uppercase tracking-wider text-slate-400">Adults{packageIncludesGuests ? ' (package)' : ''}</label>
-            <input
-              type="number"
-              min={1}
-              value={form.adults}
-              disabled={packageIncludesGuests}
-              onChange={(event) => updateField('adults', event.target.value)}
-              className="w-full rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-white outline-none focus:border-emerald-500 disabled:cursor-not-allowed disabled:bg-slate-800 disabled:text-slate-400"
-              required
-            />
+          <div className="md:col-span-2 space-y-3">
+            <p className="text-xs font-semibold uppercase tracking-wider text-slate-400">Guests per room</p>
+            {selectedRoomDetails.length === 0 ? (
+              <p className="rounded-lg border border-slate-800 bg-slate-950/70 p-3 text-sm text-slate-500">Select rooms to assign guests.</p>
+            ) : selectedRoomDetails.map((room) => {
+              const isPackageRoom = packageRoomId === room._id && packageIncludesGuests;
+              const guests = form.roomGuests[room._id] || { adults: '1', children: '0' };
+              return (
+                <div key={room._id} className="rounded-xl border border-slate-800 bg-slate-950/70 p-3">
+                  <div className="mb-2 flex items-center justify-between gap-3">
+                    <p className="text-sm font-medium text-white">{room.name} · {room.code}</p>
+                    {isPackageRoom ? <span className="text-xs text-emerald-300">Promo package room</span> : null}
+                  </div>
+                  <div className="grid grid-cols-2 gap-3">
+                    <label className="text-xs text-slate-400">Adults
+                      <input
+                        type="number"
+                        min={1}
+                        value={guests.adults}
+                        disabled={isPackageRoom}
+                        onChange={(event) => updateRoomGuests(room._id, 'adults', event.target.value)}
+                        className="mt-1 w-full rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-white outline-none focus:border-emerald-500 disabled:cursor-not-allowed disabled:bg-slate-800 disabled:text-slate-400"
+                        required
+                      />
+                    </label>
+                    <label className="text-xs text-slate-400">Children
+                      <input
+                        type="number"
+                        min={0}
+                        value={guests.children}
+                        disabled={isPackageRoom}
+                        onChange={(event) => updateRoomGuests(room._id, 'children', event.target.value)}
+                        className="mt-1 w-full rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-white outline-none focus:border-emerald-500 disabled:cursor-not-allowed disabled:bg-slate-800 disabled:text-slate-400"
+                        required
+                      />
+                    </label>
+                  </div>
+                  {isPackageRoom ? <p className="mt-2 text-xs text-slate-500">This promo includes {selectedPromoDetails?.includedPax} guests in this room.</p> : null}
+                </div>
+              );
+            })}
           </div>
-          <div>
-            <label className="mb-1 block text-xs uppercase tracking-wider text-slate-400">Children{packageIncludesGuests ? ' (package)' : ''}</label>
-            <input
-              type="number"
-              min={0}
-              value={form.children}
-              disabled={packageIncludesGuests}
-              onChange={(event) => updateField('children', event.target.value)}
-              className="w-full rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-white outline-none focus:border-emerald-500 disabled:cursor-not-allowed disabled:bg-slate-800 disabled:text-slate-400"
-              required
-            />
-          </div>
-          {packageIncludesGuests ? (
-            <p className="md:col-span-2 text-xs text-slate-500">This package includes {selectedPromoDetails?.includedPax} guests. Guest counts are fixed for this package.</p>
-          ) : null}
           <div className="md:col-span-2 rounded-xl border border-slate-800 bg-slate-950/70 p-4">
             <p className="text-xs font-semibold uppercase tracking-[0.2em] text-emerald-400">Additional Items</p>
             <p className="mt-1 text-xs text-slate-400">Optional extras are added to the reservation total.</p>
@@ -816,6 +994,19 @@ export default function ReservationForm({ rooms, initialSelection, mode = 'publi
               {pricingSummary.promoPackagePrice > 0 ? null : <p>Additional Room Discount: <span className="text-emerald-300">- {formatPeso(pricingSummary.additionalRoomDiscount)}</span></p>}
               <p>Subtotal: <span className="text-white">{formatPeso(pricingSummary.subtotal)}</span></p>
               <p className="sm:col-span-2 text-base font-semibold">Grand Total: <span className="text-emerald-300">{formatPeso(pricingSummary.grandTotal)}</span></p>
+              {pricingSummary.roomBreakdown && pricingSummary.roomBreakdown.length > 1 ? (
+                <div className="sm:col-span-2 border-t border-white/10 pt-3">
+                  <p className="text-xs font-semibold uppercase tracking-wider text-slate-400">Room breakdown</p>
+                  <ul className="mt-2 space-y-1 text-xs text-slate-300">
+                    {pricingSummary.roomBreakdown.map((room) => (
+                      <li key={room.roomId} className="flex flex-wrap justify-between gap-x-3 gap-y-1">
+                        <span>{room.roomName} · {room.adults} adult{room.adults === 1 ? '' : 's'}, {room.children} child{room.children === 1 ? '' : 'ren'}{room.packageRoom ? ' · Package' : ''}</span>
+                        <span>{room.packageRoom ? formatPeso(pricingSummary.promoPackagePrice) : formatPeso(room.roomRate)}{room.additionalRoomDiscount > 0 ? ` · −${formatPeso(room.additionalRoomDiscount)}` : ''}</span>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              ) : null}
             </div>
           ) : (
             <p className="mt-2 text-sm text-slate-500">Select room and stay details to view total pricing.</p>
@@ -858,7 +1049,7 @@ export default function ReservationForm({ rooms, initialSelection, mode = 'publi
 
         <button
           type="submit"
-          disabled={submitting || rooms.length === 0}
+          disabled={submitting || rooms.length === 0 || form.rooms.length === 0}
           className="w-full rounded-xl bg-emerald-600 px-4 py-3 text-sm font-semibold text-white shadow-lg shadow-emerald-950/30 transition hover:bg-emerald-500 disabled:cursor-not-allowed disabled:bg-emerald-800"
         >
           {submitting ? (isWalkInMode ? 'Creating Walk-In Booking...' : 'Submitting Request...') : (isWalkInMode ? 'Create Walk-In Booking' : 'Submit Reservation Request')}
@@ -889,7 +1080,7 @@ export default function ReservationForm({ rooms, initialSelection, mode = 'publi
               <div>
                 <p className="text-xs font-semibold uppercase tracking-[0.2em] text-emerald-400">Reservation selection</p>
                 <h3 className="mt-2 text-xl font-semibold text-white">
-                  {selectionPicker === 'room' ? 'Choose a room' : 'Choose a promo package'}
+                  {selectionPicker === 'room' ? 'Select rooms' : 'Choose a promo package'}
                 </h3>
               </div>
               <button
@@ -904,29 +1095,50 @@ export default function ReservationForm({ rooms, initialSelection, mode = 'publi
             </div>
 
             <div className="mt-5 space-y-2">
+              {selectionPicker === 'room' && form.rooms.length > 0 ? (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setForm((current) => ({ ...current, rooms: [], roomGuests: {}, adults: '0', children: '0', promo: '' }));
+                    setSelectionPicker(null);
+                  }}
+                  className="w-full rounded-xl border border-rose-500/30 bg-rose-500/5 p-3 text-left text-sm font-semibold text-rose-700 transition hover:bg-rose-500/10"
+                >
+                  Clear selected rooms
+                </button>
+              ) : null}
+              {selectionPicker === 'promo' && form.promo ? (
+                <button
+                  type="button"
+                  onClick={() => {
+                    updateField('promo', '');
+                    setSelectionPicker(null);
+                  }}
+                  className="w-full rounded-xl border border-rose-500/30 bg-rose-500/5 p-3 text-left text-sm font-semibold text-rose-700 transition hover:bg-rose-500/10"
+                >
+                  Clear selected promo
+                </button>
+              ) : null}
               {selectionPicker === 'room' ? rooms.map((room) => (
                 <button
                   key={room._id}
                   type="button"
-                  onClick={() => {
-                    updateField('room', room._id);
-                    setSelectionPicker(null);
-                  }}
-                  className={`flex w-full items-center justify-between rounded-xl border p-3 text-left transition ${form.room === room._id ? 'border-emerald-500/50 bg-emerald-500/10' : 'border-slate-800 bg-slate-950/60 hover:border-slate-600'}`}
+                  onClick={() => toggleRoomSelection(room._id)}
+                  aria-pressed={form.rooms.includes(room._id)}
+                  className={`flex w-full items-center justify-between rounded-xl border p-3 text-left transition ${form.rooms.includes(room._id) ? 'border-emerald-500/50 bg-emerald-500/10' : 'border-slate-800 bg-slate-950/60 hover:border-slate-600'}`}
                 >
                   <span>
                     <span className="block text-sm font-semibold text-white">{room.name}</span>
                     <span className="mt-1 block text-xs text-slate-400">{room.code}</span>
                   </span>
-                  {form.room === room._id ? <span className="text-xs font-semibold text-emerald-300">Selected</span> : null}
+                  {form.rooms.includes(room._id) ? <span className="text-xs font-semibold text-emerald-300">Selected</span> : null}
                 </button>
               )) : displayedEligiblePromos.map((promo) => (
                 <button
                   key={promo._id}
                   type="button"
                   onClick={() => {
-                    updateField('promo', promo._id);
-                    setSelectionPicker(null);
+                    selectPromo(promo);
                   }}
                   className={`flex w-full items-center justify-between gap-3 rounded-xl border p-3 text-left transition ${form.promo === promo._id ? 'border-emerald-500/50 bg-emerald-500/10' : 'border-slate-800 bg-slate-950/60 hover:border-slate-600'}`}
                 >
@@ -938,7 +1150,7 @@ export default function ReservationForm({ rooms, initialSelection, mode = 'publi
                 </button>
               ))}
               {selectionPicker === 'room' && rooms.length === 0 ? <p className="py-5 text-center text-sm text-slate-400">No rooms are currently available.</p> : null}
-              {selectionPicker === 'promo' && displayedEligiblePromos.length === 0 ? <p className="py-5 text-center text-sm text-slate-400">No eligible promo packages are available for this room and date range.</p> : null}
+              {selectionPicker === 'promo' && displayedEligiblePromos.length === 0 ? <p className="py-5 text-center text-sm text-slate-400">{form.rooms.length > 0 ? 'No eligible promo packages are available for these rooms and dates.' : 'No available promo packages match these dates.'}</p> : null}
             </div>
           </div>
         </div>

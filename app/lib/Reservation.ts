@@ -12,6 +12,11 @@ export interface IReservation {
   phone: string;
   address?: string;
   room: Types.ObjectId | string;
+  roomAssignments?: Array<{
+    room: Types.ObjectId | string;
+    adults: number;
+    children: number;
+  }>;
   promo?: Types.ObjectId | string | null;
   adults: number;
   children: number;
@@ -49,6 +54,17 @@ export interface IReservation {
     extraBedFee: number;
     promoDiscount: number;
     additionalRoomDiscount: number;
+    roomBreakdown?: Array<{
+      roomId: string;
+      roomName: string;
+      adults: number;
+      children: number;
+      roomRate: number;
+      packageRoom: boolean;
+      additionalRoomDiscount: number;
+      extraPersonFee: number;
+      extraBedFee: number;
+    }>;
     subtotal: number;
     grandTotal: number;
   };
@@ -65,6 +81,19 @@ const reservationSchema = new Schema<IReservation>(
     phone: { type: String, required: true, trim: true },
     address: { type: String, trim: true },
     room: { type: Schema.Types.ObjectId, ref: 'Room', required: true },
+    roomAssignments: {
+      type: [
+        new Schema(
+          {
+            room: { type: Schema.Types.ObjectId, ref: 'Room', required: true },
+            adults: { type: Number, required: true, min: 1 },
+            children: { type: Number, required: true, min: 0, default: 0 },
+          },
+          { _id: false }
+        ),
+      ],
+      default: [],
+    },
     promo: { type: Schema.Types.ObjectId, ref: 'Promo', default: null },
     adults: { type: Number, required: true, min: 1 },
     children: { type: Number, required: true, min: 0, default: 0 },
@@ -143,6 +172,7 @@ const reservationSchema = new Schema<IReservation>(
       addOns: { type: [Schema.Types.Mixed], default: [] },
       promoDiscount: { type: Number, default: 0, min: 0 },
       additionalRoomDiscount: { type: Number, default: 0, min: 0 },
+      roomBreakdown: { type: [Schema.Types.Mixed], default: [] },
       subtotal: { type: Number, default: 0, min: 0 },
       grandTotal: { type: Number, default: 0, min: 0 },
     },

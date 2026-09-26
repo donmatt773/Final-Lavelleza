@@ -197,6 +197,7 @@ export async function GET(request: Request) {
 
     const reservations = await Reservation.find(query)
       .populate('room', 'name code')
+      .populate('roomAssignments.room', 'name code')
       .populate('promo', 'name code inclusions')
       .sort({ createdAt: -1 })
       .lean();
@@ -278,12 +279,22 @@ export async function POST(request: Request) {
 
     const address = typeof body.address === 'string' ? body.address.trim() : '';
 
-    const roomId = typeof body.room === 'string' ? body.room.trim() : '';
-    if (!roomId) {
-      errors.push('Room is required.');
-    } else if (!isValidObjectId(roomId)) {
-      errors.push('Room must be a valid room ID.');
-    }
+    const roomAssignments = Array.isArray(body.roomAssignments)
+      ? body.roomAssignments.filter((item): item is Record<string, unknown> => isRecord(item))
+          .map((item) => ({ roomId: typeof item.room === 'string' ? item.room.trim() : '', adults: Number(item.adults), children: Number(item.children) }))
+      : [];
+    const legacyRoomId = typeof body.room === 'string' ? body.room.trim() : '';
+    const selectedRoomIds = roomAssignments.length > 0 ? roomAssignments.map((assignment) => assignment.roomId) : legacyRoomId ? [legacyRoomId] : [];
+    const roomId = selectedRoomIds[0] || '';
+    if (selectedRoomIds.length === 0) errors.push('At least one room is required.');
+    if (new Set(selectedRoomIds).size !== selectedRoomIds.length) errors.push('Rooms must be unique.');
+    selectedRoomIds.forEach((id) => {
+      if (!isValidObjectId(id)) errors.push('Each room must be a valid room ID.');
+    });
+    roomAssignments.forEach((assignment) => {
+      if (!Number.isInteger(assignment.adults) || assignment.adults < 1) errors.push('Adults for each room must be a whole number of at least 1.');
+      if (!Number.isInteger(assignment.children) || assignment.children < 0) errors.push('Children for each room must be a non-negative whole number.');
+    });
 
     const promoIdRaw = typeof body.promo === 'string' ? body.promo.trim() : '';
     const promoId = promoIdRaw || null;
@@ -300,12 +311,16 @@ export async function POST(request: Request) {
       errors.push('Check-out date must be later than check-in date.');
     }
 
-    const adults = Number(body.adults);
+    const adults = roomAssignments.length > 0
+      ? roomAssignments.reduce((total, assignment) => total + assignment.adults, 0)
+      : Number(body.adults);
     if (!Number.isFinite(adults) || adults < 1) {
       errors.push('Adults must be a number greater than or equal to 1.');
     }
 
-    const children = Number(body.children);
+    const children = roomAssignments.length > 0
+      ? roomAssignments.reduce((total, assignment) => total + assignment.children, 0)
+      : Number(body.children);
     if (!Number.isFinite(children) || children < 0) {
       errors.push('Children must be a number greater than or equal to 0.');
     }
@@ -337,15 +352,15 @@ export async function POST(request: Request) {
       return NextResponse.json({ success: false, message: 'Invalid reservation request.', errors }, { status: 400 });
     }
 
-    const roomDoc = await Room.findOne({ _id: roomId, isArchived: false, status: 'AVAILABLE' }).select('_id').lean();
-    if (!roomDoc) {
-      return NextResponse.json({ success: false, message: 'Selected room is not available for reservation requests.' }, { status: 400 });
+    const roomDocs = await Room.find({ _id: { $in: selectedRoomIds }, isArchived: false, status: 'AVAILABLE' }).select('_id').lean();
+    if (roomDocs.length !== selectedRoomIds.length) {
+      return NextResponse.json({ success: false, message: 'One or more selected rooms are not available for reservation requests.' }, { status: 400 });
     }
 
     if (promoId && checkIn && checkOut) {
       const promoEligibility = await validateSelectedPromoEligibility({
         promoId,
-        roomId,
+        roomIds: selectedRoomIds,
         checkIn,
         checkOut,
       });
@@ -356,25 +371,20 @@ export async function POST(request: Request) {
     }
 
     if (checkIn && checkOut && hasValidDateRange({ checkIn, checkOut })) {
-      const conflictingReservation = await findConflictingReservation({
-        roomId,
-        checkIn,
-        checkOut,
-      });
-
-      if (conflictingReservation) {
-        return NextResponse.json(
-          {
-            success: false,
-            message: `Selected room is unavailable for the requested dates due to reservation ${String(conflictingReservation.reservationNumber)}.`,
-          },
-          { status: 409 }
-        );
+      for (const selectedRoomId of selectedRoomIds) {
+        const conflictingReservation = await findConflictingReservation({ roomId: selectedRoomId, checkIn, checkOut });
+        if (conflictingReservation) {
+          return NextResponse.json(
+            { success: false, message: `A selected room is unavailable for the requested dates due to reservation ${String(conflictingReservation.reservationNumber)}.` },
+            { status: 409 }
+          );
+        }
       }
     }
 
     const pricingSummary = await calculateReservationPricing({
       roomId,
+      roomAssignments: roomAssignments.length > 0 ? roomAssignments : undefined,
       promoId,
       checkIn: checkIn as Date,
       checkOut: checkOut as Date,
@@ -402,6 +412,7 @@ export async function POST(request: Request) {
       phone,
       address: address || undefined,
       room: roomId,
+      roomAssignments: roomAssignments.length > 0 ? roomAssignments.map((assignment) => ({ room: assignment.roomId, adults: Math.floor(assignment.adults), children: Math.floor(assignment.children) })) : [],
       promo: promoId || null,
       adults: Math.floor(adults),
       children: Math.floor(children),

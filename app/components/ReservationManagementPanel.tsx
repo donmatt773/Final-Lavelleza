@@ -55,6 +55,17 @@ type ReservationPricingSummary = {
   additionalRoomDiscount: number;
   subtotal: number;
   grandTotal: number;
+  roomBreakdown?: Array<{
+    roomId: string;
+    roomName: string;
+    adults: number;
+    children: number;
+    roomRate: number;
+    packageRoom: boolean;
+    additionalRoomDiscount: number;
+    extraPersonFee: number;
+    extraBedFee: number;
+  }>;
 };
 
 type ReservationSource = 'ONLINE' | 'WALK_IN';
@@ -103,6 +114,11 @@ type ReservationRecord = {
   phone: string;
   address?: string;
   room?: { _id?: string; name?: string; code?: string } | null;
+  roomAssignments?: Array<{
+    room?: { _id?: string; name?: string; code?: string } | string | null;
+    adults: number;
+    children: number;
+  }>;
   promo?: {
     _id?: string;
     name?: string;
@@ -136,6 +152,13 @@ type ReservationRecord = {
   checkedOutBy?: string | null;
   pricingSummary?: ReservationPricingSummary;
 };
+
+function getReservationRoomLabel(reservation: ReservationRecord) {
+  const assignedRooms = reservation.roomAssignments?.map((assignment) => (
+    typeof assignment.room === 'string' ? 'Room' : assignment.room?.name || 'Room'
+  )) || [];
+  return assignedRooms.length > 0 ? assignedRooms.join(', ') : reservation.room?.name || '—';
+}
 
 type Props = {
   active: boolean;
@@ -227,6 +250,7 @@ export default function ReservationManagementPanel({ active }: Props) {
     checkOut: '',
     adults: '1',
     children: '0',
+    roomAssignments: [] as Array<{ roomId: string; roomName: string; adults: string; children: string }>,
     specialRequests: '',
   });
 
@@ -264,6 +288,16 @@ export default function ReservationManagementPanel({ active }: Props) {
       checkOut: reservation.checkOut ? new Date(reservation.checkOut).toISOString().slice(0, 10) : '',
       adults: String(reservation.adults ?? 1),
       children: String(reservation.children ?? 0),
+      roomAssignments: reservation.roomAssignments?.length
+        ? reservation.roomAssignments.map((assignment) => ({
+            roomId: typeof assignment.room === 'string' ? assignment.room : String(assignment.room?._id || ''),
+            roomName: typeof assignment.room === 'string' ? 'Room' : String(assignment.room?.name || 'Room'),
+            adults: String(assignment.adults ?? 1),
+            children: String(assignment.children ?? 0),
+          }))
+        : reservation.room?._id
+          ? [{ roomId: reservation.room._id, roomName: reservation.room.name || 'Room', adults: String(reservation.adults ?? 1), children: String(reservation.children ?? 0) }]
+          : [],
       specialRequests: reservation.specialRequests || '',
     });
 
@@ -298,6 +332,11 @@ export default function ReservationManagementPanel({ active }: Props) {
         credentials: 'same-origin',
         body: JSON.stringify({
           room: extendingReservation.room?._id,
+          roomAssignments: extendingReservation.roomAssignments?.map((assignment) => ({
+            room: typeof assignment.room === 'string' ? assignment.room : assignment.room?._id,
+            adults: assignment.adults,
+            children: assignment.children,
+          })),
           promo: extendingReservation.promo?._id || null,
           checkIn: extendingReservation.checkIn,
           checkOut,
@@ -508,6 +547,7 @@ export default function ReservationManagementPanel({ active }: Props) {
                 adults: Number(data?.reservation?.adults ?? reservation.adults),
                 children: Number(data?.reservation?.children ?? reservation.children),
                 specialRequests: String(data?.reservation?.specialRequests || reservation.specialRequests || ''),
+                roomAssignments: Array.isArray(data?.reservation?.roomAssignments) ? data.reservation.roomAssignments : reservation.roomAssignments,
                 reservationSource: normalizeReservationSource(String(data?.reservation?.reservationSource || reservation.reservationSource || 'ONLINE')),
                 pricingSummary: data?.reservation?.pricingSummary || reservation.pricingSummary,
                 promo: (data?.reservation?.promo || reservation.promo) as ReservationRecord['promo'],
@@ -554,6 +594,11 @@ export default function ReservationManagementPanel({ active }: Props) {
       checkOut: editForm.checkOut,
       adults: Number(editForm.adults),
       children: Number(editForm.children),
+      roomAssignments: editForm.roomAssignments.map((assignment) => ({
+        room: assignment.roomId,
+        adults: Number(assignment.adults),
+        children: Number(assignment.children),
+      })),
       specialRequests: editForm.specialRequests,
     });
     setEditingReservation(null);
@@ -976,7 +1021,7 @@ export default function ReservationManagementPanel({ active }: Props) {
                         className="w-full rounded-lg border border-slate-800 bg-slate-950/70 px-3 py-2 text-left hover:border-emerald-500/50 hover:bg-slate-800"
                       >
                         <div className="flex items-start justify-between gap-2">
-                          <span className="font-semibold text-white">{reservation.room?.name || 'Room request'}</span>
+                          <span className="font-semibold text-white">{getReservationRoomLabel(reservation)}</span>
                           <span className="text-[10px] font-semibold uppercase text-amber-300">Pending</span>
                         </div>
                         <p className="mt-1 text-xs text-slate-300">{reservation.guestName}</p>
@@ -1136,7 +1181,7 @@ export default function ReservationManagementPanel({ active }: Props) {
                       <div className="text-xs text-slate-400">{reservation.email}</div>
                       <div className="text-xs text-slate-500">{reservation.phone}</div>
                     </td>
-                    <td className="px-3 py-3">{reservation.room?.name || '—'}</td>
+                    <td className="px-3 py-3">{getReservationRoomLabel(reservation)}</td>
                     <td className="px-3 py-3">{reservation.promo?.name || '—'}</td>
                     <td className="px-3 py-3">{formatDate(reservation.checkIn)}</td>
                     <td className="px-3 py-3">{formatDate(reservation.checkOut)}</td>
@@ -1243,7 +1288,7 @@ export default function ReservationManagementPanel({ active }: Props) {
               <div>
                 <p className="text-xs font-semibold uppercase tracking-[0.2em] text-amber-300">Extend Stay</p>
                 <h3 className="mt-1 text-lg font-semibold text-white">{extendingReservation.reservationNumber}</h3>
-                <p className="mt-1 text-sm text-slate-400">{extendingReservation.guestName} · {extendingReservation.room?.name || 'Room unavailable'}</p>
+                <p className="mt-1 text-sm text-slate-400">{extendingReservation.guestName} · {getReservationRoomLabel(extendingReservation)}</p>
               </div>
               <button
                 type="button"
@@ -1269,7 +1314,7 @@ export default function ReservationManagementPanel({ active }: Props) {
                 }}
                 className="mt-1 w-full rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-white outline-none focus:border-amber-500"
               />
-              <p className="mt-2 text-xs text-slate-500">The new date must be later than the current check-out date and available for this room.</p>
+              <p className="mt-2 text-xs text-slate-500">The new date must be later than the current check-out date and available for every assigned room.</p>
             </div>
 
             {extensionPricing ? (
@@ -1340,8 +1385,28 @@ export default function ReservationManagementPanel({ active }: Props) {
               <input value={editForm.address} onChange={(event) => setEditForm((current) => ({ ...current, address: event.target.value }))} placeholder="Address" className="rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-white outline-none focus:border-emerald-500" />
               <input type="date" value={editForm.checkIn} onChange={(event) => setEditForm((current) => ({ ...current, checkIn: event.target.value }))} className="rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-white outline-none focus:border-emerald-500" />
               <input type="date" value={editForm.checkOut} onChange={(event) => setEditForm((current) => ({ ...current, checkOut: event.target.value }))} className="rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-white outline-none focus:border-emerald-500" />
-              <input type="number" min={1} value={editForm.adults} onChange={(event) => setEditForm((current) => ({ ...current, adults: event.target.value }))} placeholder="Adults" className="rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-white outline-none focus:border-emerald-500" />
-              <input type="number" min={0} value={editForm.children} onChange={(event) => setEditForm((current) => ({ ...current, children: event.target.value }))} placeholder="Children" className="rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-white outline-none focus:border-emerald-500" />
+              <div className="md:col-span-2 space-y-2">
+                <p className="text-xs font-semibold uppercase tracking-wider text-slate-400">Guests per room</p>
+                {editForm.roomAssignments.map((assignment, index) => (
+                  <div key={assignment.roomId} className="rounded-lg border border-slate-800 bg-slate-950/70 p-3">
+                    <p className="mb-2 text-sm font-medium text-white">{assignment.roomName}</p>
+                    <div className="grid grid-cols-2 gap-3">
+                      <label className="text-xs text-slate-400">Adults
+                        <input type="number" min={1} value={assignment.adults} onChange={(event) => setEditForm((current) => {
+                          const roomAssignments = current.roomAssignments.map((room, roomIndex) => roomIndex === index ? { ...room, adults: event.target.value } : room);
+                          return { ...current, roomAssignments, adults: String(roomAssignments.reduce((total, room) => total + (Number(room.adults) || 0), 0)) };
+                        })} className="mt-1 w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-white outline-none focus:border-emerald-500" />
+                      </label>
+                      <label className="text-xs text-slate-400">Children
+                        <input type="number" min={0} value={assignment.children} onChange={(event) => setEditForm((current) => {
+                          const roomAssignments = current.roomAssignments.map((room, roomIndex) => roomIndex === index ? { ...room, children: event.target.value } : room);
+                          return { ...current, roomAssignments, children: String(roomAssignments.reduce((total, room) => total + (Number(room.children) || 0), 0)) };
+                        })} className="mt-1 w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-white outline-none focus:border-emerald-500" />
+                      </label>
+                    </div>
+                  </div>
+                ))}
+              </div>
             </div>
 
             <textarea value={editForm.specialRequests} onChange={(event) => setEditForm((current) => ({ ...current, specialRequests: event.target.value }))} rows={3} placeholder="Special Requests" className="mt-3 w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-white outline-none focus:border-emerald-500" />

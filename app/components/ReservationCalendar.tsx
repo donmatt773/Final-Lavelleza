@@ -11,6 +11,7 @@ type ReservationRecord = {
   email: string;
   phone: string;
   room?: { _id?: string; name?: string; code?: string } | null;
+  roomAssignments?: Array<{ room?: { _id?: string; name?: string; code?: string } | null }>;
   promo?: { _id?: string; name?: string; code?: string } | null;
   checkIn: string;
   checkOut: string;
@@ -130,13 +131,13 @@ export default function ReservationCalendar() {
   const occupancyByRoom = useMemo(() => {
     const map = new Map<string, { roomName: string; count: number }>();
     selectedDateReservations.forEach((reservation) => {
-      const roomName = reservation.room?.name || 'Unknown Room';
-      const existing = map.get(roomName);
-      if (existing) {
-        existing.count += 1;
-      } else {
-        map.set(roomName, { roomName, count: 1 });
-      }
+      const assignedRooms = reservation.roomAssignments?.map((assignment) => assignment.room).filter(Boolean) || [];
+      const roomNames = assignedRooms.length > 0 ? assignedRooms.map((room) => room?.name || 'Unknown Room') : [reservation.room?.name || 'Unknown Room'];
+      roomNames.forEach((roomName) => {
+        const existing = map.get(roomName);
+        if (existing) existing.count += 1;
+        else map.set(roomName, { roomName, count: 1 });
+      });
     });
 
     return Array.from(map.values()).sort((a, b) => b.count - a.count || a.roomName.localeCompare(b.roomName));
@@ -239,7 +240,7 @@ export default function ReservationCalendar() {
                       className="w-full rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-left text-sm text-slate-200 hover:bg-slate-800"
                     >
                       <p className="font-semibold text-white">{reservation.reservationNumber} - {reservation.guestName}</p>
-                      <p className="text-xs text-slate-400">{reservation.room?.name || 'Unknown Room'} | {reservation.reservationStatus.replace('_', ' ')}</p>
+                      <p className="text-xs text-slate-400">{reservation.roomAssignments?.length ? reservation.roomAssignments.map((assignment) => assignment.room?.name || 'Unknown Room').join(', ') : reservation.room?.name || 'Unknown Room'} | {reservation.reservationStatus.replace('_', ' ')}</p>
                     </button>
                   ))}
                 </div>
@@ -284,7 +285,7 @@ export default function ReservationCalendar() {
               <p><span className="text-slate-500">Guest:</span> {selectedReservation.guestName}</p>
               <p><span className="text-slate-500">Email:</span> {selectedReservation.email}</p>
               <p><span className="text-slate-500">Phone:</span> {selectedReservation.phone}</p>
-              <p><span className="text-slate-500">Room:</span> {selectedReservation.room?.name || '—'}</p>
+              <p><span className="text-slate-500">Rooms:</span> {selectedReservation.roomAssignments?.length ? selectedReservation.roomAssignments.map((assignment) => assignment.room?.name || 'Unknown Room').join(', ') : selectedReservation.room?.name || '—'}</p>
               <p><span className="text-slate-500">Promo:</span> {selectedReservation.promo?.name || '—'}</p>
               <p><span className="text-slate-500">Check In:</span> {formatDate(selectedReservation.checkIn)}</p>
               <p><span className="text-slate-500">Check Out:</span> {formatDate(selectedReservation.checkOut)}</p>

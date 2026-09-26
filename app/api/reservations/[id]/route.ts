@@ -56,6 +56,7 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
 
     const reservation = await Reservation.findById(id)
       .populate('room', 'name code description')
+      .populate('roomAssignments.room', 'name code description')
       .populate('promo', 'name code packagePrice inclusions')
       .lean();
 
@@ -196,6 +197,47 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
           errors.push('Selected room does not exist.');
         } else {
           updatePayload.room = body.room;
+          if (body.roomAssignments === undefined) {
+            updatePayload.roomAssignments = [{
+              room: body.room,
+              adults: Number(existingReservation.adults || 1),
+              children: Number(existingReservation.children || 0),
+            }];
+          }
+        }
+      }
+    }
+
+    if (body.roomAssignments !== undefined) {
+      if (!Array.isArray(body.roomAssignments) || body.roomAssignments.length === 0) {
+        errors.push('roomAssignments must contain at least one room.');
+      } else {
+        const roomAssignments = body.roomAssignments.filter((item): item is Record<string, unknown> => isRecord(item))
+          .map((item) => ({
+            roomId: typeof item.room === 'string' ? item.room.trim() : '',
+            adults: Number(item.adults),
+            children: Number(item.children),
+          }));
+        const roomIds = roomAssignments.map((assignment) => assignment.roomId);
+        if (roomAssignments.length !== body.roomAssignments.length || new Set(roomIds).size !== roomIds.length) {
+          errors.push('roomAssignments must contain unique valid room entries.');
+        }
+        roomAssignments.forEach((assignment) => {
+          if (!isValidObjectId(assignment.roomId)) errors.push('Each room assignment must have a valid room ID.');
+          if (!Number.isInteger(assignment.adults) || assignment.adults < 1) errors.push('Each room must have a whole number of at least one adult.');
+          if (!Number.isInteger(assignment.children) || assignment.children < 0) errors.push('Children per room must be a non-negative whole number.');
+        });
+        if (roomAssignments.length === body.roomAssignments.length && roomIds.every(isValidObjectId)) {
+          const roomDocs = await Room.find({ _id: { $in: roomIds }, isArchived: false }).select('_id').lean();
+          if (roomDocs.length !== roomIds.length) errors.push('One or more selected rooms do not exist.');
+          updatePayload.roomAssignments = roomAssignments.map((assignment) => ({
+            room: assignment.roomId,
+            adults: Math.floor(assignment.adults),
+            children: Math.floor(assignment.children),
+          }));
+          updatePayload.room = roomIds[0];
+          updatePayload.adults = roomAssignments.reduce((total, assignment) => total + Math.floor(assignment.adults), 0);
+          updatePayload.children = roomAssignments.reduce((total, assignment) => total + Math.floor(assignment.children), 0);
         }
       }
     }
@@ -218,7 +260,9 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
       }
     }
 
-    if (body.adults !== undefined) {
+    if (body.adults !== undefined && body.roomAssignments === undefined && body.room === undefined && (existingReservation.roomAssignments?.length ?? 0) > 1) {
+      errors.push('Per-room guest assignments are required when updating guests for a multi-room reservation.');
+    } else if (body.adults !== undefined && body.roomAssignments === undefined) {
       const adults = Number(body.adults);
       if (!Number.isFinite(adults) || adults < 1) {
         errors.push('adults must be a number greater than or equal to 1.');
@@ -227,7 +271,9 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
       }
     }
 
-    if (body.children !== undefined) {
+    if (body.children !== undefined && body.roomAssignments === undefined && body.room === undefined && (existingReservation.roomAssignments?.length ?? 0) > 1) {
+      errors.push('Per-room guest assignments are required when updating guests for a multi-room reservation.');
+    } else if (body.children !== undefined && body.roomAssignments === undefined) {
       const children = Number(body.children);
       if (!Number.isFinite(children) || children < 0) {
         errors.push('children must be a number greater than or equal to 0.');
@@ -243,7 +289,25 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
       errors.push('checkOut must be later than checkIn.');
     }
 
-    const candidateRoomId = String(updatePayload.room || existingReservation.room);
+    const existingRoomAssignments = Array.isArray(existingReservation.roomAssignments) && existingReservation.roomAssignments.length > 0
+      ? existingReservation.roomAssignments.map((assignment) => ({ roomId: String(assignment.room), adults: Number(assignment.adults), children: Number(assignment.children) }))
+      : [{ roomId: String(existingReservation.room), adults: Number(existingReservation.adults), children: Number(existingReservation.children) }];
+    if (body.roomAssignments === undefined && (body.room !== undefined || body.adults !== undefined || body.children !== undefined)) {
+      updatePayload.roomAssignments = [{
+        room: String(updatePayload.room || existingReservation.room),
+        adults: Number(updatePayload.adults ?? existingReservation.adults ?? 1),
+        children: Number(updatePayload.children ?? existingReservation.children ?? 0),
+      }];
+    }
+    const candidateRoomAssignments = Array.isArray(updatePayload.roomAssignments)
+      ? (updatePayload.roomAssignments as Array<{ room: string; adults: number; children: number }>).map((assignment) => ({ roomId: assignment.room, adults: assignment.adults, children: assignment.children }))
+      : updatePayload.room !== undefined
+        ? [{ roomId: String(updatePayload.room), adults: Number(updatePayload.adults ?? existingReservation.adults), children: Number(updatePayload.children ?? existingReservation.children) }]
+        : body.adults !== undefined || body.children !== undefined
+          ? [{ roomId: String(existingReservation.room), adults: Number(updatePayload.adults ?? existingReservation.adults), children: Number(updatePayload.children ?? existingReservation.children) }]
+          : existingRoomAssignments;
+    const candidateRoomIds = candidateRoomAssignments.map((assignment) => assignment.roomId);
+    const candidateRoomId = candidateRoomIds[0];
     const candidateStatus = String(updatePayload.reservationStatus || existingReservation.reservationStatus).toUpperCase();
     const currentStatus = String(existingReservation.reservationStatus || '').toUpperCase();
     const candidatePromoId = updatePayload.promo === null
@@ -251,6 +315,7 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
       : String(updatePayload.promo || existingReservation.promo || '');
     const shouldValidatePromo = body.promo !== undefined
       || body.room !== undefined
+      || body.roomAssignments !== undefined
       || body.checkIn !== undefined
       || body.checkOut !== undefined;
     const candidateAddOns = Array.isArray(body.addOns)
@@ -274,23 +339,20 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
       }
     }
 
-    if (candidateRoomId && hasValidDateRange({ checkIn: candidateCheckIn, checkOut: candidateCheckOut }) && candidateStatus !== 'CANCELLED' && candidateStatus !== 'CHECKED_OUT') {
-      const conflictingReservation = await findConflictingReservation({
-        roomId: candidateRoomId,
-        checkIn: candidateCheckIn,
-        checkOut: candidateCheckOut,
-        excludeReservationId: id,
-      });
-
-      if (conflictingReservation) {
-        errors.push(`Date conflict: room is blocked by reservation ${String(conflictingReservation.reservationNumber)}.`);
+    if (candidateRoomIds.length > 0 && hasValidDateRange({ checkIn: candidateCheckIn, checkOut: candidateCheckOut }) && candidateStatus !== 'CANCELLED' && candidateStatus !== 'CHECKED_OUT') {
+      for (const roomId of candidateRoomIds) {
+        const conflictingReservation = await findConflictingReservation({ roomId, checkIn: candidateCheckIn, checkOut: candidateCheckOut, excludeReservationId: id });
+        if (conflictingReservation) {
+          errors.push(`Date conflict: a selected room is blocked by reservation ${String(conflictingReservation.reservationNumber)}.`);
+          break;
+        }
       }
     }
 
     if (candidatePromoId && shouldValidatePromo) {
       const promoEligibility = await validateSelectedPromoEligibility({
         promoId: candidatePromoId,
-        roomId: candidateRoomId,
+        roomIds: candidateRoomIds,
         checkIn: candidateCheckIn,
         checkOut: candidateCheckOut,
       });
@@ -307,6 +369,7 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
     if (errors.length === 0) {
       const pricingSummary = await calculateReservationPricing({
         roomId: candidateRoomId,
+        roomAssignments: candidateRoomAssignments,
         promoId: candidatePromoId,
         checkIn: candidateCheckIn,
         checkOut: candidateCheckOut,
@@ -355,6 +418,7 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
 
     const updated = await Reservation.findByIdAndUpdate(id, updatePayload, { new: true })
       .populate('room', 'name code')
+      .populate('roomAssignments.room', 'name code description')
       .populate('promo', 'name code inclusions')
       .lean();
 
