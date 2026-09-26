@@ -757,13 +757,14 @@ export default function ReservationManagementPanel({ active, canManageGmail = fa
     setEditingReservation(null);
   };
 
-  const refreshReservationPaymentStatus = (reservationId: string, status: ReservationPaymentStatus) => {
+  const refreshReservationPaymentStatus = (reservationId: string, status: ReservationPaymentStatus, bookingStatus?: ReservationStatus) => {
     setReservations((current) =>
       current.map((reservation) =>
         reservation._id === reservationId
           ? {
               ...reservation,
               paymentStatus: status,
+              ...(bookingStatus ? { reservationStatus: bookingStatus } : {}),
             }
           : reservation
       )
@@ -774,6 +775,7 @@ export default function ReservationManagementPanel({ active, canManageGmail = fa
         ? {
             ...current,
             paymentStatus: status,
+            ...(bookingStatus ? { reservationStatus: bookingStatus } : {}),
           }
         : current
     );
@@ -847,9 +849,28 @@ export default function ReservationManagementPanel({ active, canManageGmail = fa
 
       await loadReservationPayments(editingReservation._id);
       const nextStatus = String(data?.reservationPaymentStatus || 'UNPAID').toUpperCase() as ReservationPaymentStatus;
-      refreshReservationPaymentStatus(editingReservation._id, nextStatus);
-      setMessage('Payment recorded successfully.');
-      setMessageType('success');
+      const bookingStatus = typeof data?.reservationStatus === 'string'
+        ? data.reservationStatus as ReservationStatus
+        : undefined;
+      refreshReservationPaymentStatus(editingReservation._id, nextStatus, bookingStatus);
+      if (data?.emailSent) {
+        setMessage(bookingStatus === 'CONFIRMED'
+          ? 'Payment recorded, booking confirmed, and customer emailed.'
+          : 'Payment recorded and customer emailed.');
+        setMessageType('success');
+      } else if (data?.emailWarning) {
+        setMessage(`Payment was recorded${data?.bookingConfirmed ? ' and booking confirmed' : ''}, but the email failed: ${String(data.emailWarning)}`);
+        setMessageType('error');
+      } else if (paymentForm.paymentMethod === 'GCASH' && paymentForm.paymentType !== 'REFUND') {
+        setMessage('GCash payment recorded and awaiting verification. The booking will be confirmed and emailed after verification.');
+        setMessageType('info');
+      } else if (data?.bookingConfirmed) {
+        setMessage('Payment recorded and booking confirmed.');
+        setMessageType('success');
+      } else {
+        setMessage('Payment recorded successfully. Booking status was not changed.');
+        setMessageType('success');
+      }
     } catch (error) {
       setMessage(error instanceof Error ? error.message : 'Unable to record payment.');
       setMessageType('error');
@@ -918,9 +939,22 @@ export default function ReservationManagementPanel({ active, canManageGmail = fa
 
       await loadReservationPayments(editingReservation._id);
       const nextStatus = String(data?.reservationPaymentStatus || 'UNPAID').toUpperCase() as ReservationPaymentStatus;
-      refreshReservationPaymentStatus(editingReservation._id, nextStatus);
-      setMessage('Payment status updated successfully.');
-      setMessageType('success');
+      const bookingStatus = typeof data?.reservationStatus === 'string'
+        ? data.reservationStatus as ReservationStatus
+        : undefined;
+      refreshReservationPaymentStatus(editingReservation._id, nextStatus, bookingStatus);
+      if (data?.emailSent) {
+        setMessage(bookingStatus === 'CONFIRMED'
+          ? 'Payment verified, booking confirmed, and customer emailed.'
+          : 'Payment verified and customer emailed.');
+        setMessageType('success');
+      } else if (data?.emailWarning) {
+        setMessage(`Payment status updated${data?.bookingConfirmed ? ' and booking confirmed' : ''}, but the email failed: ${String(data.emailWarning)}`);
+        setMessageType('error');
+      } else {
+        setMessage('Payment status updated successfully.');
+        setMessageType('success');
+      }
     } catch (error) {
       setMessage(error instanceof Error ? error.message : 'Unable to update payment status.');
       setMessageType('error');

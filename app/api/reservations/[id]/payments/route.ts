@@ -7,6 +7,7 @@ import { getSessionFromRequest, requireOwnerOrStaff } from '@/app/lib/auth';
 import { computeReservationPaymentRollup, generatePaymentNumber, generateReceiptNumber, syncReservationPaymentStatus } from '@/app/lib/paymentTracking';
 import { triggerReservationUpdate } from '@/app/lib/pusher-server';
 import { diffAuditFields, writeAuditLog } from '@/app/lib/auditLogWriter';
+import { sendPaymentConfirmationEmail } from '@/app/lib/paymentConfirmationEmail';
 
 const VALID_PAYMENT_METHODS = ['CASH_ON_ARRIVAL', 'GCASH'] as const;
 const VALID_PAYMENT_TYPES = ['RESERVATION_DEPOSIT', 'PARTIAL_PAYMENT', 'FULL_PAYMENT', 'REFUND'] as const;
@@ -39,7 +40,7 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
     }
 
     const reservation = await Reservation.findById(id)
-      .select('reservationNumber guestName pricingSummary.grandTotal paymentStatus')
+      .select('reservationNumber guestName pricingSummary.grandTotal paymentStatus reservationStatus')
       .lean();
 
     if (!reservation) {
@@ -165,6 +166,10 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
       return NextResponse.json({ success: false, message: 'Invalid payment data.', errors }, { status: 400 });
     }
 
+    if (paymentMethod === 'GCASH' && paymentType !== 'REFUND') {
+      paymentStatus = 'PENDING_VERIFICATION';
+    }
+
     if (paymentMethod === 'CASH_ON_ARRIVAL' && paymentType !== 'REFUND') {
       const projectedPaid = currentRollup.recognizedPaid + amountPaid;
       paymentStatus = projectedPaid >= totalDue ? 'PAID' : 'PARTIALLY_PAID';
@@ -204,6 +209,37 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
 
     const { rollup } = await syncReservationPaymentStatus(id);
 
+    let bookingStatus = String(reservation.reservationStatus || 'PENDING');
+    if (paymentStatus === 'PAID' || paymentStatus === 'PARTIALLY_PAID') {
+      if (bookingStatus === 'PENDING') {
+        const confirmed = await Reservation.findOneAndUpdate(
+          { _id: id, reservationStatus: 'PENDING' },
+          { $set: { reservationStatus: 'CONFIRMED' } },
+          { new: true }
+        ).select('reservationStatus').lean();
+        bookingStatus = String(confirmed?.reservationStatus || (await Reservation.findById(id).select('reservationStatus').lean())?.reservationStatus || bookingStatus);
+      }
+    }
+
+    let emailSent = false;
+    let emailWarning: string | null = null;
+    if (paymentStatus === 'PAID' || paymentStatus === 'PARTIALLY_PAID') {
+      try {
+        const email = await sendPaymentConfirmationEmail(id, String(payment._id), bookingStatus);
+        emailSent = true;
+        await writeAuditLog(request, {
+          action: 'SEND_PAYMENT_CONFIRMATION_EMAIL',
+          entityType: 'PAYMENT',
+          entityId: String(payment._id),
+          entityLabel: payment.paymentNumber,
+          summary: `Emailed the payment confirmation to ${email.email}.`,
+          changedFields: [],
+        });
+      } catch (error) {
+        emailWarning = error instanceof Error ? error.message : 'Payment was recorded, but the confirmation email could not be sent.';
+      }
+    }
+
     await writeAuditLog(request, {
       action: 'RECORD_PAYMENT',
       entityType: 'PAYMENT',
@@ -215,7 +251,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
 
     await triggerReservationUpdate(id, {
       type: 'reservation-payment-updated',
-      reservationStatus: rollup.reservationPaymentStatus,
+      reservationStatus: bookingStatus,
       paymentStatus: rollup.reservationPaymentStatus,
     });
 
@@ -224,6 +260,10 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
         success: true,
         payment,
         reservationPaymentStatus: rollup.reservationPaymentStatus,
+        reservationStatus: bookingStatus,
+        bookingConfirmed: bookingStatus === 'CONFIRMED',
+        emailSent,
+        emailWarning,
         summary: rollup,
       },
       { status: 201 }
@@ -354,7 +394,7 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
 
     const updated = await Payment.findByIdAndUpdate(paymentId, updatePayload, { new: true }).lean();
 
-    const reservation = await Reservation.findById(id).select('pricingSummary.grandTotal').lean();
+    const reservation = await Reservation.findById(id).select('reservationNumber guestName email reservationStatus pricingSummary.grandTotal').lean();
     const payments = await Payment.find({ reservation: id })
       .select('amountPaid paymentType paymentStatus paymentMethod')
       .lean();
@@ -367,6 +407,38 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
     });
 
     const synced = await syncReservationPaymentStatus(id);
+
+    let bookingStatus = String(reservation?.reservationStatus || 'PENDING');
+    const paymentBecameRecognized = payment.paymentStatus !== 'PAID'
+      && payment.paymentStatus !== 'PARTIALLY_PAID'
+      && (paymentStatus === 'PAID' || paymentStatus === 'PARTIALLY_PAID');
+    if ((paymentStatus === 'PAID' || paymentStatus === 'PARTIALLY_PAID') && bookingStatus === 'PENDING') {
+      const confirmed = await Reservation.findOneAndUpdate(
+        { _id: id, reservationStatus: 'PENDING' },
+        { $set: { reservationStatus: 'CONFIRMED' } },
+        { new: true }
+      ).select('reservationStatus').lean();
+      bookingStatus = String(confirmed?.reservationStatus || (await Reservation.findById(id).select('reservationStatus').lean())?.reservationStatus || bookingStatus);
+    }
+
+    let emailSent = false;
+    let emailWarning: string | null = null;
+    if (paymentBecameRecognized) {
+      try {
+        const email = await sendPaymentConfirmationEmail(id, paymentId, bookingStatus);
+        emailSent = true;
+        await writeAuditLog(request, {
+          action: 'SEND_PAYMENT_CONFIRMATION_EMAIL',
+          entityType: 'PAYMENT',
+          entityId: String(paymentId),
+          entityLabel: updated?.paymentNumber || payment.paymentNumber,
+          summary: `Emailed the verified payment confirmation to ${email.email}.`,
+          changedFields: [],
+        });
+      } catch (error) {
+        emailWarning = error instanceof Error ? error.message : 'Payment was verified, but the confirmation email could not be sent.';
+      }
+    }
 
     if (updated) {
       await writeAuditLog(request, {
@@ -384,6 +456,10 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
         success: true,
         payment: updated,
         reservationPaymentStatus: synced.rollup.reservationPaymentStatus,
+        reservationStatus: bookingStatus,
+        bookingConfirmed: bookingStatus === 'CONFIRMED',
+        emailSent,
+        emailWarning,
         summary: synced.rollup,
       },
       { status: 200 }
