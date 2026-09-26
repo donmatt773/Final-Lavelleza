@@ -8,6 +8,8 @@ export interface IAddOn {
   price: number;
   isActive: boolean;
   stockQuantity?: number | null;
+  stockLockToken?: string | null;
+  stockLockExpiresAt?: Date | null;
   createdAt?: Date;
   updatedAt?: Date;
 }
@@ -19,7 +21,14 @@ const addOnSchema = new Schema<IAddOn>(
     category: { type: String, trim: true, uppercase: true, default: 'OTHER' },
     price: { type: Number, required: true, min: 0 },
     isActive: { type: Boolean, default: true },
-    stockQuantity: { type: Number, min: 0, default: null },
+    stockQuantity: {
+      type: Number,
+      min: 0,
+      default: null,
+      validate: { validator: Number.isInteger, message: 'Stock quantity must be a whole number.' },
+    },
+    stockLockToken: { type: String, default: null, select: false },
+    stockLockExpiresAt: { type: Date, default: null, select: false },
   },
   { timestamps: true, collection: 'add_ons' }
 );

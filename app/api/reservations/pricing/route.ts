@@ -3,6 +3,8 @@ import mongoose from 'mongoose';
 import { connectDB } from '@/app/lib/db';
 import { calculateReservationPricing } from '@/app/lib/reservationPricing';
 import { validateSelectedPromoEligibility } from '@/app/lib/promoEligibility';
+import { requireOwnerOrStaff } from '@/app/lib/auth';
+import { AddOnAvailabilityError } from '@/app/lib/addOnAvailability';
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
@@ -36,6 +38,15 @@ export async function POST(request: Request) {
 
     if (!isRecord(body)) {
       return NextResponse.json({ success: false, message: 'Request body must be a JSON object.' }, { status: 400 });
+    }
+
+    const excludeReservationId = typeof body.reservationId === 'string' ? body.reservationId.trim() : '';
+    if (excludeReservationId) {
+      const authError = requireOwnerOrStaff(request);
+      if (authError) return authError;
+      if (!mongoose.Types.ObjectId.isValid(excludeReservationId)) {
+        return NextResponse.json({ success: false, message: 'Reservation ID must be valid.' }, { status: 400 });
+      }
     }
 
     const errors: string[] = [];
@@ -104,6 +115,8 @@ export async function POST(request: Request) {
       checkOut: checkOut as Date,
       adults,
       children,
+      reservationStatus: excludeReservationId && typeof body.reservationStatus === 'string' ? body.reservationStatus : 'PENDING',
+      excludeReservationId: excludeReservationId || undefined,
       addOns: Array.isArray(body.addOns)
         ? body.addOns.filter((item): item is { addOnId: string; quantity: number } => isRecord(item) && typeof item.addOnId === 'string')
             .map((item) => ({ addOnId: item.addOnId, quantity: Number(item.quantity) }))
@@ -111,7 +124,10 @@ export async function POST(request: Request) {
     });
 
     return NextResponse.json({ success: true, pricingSummary }, { status: 200 });
-  } catch {
+  } catch (error: unknown) {
+    if (error instanceof AddOnAvailabilityError) {
+      return NextResponse.json({ success: false, message: error.message }, { status: 409 });
+    }
     return NextResponse.json({ success: false, message: 'Failed to compute reservation pricing.' }, { status: 500 });
   }
 }

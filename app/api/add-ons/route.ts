@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { connectDB } from '@/app/lib/db';
 import AddOn from '@/app/lib/AddOn';
+import { getAddOnAvailability } from '@/app/lib/addOnAvailability';
 import { requireOwner } from '@/app/lib/auth';
 import { triggerDashboardUpdate } from '@/app/lib/pusher-server';
 
@@ -16,9 +17,25 @@ export async function GET(request: Request) {
       const authError = requireOwner(request);
       if (authError) return authError;
     }
+    const { searchParams } = new URL(request.url);
+    const checkInRaw = searchParams.get('checkIn');
+    const checkOutRaw = searchParams.get('checkOut');
+    let checkIn: Date | undefined;
+    let checkOut: Date | undefined;
+    if (checkInRaw || checkOutRaw) {
+      checkIn = checkInRaw ? new Date(checkInRaw) : undefined;
+      checkOut = checkOutRaw ? new Date(checkOutRaw) : undefined;
+      if (!checkIn || !checkOut || Number.isNaN(checkIn.getTime()) || Number.isNaN(checkOut.getTime()) || checkOut <= checkIn) {
+        return NextResponse.json({ success: false, message: 'Valid check-in and check-out dates are required for stock availability.' }, { status: 400 });
+      }
+    }
     const query = includeInactive ? {} : { isActive: true };
     const addOns = await AddOn.find(query).sort({ category: 1, name: 1 }).lean();
-    return NextResponse.json(addOns, { status: 200 });
+    const availability = await getAddOnAvailability({ addOns, checkIn, checkOut });
+    return NextResponse.json(addOns.map((addOn) => ({
+      ...addOn,
+      availableQuantity: availability.get(String(addOn._id)),
+    })), { status: 200 });
   } catch {
     return NextResponse.json({ success: false, message: 'Failed to load add-ons.' }, { status: 500 });
   }
@@ -35,7 +52,7 @@ export async function POST(request: Request) {
     const name = typeof body.name === 'string' ? body.name.trim() : '';
     const price = Number(body.price);
     const stockQuantity = body.stockQuantity === null || body.stockQuantity === undefined || body.stockQuantity === '' ? null : Number(body.stockQuantity);
-    if (!name || !Number.isFinite(price) || price < 0 || (stockQuantity !== null && (!Number.isFinite(stockQuantity) || stockQuantity < 0))) {
+    if (!name || !Number.isFinite(price) || price < 0 || (stockQuantity !== null && (!Number.isInteger(stockQuantity) || stockQuantity < 0))) {
       return NextResponse.json({ success: false, message: 'Name, price, and optional stock quantity are invalid.' }, { status: 400 });
     }
 

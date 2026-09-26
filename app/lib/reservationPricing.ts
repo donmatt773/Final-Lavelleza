@@ -3,8 +3,10 @@ import Room from '@/app/lib/Room';
 import Promo from '@/app/lib/Promo';
 import RateSettings from '@/app/lib/RateSettings';
 import AddOn from '@/app/lib/AddOn';
+import { AddOnAvailabilityError, getAddOnAvailability } from '@/app/lib/addOnAvailability';
 
 const DEFAULT_EXTRA_PERSON_RATE = 150;
+const STOCK_HOLDING_RESERVATION_STATUSES = new Set(['PENDING', 'CONFIRMED', 'CHECKED_IN']);
 
 export type ReservationPricingSummary = {
   currency: 'PHP';
@@ -48,6 +50,8 @@ type PricingInput = {
   checkOut: Date;
   adults: number;
   children: number;
+  reservationStatus?: string;
+  excludeReservationId?: string;
   addOns?: Array<{ addOnId: string; quantity: number }>;
 };
 
@@ -144,19 +148,39 @@ export async function calculateReservationPricing(input: PricingInput): Promise<
   const roomRate = normalizeMoney(roomDetails.reduce((total, room) => total + room.nightlyRate * nights, 0));
 
   const requestedAddOns = Array.isArray(input.addOns) ? input.addOns : [];
-  const addOnIds = requestedAddOns.map((item) => String(item.addOnId));
+  const requestedAddOnQuantities = new Map<string, number>();
+  requestedAddOns.forEach((item) => {
+    const addOnId = String(item.addOnId);
+    const quantity = Number(item.quantity);
+    if (!mongoose.Types.ObjectId.isValid(addOnId) || !Number.isInteger(quantity) || quantity < 1) {
+      throw new Error('One or more selected add-ons are invalid.');
+    }
+    requestedAddOnQuantities.set(addOnId, (requestedAddOnQuantities.get(addOnId) || 0) + quantity);
+  });
+  const addOnIds = Array.from(requestedAddOnQuantities.keys());
   const addOnDocs = addOnIds.length > 0
     ? await AddOn.find({ _id: { $in: addOnIds }, isActive: true }).lean()
     : [];
+  if (addOnDocs.length !== addOnIds.length) {
+    throw new Error('One or more selected add-ons are invalid or inactive.');
+  }
+
+  const holdsAddOnStock = STOCK_HOLDING_RESERVATION_STATUSES.has(String(input.reservationStatus || 'PENDING').toUpperCase());
+  const availableAddOnQuantities = await getAddOnAvailability({
+    addOns: addOnDocs,
+    checkIn: holdsAddOnStock ? input.checkIn : undefined,
+    checkOut: holdsAddOnStock ? input.checkOut : undefined,
+    excludeReservationId: input.excludeReservationId,
+  });
   const addOnById = new Map(addOnDocs.map((addOn) => [String(addOn._id), addOn]));
-  const addOns = requestedAddOns.map((item) => {
-    const addOn = addOnById.get(String(item.addOnId));
-    const quantity = Math.floor(Number(item.quantity));
-    if (!addOn || !Number.isFinite(quantity) || quantity < 1) {
+  const addOns = Array.from(requestedAddOnQuantities, ([addOnId, quantity]) => {
+    const addOn = addOnById.get(addOnId);
+    if (!addOn) {
       throw new Error('One or more selected add-ons are invalid or inactive.');
     }
-    if (addOn.stockQuantity !== null && addOn.stockQuantity !== undefined && quantity > addOn.stockQuantity) {
-      throw new Error(`Insufficient stock for add-on: ${addOn.name}.`);
+    const availableQuantity = availableAddOnQuantities.get(addOnId);
+    if (holdsAddOnStock && availableQuantity !== null && availableQuantity !== undefined && quantity > availableQuantity) {
+      throw new AddOnAvailabilityError(`Only ${availableQuantity} ${addOn.name} available for the selected stay dates.`);
     }
     const unitPrice = normalizeMoney(Number(addOn.price || 0));
     return {

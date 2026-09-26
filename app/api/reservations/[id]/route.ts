@@ -10,6 +10,7 @@ import { calculateReservationPricing } from '@/app/lib/reservationPricing';
 import { computeReservationPaymentRollup } from '@/app/lib/paymentTracking';
 import { validateSelectedPromoEligibility } from '@/app/lib/promoEligibility';
 import { triggerReservationUpdate } from '@/app/lib/pusher-server';
+import { AddOnAvailabilityError, AddOnInventoryBusyError, withAddOnInventoryLock } from '@/app/lib/addOnAvailability';
 
 const VALID_RESERVATION_STATUSES = ['PENDING', 'CONFIRMED', 'CANCELLED', 'NO_SHOW', 'CHECKED_IN', 'CHECKED_OUT'] as const;
 const VALID_PAYMENT_STATUSES = ['UNPAID', 'PENDING_VERIFICATION', 'PARTIALLY_PAID', 'PAID', 'REFUNDED'] as const;
@@ -367,19 +368,6 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
     }
 
     if (errors.length === 0) {
-      const pricingSummary = await calculateReservationPricing({
-        roomId: candidateRoomId,
-        roomAssignments: candidateRoomAssignments,
-        promoId: candidatePromoId,
-        checkIn: candidateCheckIn,
-        checkOut: candidateCheckOut,
-        adults: Number(updatePayload.adults ?? existingReservation.adults),
-        children: Number(updatePayload.children ?? existingReservation.children),
-        addOns: candidateAddOns,
-      });
-      updatePayload.pricingSummary = pricingSummary;
-      updatePayload.addOns = pricingSummary.addOns;
-
       if (updatePayload.reservationStatus !== undefined && currentStatus !== candidateStatus) {
         const transitionTimestamp = new Date();
         const existingHistory = Array.isArray(existingReservation.statusHistory)
@@ -416,11 +404,28 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
       return NextResponse.json({ success: false, message: 'No update fields were provided.' }, { status: 400 });
     }
 
-    const updated = await Reservation.findByIdAndUpdate(id, updatePayload, { new: true })
-      .populate('room', 'name code')
-      .populate('roomAssignments.room', 'name code description')
-      .populate('promo', 'name code inclusions')
-      .lean();
+    const updated = await withAddOnInventoryLock(candidateAddOns.map((addOn) => addOn.addOnId), async () => {
+      const pricingSummary = await calculateReservationPricing({
+        roomId: candidateRoomId,
+        roomAssignments: candidateRoomAssignments,
+        promoId: candidatePromoId,
+        checkIn: candidateCheckIn,
+        checkOut: candidateCheckOut,
+        adults: Number(updatePayload.adults ?? existingReservation.adults),
+        children: Number(updatePayload.children ?? existingReservation.children),
+        reservationStatus: candidateStatus,
+        excludeReservationId: id,
+        addOns: candidateAddOns,
+      });
+      updatePayload.pricingSummary = pricingSummary;
+      updatePayload.addOns = pricingSummary.addOns;
+
+      return Reservation.findByIdAndUpdate(id, updatePayload, { new: true })
+        .populate('room', 'name code')
+        .populate('roomAssignments.room', 'name code description')
+        .populate('promo', 'name code inclusions')
+        .lean();
+    });
 
     if (!updated) {
       return NextResponse.json({ success: false, message: 'Reservation not found.' }, { status: 404 });
@@ -433,7 +438,13 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
     });
 
     return NextResponse.json({ success: true, reservation: updated }, { status: 200 });
-  } catch {
+  } catch (error: unknown) {
+    if (error instanceof AddOnInventoryBusyError) {
+      return NextResponse.json({ success: false, message: error.message }, { status: 409 });
+    }
+    if (error instanceof AddOnAvailabilityError) {
+      return NextResponse.json({ success: false, message: error.message }, { status: 409 });
+    }
     return NextResponse.json({ success: false, message: 'Failed to update reservation.' }, { status: 500 });
   }
 }

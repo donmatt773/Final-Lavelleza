@@ -121,6 +121,7 @@ export default function AddOnManagementPanel({ active }: { active: boolean }) {
         <p className="text-xs font-semibold uppercase tracking-[0.3em] text-emerald-400">Add-On Management</p>
         <h2 className="mt-2 text-2xl font-semibold text-white">Manage reservation extras</h2>
         <p className="mt-2 text-sm text-slate-400">Configure pillows, blankets, soap, towels, and other chargeable items.</p>
+        <p className="mt-1 text-xs text-slate-500">Stock is shared across overlapping stays. Cancelled, no-show, and checked-out reservations release reusable items. Leave stock blank for unlimited items.</p>
       </div>
 
       {message ? <div className={`mb-4 rounded-lg border px-3 py-2 text-sm ${messageType === 'error' ? 'border-rose-500/20 bg-rose-500/10 text-rose-300' : 'border-emerald-500/20 bg-emerald-500/10 text-emerald-300'}`}>{message}</div> : null}

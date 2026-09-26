@@ -10,6 +10,7 @@ import { calculateReservationPricing } from '@/app/lib/reservationPricing';
 import { validateSelectedPromoEligibility } from '@/app/lib/promoEligibility';
 import { generatePaymentNumber } from '@/app/lib/paymentTracking';
 import { triggerReservationUpdate } from '@/app/lib/pusher-server';
+import { AddOnAvailabilityError, AddOnInventoryBusyError, withAddOnInventoryLock } from '@/app/lib/addOnAvailability';
 
 const VALID_RESERVATION_STATUSES = ['PENDING', 'CONFIRMED', 'CANCELLED', 'NO_SHOW', 'CHECKED_IN', 'CHECKED_OUT'] as const;
 const VALID_PAYMENT_STATUSES = ['UNPAID', 'PENDING_VERIFICATION', 'PARTIALLY_PAID', 'PAID', 'REFUNDED'] as const;
@@ -382,78 +383,89 @@ export async function POST(request: Request) {
       }
     }
 
-    const pricingSummary = await calculateReservationPricing({
-      roomId,
-      roomAssignments: roomAssignments.length > 0 ? roomAssignments : undefined,
-      promoId,
-      checkIn: checkIn as Date,
-      checkOut: checkOut as Date,
-      adults,
-      children,
-      addOns: Array.isArray(body.addOns)
-        ? body.addOns.filter((item): item is { addOnId: string; quantity: number } => isRecord(item) && typeof item.addOnId === 'string')
-            .map((item) => ({ addOnId: item.addOnId, quantity: Number(item.quantity) }))
-        : [],
-    });
-
-    const totalDue = Number(pricingSummary.grandTotal || 0);
-
-    if (isOnlineGcash && Number.isFinite(gcashAmountPaid) && gcashAmountPaid > totalDue) {
-      return NextResponse.json({ success: false, message: 'GCash amount cannot exceed outstanding balance.' }, { status: 400 });
-    }
-
+    const requestedAddOns = Array.isArray(body.addOns)
+      ? body.addOns.filter((item): item is { addOnId: string; quantity: number } => isRecord(item) && typeof item.addOnId === 'string')
+          .map((item) => ({ addOnId: item.addOnId, quantity: Number(item.quantity) }))
+      : [];
     const reservationNumber = await generateReservationNumber();
     const initialReservationPaymentStatus = isOnlineGcash ? 'PENDING_VERIFICATION' : 'UNPAID';
 
-    const reservation = await Reservation.create({
-      reservationNumber,
-      guestName,
-      email,
-      phone,
-      address: address || undefined,
-      room: roomId,
-      roomAssignments: roomAssignments.length > 0 ? roomAssignments.map((assignment) => ({ room: assignment.roomId, adults: Math.floor(assignment.adults), children: Math.floor(assignment.children) })) : [],
-      promo: promoId || null,
-      adults: Math.floor(adults),
-      children: Math.floor(children),
-      checkIn: checkIn as Date,
-      checkOut: checkOut as Date,
-      specialRequests: specialRequests || undefined,
-      addOns: pricingSummary.addOns,
-      reservationStatus,
-      paymentStatus: initialReservationPaymentStatus,
-      reservationSource,
-      checkInAt: reservationStatus === 'CHECKED_IN' ? new Date() : null,
-      checkedInBy: reservationStatus === 'CHECKED_IN' ? actingStaffMember : null,
-      statusHistory: [/* unchanged */],
-      pricingSummary,
-      createdBy: reservationSource === 'WALK_IN' ? actingStaffMember : 'PUBLIC',
+    const reservationResult = await withAddOnInventoryLock(requestedAddOns.map((item) => item.addOnId), async () => {
+      const pricingSummary = await calculateReservationPricing({
+        roomId,
+        roomAssignments: roomAssignments.length > 0 ? roomAssignments : undefined,
+        promoId,
+        checkIn: checkIn as Date,
+        checkOut: checkOut as Date,
+        adults,
+        children,
+        reservationStatus,
+        addOns: requestedAddOns,
       });
 
-    if (isOnlineGcash) {
-      try {
-        const paymentNumber = await generatePaymentNumber();
-        const paymentType = gcashAmountPaid >= totalDue ? 'FULL_PAYMENT' : 'RESERVATION_DEPOSIT';
-
-        await Payment.create({
-          paymentNumber,
-          reservation: reservation._id,
-          paymentDate: new Date(),
-          paymentMethod: 'GCASH',
-          referenceNumber: gcashReferenceNumber,
-          amountPaid: gcashAmountPaid,
-          balanceRemaining: totalDue,
-          paymentType,
-          paymentStatus: 'PENDING_VERIFICATION',
-          receivedBy: 'GUEST',
-          notes: 'Submitted by guest during online reservation.',
-          proofOfPaymentUrl: gcashProofOfPaymentUrl || undefined,
-        });
-      } catch {
-        await Reservation.findByIdAndDelete(reservation._id);
-        return NextResponse.json({ success: false, message: 'Failed to record GCash payment. Please try again.' }, { status: 500 });
+      const totalDue = Number(pricingSummary.grandTotal || 0);
+      if (isOnlineGcash && Number.isFinite(gcashAmountPaid) && gcashAmountPaid > totalDue) {
+        return { reservation: null, error: { status: 400, message: 'GCash amount cannot exceed outstanding balance.' } };
       }
+
+      const reservation = await Reservation.create({
+        reservationNumber,
+        guestName,
+        email,
+        phone,
+        address: address || undefined,
+        room: roomId,
+        roomAssignments: roomAssignments.length > 0 ? roomAssignments.map((assignment) => ({ room: assignment.roomId, adults: Math.floor(assignment.adults), children: Math.floor(assignment.children) })) : [],
+        promo: promoId || null,
+        adults: Math.floor(adults),
+        children: Math.floor(children),
+        checkIn: checkIn as Date,
+        checkOut: checkOut as Date,
+        specialRequests: specialRequests || undefined,
+        addOns: pricingSummary.addOns,
+        reservationStatus,
+        paymentStatus: initialReservationPaymentStatus,
+        reservationSource,
+        checkInAt: reservationStatus === 'CHECKED_IN' ? new Date() : null,
+        checkedInBy: reservationStatus === 'CHECKED_IN' ? actingStaffMember : null,
+        statusHistory: [/* unchanged */],
+        pricingSummary,
+        createdBy: reservationSource === 'WALK_IN' ? actingStaffMember : 'PUBLIC',
+      });
+
+      if (isOnlineGcash) {
+        try {
+          const paymentNumber = await generatePaymentNumber();
+          const paymentType = gcashAmountPaid >= totalDue ? 'FULL_PAYMENT' : 'RESERVATION_DEPOSIT';
+
+          await Payment.create({
+            paymentNumber,
+            reservation: reservation._id,
+            paymentDate: new Date(),
+            paymentMethod: 'GCASH',
+            referenceNumber: gcashReferenceNumber,
+            amountPaid: gcashAmountPaid,
+            balanceRemaining: totalDue,
+            paymentType,
+            paymentStatus: 'PENDING_VERIFICATION',
+            receivedBy: 'GUEST',
+            notes: 'Submitted by guest during online reservation.',
+            proofOfPaymentUrl: gcashProofOfPaymentUrl || undefined,
+          });
+        } catch {
+          await Reservation.findByIdAndDelete(reservation._id);
+          return { reservation: null, error: { status: 500, message: 'Failed to record GCash payment. Please try again.' } };
+        }
+      }
+
+      return { reservation, error: null };
+    });
+
+    if (reservationResult.error) {
+      return NextResponse.json({ success: false, message: reservationResult.error.message }, { status: reservationResult.error.status });
     }
+
+    const reservation = reservationResult.reservation!;
 
     await triggerReservationUpdate(String(reservation._id), {
       type: 'reservation-created',
@@ -476,6 +488,12 @@ export async function POST(request: Request) {
       { status: 201 }
     );
   } catch (error: unknown) {
+    if (error instanceof AddOnInventoryBusyError) {
+      return NextResponse.json({ success: false, message: error.message }, { status: 409 });
+    }
+    if (error instanceof AddOnAvailabilityError) {
+      return NextResponse.json({ success: false, message: error.message }, { status: 409 });
+    }
     const errorWithCode = error as { code?: unknown };
     if (errorWithCode?.code === 11000) {
       return NextResponse.json({ success: false, message: 'Reservation number conflict. Please try again.' }, { status: 409 });

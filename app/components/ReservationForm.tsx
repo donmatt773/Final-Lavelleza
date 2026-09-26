@@ -22,6 +22,7 @@ type AddOnOption = {
   category?: string;
   price: number;
   stockQuantity?: number | null;
+  availableQuantity?: number | null;
 };
 
 type PromoOption = {
@@ -468,10 +469,27 @@ export default function ReservationForm({ rooms, initialSelection, mode = 'publi
     const loadAddOns = async () => {
       setAddOnsLoading(true);
       try {
-        const response = await fetch('/api/add-ons');
+        const query = new URLSearchParams({ checkIn: form.checkIn, checkOut: form.checkOut });
+        const response = await fetch(`/api/add-ons?${query.toString()}`);
         const data = await response.json().catch(() => null);
-        if (!response.ok || !Array.isArray(data)) return;
-        if (!cancelled) setAvailableAddOns(data as AddOnOption[]);
+        if (!response.ok || !Array.isArray(data)) {
+          if (!cancelled) setAvailableAddOns([]);
+          return;
+        }
+        if (!cancelled) {
+          const addOns = data as AddOnOption[];
+          setAvailableAddOns(addOns);
+          setForm((current) => {
+            const quantities = { ...current.addOns };
+            addOns.forEach((addOn) => {
+              const available = addOn.availableQuantity;
+              if (available !== null && available !== undefined && (quantities[addOn._id] || 0) > available) {
+                quantities[addOn._id] = available;
+              }
+            });
+            return { ...current, addOns: quantities };
+          });
+        }
       } finally {
         if (!cancelled) setAddOnsLoading(false);
       }
@@ -481,7 +499,7 @@ export default function ReservationForm({ rooms, initialSelection, mode = 'publi
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [form.checkIn, form.checkOut]);
 
   useEffect(() => {
     let cancelled = false;
@@ -593,6 +611,7 @@ export default function ReservationForm({ rooms, initialSelection, mode = 'publi
             checkOut: form.checkOut,
             adults: Number(form.adults),
             children: Number(form.children),
+            reservationStatus: isWalkInMode ? walkInStatus : 'PENDING',
             addOns: Object.entries(form.addOns).filter(([, quantity]) => quantity > 0).map(([addOnId, quantity]) => ({ addOnId, quantity })),
           }),
         });
@@ -614,7 +633,7 @@ export default function ReservationForm({ rooms, initialSelection, mode = 'publi
     return () => {
       window.clearTimeout(timeoutId);
     };
-  }, [canComputePricing, form.rooms, form.roomGuests, form.promo, form.checkIn, form.checkOut, form.adults, form.children, form.addOns]);
+  }, [canComputePricing, form.rooms, form.roomGuests, form.promo, form.checkIn, form.checkOut, form.adults, form.children, form.addOns, isWalkInMode, walkInStatus]);
 
   if (success) {
     return (
@@ -887,14 +906,15 @@ export default function ReservationForm({ rooms, initialSelection, mode = 'publi
                     <div key={addOn._id} className="flex items-center justify-between gap-3 rounded-lg border border-slate-800 bg-slate-900 px-3 py-2">
                       <div>
                         <p className="text-sm font-medium text-white">{addOn.name}</p>
-                        <p className="text-xs text-slate-400">{formatPeso(Number(addOn.price || 0))}{addOn.stockQuantity !== null && addOn.stockQuantity !== undefined ? ` · ${addOn.stockQuantity} available` : ''}</p>
+                        <p className="text-xs text-slate-400">{formatPeso(Number(addOn.price || 0))}{addOn.availableQuantity !== null && addOn.availableQuantity !== undefined ? ` · ${addOn.availableQuantity} available for these dates` : ''}</p>
                       </div>
                       <input
                         type="number"
                         min={0}
-                        max={addOn.stockQuantity ?? undefined}
+                        max={addOn.availableQuantity ?? undefined}
+                        disabled={addOn.availableQuantity === 0}
                         value={quantity}
-                        onChange={(event) => setForm((current) => ({ ...current, addOns: { ...current.addOns, [addOn._id]: Math.max(0, Number(event.target.value) || 0) } }))}
+                        onChange={(event) => setForm((current) => ({ ...current, addOns: { ...current.addOns, [addOn._id]: Math.min(addOn.availableQuantity ?? Number.MAX_SAFE_INTEGER, Math.max(0, Number(event.target.value) || 0)) } }))}
                         className="w-20 rounded-lg border border-slate-700 bg-slate-950 px-2 py-1.5 text-center text-sm text-white outline-none focus:border-emerald-500"
                         aria-label={`Quantity of ${addOn.name}`}
                       />

@@ -331,6 +331,7 @@ export default function ReservationManagementPanel({ active }: Props) {
         headers: { 'Content-Type': 'application/json' },
         credentials: 'same-origin',
         body: JSON.stringify({
+          reservationId: extendingReservation._id,
           room: extendingReservation.room?._id,
           roomAssignments: extendingReservation.roomAssignments?.map((assignment) => ({
             room: typeof assignment.room === 'string' ? assignment.room : assignment.room?._id,

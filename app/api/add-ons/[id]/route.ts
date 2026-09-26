@@ -3,6 +3,7 @@ import mongoose from 'mongoose';
 import AddOn from '@/app/lib/AddOn';
 import { requireOwner } from '@/app/lib/auth';
 import { triggerDashboardUpdate } from '@/app/lib/pusher-server';
+import { AddOnInventoryBusyError, withAddOnInventoryLock } from '@/app/lib/addOnAvailability';
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
@@ -25,15 +26,16 @@ export async function PUT(request: Request, { params }: { params: Promise<{ id: 
     if (body.isActive !== undefined) update.isActive = body.isActive === true;
     if (body.stockQuantity !== undefined) update.stockQuantity = body.stockQuantity === null || body.stockQuantity === '' ? null : Number(body.stockQuantity);
 
-    if (update.name === '' || (update.price !== undefined && (!Number.isFinite(update.price as number) || (update.price as number) < 0)) || (update.stockQuantity !== undefined && update.stockQuantity !== null && (!Number.isFinite(update.stockQuantity as number) || (update.stockQuantity as number) < 0))) {
+    if (update.name === '' || (update.price !== undefined && (!Number.isFinite(update.price as number) || (update.price as number) < 0)) || (update.stockQuantity !== undefined && update.stockQuantity !== null && (!Number.isInteger(update.stockQuantity as number) || (update.stockQuantity as number) < 0))) {
       return NextResponse.json({ success: false, message: 'Add-on values are invalid.' }, { status: 400 });
     }
 
-    const addOn = await AddOn.findByIdAndUpdate(id, update, { new: true, runValidators: true });
+    const addOn = await withAddOnInventoryLock([id], () => AddOn.findByIdAndUpdate(id, update, { new: true, runValidators: true }));
     if (!addOn) return NextResponse.json({ success: false, message: 'Add-on not found.' }, { status: 404 });
     await triggerDashboardUpdate('dashboard-updated', { type: 'add-on-updated', addOnId: String(addOn._id) });
     return NextResponse.json({ success: true, addOn }, { status: 200 });
   } catch (error: unknown) {
+    if (error instanceof AddOnInventoryBusyError) return NextResponse.json({ success: false, message: error.message }, { status: 409 });
     if ((error as { code?: number }).code === 11000) return NextResponse.json({ success: false, message: 'An add-on with this name already exists.' }, { status: 409 });
     return NextResponse.json({ success: false, message: 'Failed to update add-on.' }, { status: 500 });
   }
