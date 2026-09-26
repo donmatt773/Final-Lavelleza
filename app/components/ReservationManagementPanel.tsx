@@ -261,6 +261,7 @@ export default function ReservationManagementPanel({ active, canManageGmail = fa
     const receiptInputRef = useRef<HTMLInputElement>(null);
   const [paymentSummary, setPaymentSummary] = useState<PaymentSummary | null>(null);
   const [selectedReceipt, setSelectedReceipt] = useState<PaymentRecord | null>(null);
+  const [receiptEmailSendingId, setReceiptEmailSendingId] = useState<string | null>(null);
   const [gmailStatus, setGmailStatus] = useState<{ connected: boolean; email: string | null }>({ connected: false, email: null });
   const [gmailLoading, setGmailLoading] = useState(false);
   const [gmailActionLoading, setGmailActionLoading] = useState(false);
@@ -1110,6 +1111,31 @@ export default function ReservationManagementPanel({ active, canManageGmail = fa
         document.body.removeChild(iframe);
       }
     }, 1000);
+  };
+
+  const emailOfficialReceipt = async (payment: PaymentRecord) => {
+    if (!editingReservation || !payment.receiptNumber) return;
+    if (!window.confirm(`Email receipt ${payment.receiptNumber} to ${editingReservation.email}?`)) return;
+
+    setReceiptEmailSendingId(payment._id);
+    setMessage(null);
+    try {
+      const response = await fetch(`/api/reservations/${editingReservation._id}/payments/${payment._id}/email`, {
+        method: 'POST',
+        credentials: 'same-origin',
+      });
+      const data = await response.json().catch(() => null);
+      if (!response.ok || !data?.success) {
+        throw new Error(typeof data?.message === 'string' ? data.message : 'Unable to email the official receipt.');
+      }
+      setMessage(typeof data.message === 'string' ? data.message : 'Official receipt emailed successfully.');
+      setMessageType('success');
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : 'Unable to email the official receipt.');
+      setMessageType('error');
+    } finally {
+      setReceiptEmailSendingId(null);
+    }
   };
 
   const openWalkInBooking = async () => {
@@ -2015,6 +2041,15 @@ export default function ReservationManagementPanel({ active, canManageGmail = fa
                 className="rounded-lg border border-slate-700 px-3 py-2 text-sm text-slate-300 hover:bg-slate-800"
               >
                 Close
+              </button>
+              <button
+                type="button"
+                disabled={!gmailStatus.connected || receiptEmailSendingId === selectedReceipt._id}
+                title={!gmailStatus.connected ? 'Connect Gmail to email receipts' : undefined}
+                onClick={() => { void emailOfficialReceipt(selectedReceipt); }}
+                className="rounded-lg border border-sky-700/50 px-4 py-2 text-sm font-semibold text-sky-300 hover:bg-sky-900/20 disabled:opacity-50"
+              >
+                {receiptEmailSendingId === selectedReceipt._id ? 'Sending...' : 'Email Receipt'}
               </button>
               <button
                 type="button"

@@ -52,6 +52,13 @@ export interface IReservation {
       promoPackagePrice?: number;
     extraPersonFee: number;
     extraBedFee: number;
+    addOns?: Array<{
+      addOnId?: string;
+      quantity: number;
+      name: string;
+      unitPrice?: number;
+      totalPrice: number;
+    }>;
     promoDiscount: number;
     additionalRoomDiscount: number;
     roomBreakdown?: Array<{
