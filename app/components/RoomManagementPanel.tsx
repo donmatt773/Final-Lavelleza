@@ -69,6 +69,17 @@ export default function RoomManagementPanel({ active }: Props) {
   const [viewRoom, setViewRoom] = useState<RoomRecord | null>(null);
   const [viewLoading, setViewLoading] = useState(false);
 
+  useEffect(() => {
+    if (!viewRoom) return;
+
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+
+    return () => {
+      document.body.style.overflow = previousOverflow;
+    };
+  }, [viewRoom]);
+
   const getAuthHeaders = () => {
     const role = localStorage.getItem('auth_role') || '';
     return {
@@ -447,7 +458,7 @@ export default function RoomManagementPanel({ active }: Props) {
 
       {viewRoom ? (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/80 px-4 py-6">
-          <div className="w-full max-w-2xl rounded-3xl border border-slate-800 bg-slate-900 p-6 shadow-2xl shadow-black/50">
+          <div className="flex max-h-[90vh] w-full max-w-2xl flex-col overflow-hidden rounded-3xl border border-slate-800 bg-slate-900 p-6 shadow-2xl shadow-black/50">
             <div className="mb-5 flex items-start justify-between border-b border-slate-800 pb-4">
               <div>
                 <p className="text-xs font-semibold uppercase tracking-[0.3em] text-emerald-400">Room Details</p>
@@ -456,6 +467,7 @@ export default function RoomManagementPanel({ active }: Props) {
               <button type="button" onClick={() => setViewRoom(null)} className="rounded-lg border border-slate-700 px-3 py-1.5 text-sm text-slate-300 hover:bg-slate-800">Close</button>
             </div>
 
+            <div className="min-h-0 overflow-y-auto overscroll-contain pr-1">
             <div className="grid gap-3 text-sm text-slate-300 sm:grid-cols-2">
               <div><span className="text-slate-500">Room Code:</span> {viewRoom.code}</div>
               <div><span className="text-slate-500">Capacity:</span> {viewRoom.maxGuests}</div>
@@ -521,6 +533,7 @@ export default function RoomManagementPanel({ active }: Props) {
             <div className="mt-3 rounded-lg border border-slate-800 bg-slate-950/70 p-3 text-sm text-slate-300">
               <p className="font-medium text-white">Description</p>
               <p className="mt-1 text-slate-400">{viewRoom.description || 'No description provided.'}</p>
+            </div>
             </div>
           </div>
         </div>
