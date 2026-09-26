@@ -3,6 +3,7 @@ import { connectDB } from '@/app/lib/db';
 import User from '@/app/lib/User';
 import { hashPassword } from '@/app/lib/password';
 import { requireOwner } from '@/app/lib/auth';
+import { writeAuditLog } from '@/app/lib/auditLogWriter';
 
 export async function PUT(request: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
@@ -36,6 +37,14 @@ export async function PUT(request: Request, { params }: { params: Promise<{ id: 
     }
 
     const { password: _password, ...responseUser } = updated.toObject();
+    await writeAuditLog(request, {
+      action: 'UPDATE',
+      entityType: 'USER',
+      entityId: String(updated._id),
+      entityLabel: `${updated.name} (${updated.employeeId})`,
+      summary: 'Updated a staff account.',
+      changedFields: Object.keys(updatePayload),
+    });
     return NextResponse.json({ success: true, user: responseUser });
   } catch {
     return NextResponse.json({ success: false, message: 'Failed to update user' }, { status: 500 });
@@ -54,6 +63,13 @@ export async function DELETE(request: Request, { params }: { params: Promise<{ i
       return NextResponse.json({ success: false, message: 'User not found' }, { status: 404 });
     }
 
+    await writeAuditLog(request, {
+      action: 'DELETE',
+      entityType: 'USER',
+      entityId: String(deleted._id),
+      entityLabel: `${deleted.name} (${deleted.employeeId})`,
+      summary: 'Deleted a staff account.',
+    });
     return NextResponse.json({ success: true });
   } catch {
     return NextResponse.json({ success: false, message: 'Failed to delete user' }, { status: 500 });

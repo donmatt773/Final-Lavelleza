@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { connectDB } from '@/app/lib/db';
 import RateSettings from '@/app/lib/RateSettings';
 import { requireOwner } from '@/app/lib/auth';
+import { writeAuditLog } from '@/app/lib/auditLogWriter';
 
 const DEFAULT_RATE_SETTINGS = {
   key: 'default',
@@ -134,6 +135,15 @@ export async function PUT(request: Request) {
       payload,
       { returnDocument: 'after', upsert: true, runValidators: true }
     ).lean();
+
+    await writeAuditLog(request, {
+      action: 'UPDATE',
+      entityType: 'RATE_SETTINGS',
+      entityId: String(updated?._id || 'default'),
+      entityLabel: 'Default rate settings',
+      summary: 'Updated room and resort rate settings.',
+      changedFields: Object.keys(payload).filter((field) => field !== 'key'),
+    });
 
     return NextResponse.json({ success: true, settings: updated }, { status: 200 });
   } catch (error: unknown) {

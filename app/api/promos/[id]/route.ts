@@ -5,6 +5,7 @@ import Promo, { getPromoEffectiveStatus, resolvePromoStatus } from '@/app/lib/Pr
 import Room from '@/app/lib/Room';
 import { requireOwner } from '@/app/lib/auth';
 import { triggerDashboardUpdate } from '@/app/lib/pusher-server';
+import { writeAuditLog } from '@/app/lib/auditLogWriter';
 
 const VALID_STATUSES = ['DRAFT', 'ACTIVE', 'INACTIVE', 'EXPIRED'] as const;
 
@@ -442,6 +443,15 @@ export async function PUT(request: Request, { params }: { params: Promise<{ id: 
       .populate('inclusions.roomId', 'name code status')
       .populate('additionalRoomDiscount.appliesToRoomIds', 'name code status');
 
+    await writeAuditLog(request, {
+      action: 'UPDATE',
+      entityType: 'PROMO',
+      entityId: String(promo._id),
+      entityLabel: `${promo.name} (${promo.code})`,
+      summary: 'Updated a promo.',
+      changedFields: Object.keys(payload),
+    });
+
     await triggerDashboardUpdate('dashboard-updated', {
       type: 'promo-updated',
       promoId: String(updatedPromo?._id || id),
@@ -526,6 +536,15 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
 
     await promo.save();
 
+    await writeAuditLog(request, {
+      action: input.isArchived === true ? 'ARCHIVE' : input.isArchived === false ? 'RESTORE' : 'UPDATE',
+      entityType: 'PROMO',
+      entityId: String(promo._id),
+      entityLabel: `${promo.name} (${promo.code})`,
+      summary: input.isArchived === true ? 'Archived a promo.' : input.isArchived === false ? 'Restored a promo.' : 'Updated promo status.',
+      changedFields: Object.keys(input),
+    });
+
     await triggerDashboardUpdate('dashboard-updated', {
       type: 'promo-updated',
       promoId: String(promo._id),
@@ -553,6 +572,14 @@ export async function DELETE(request: Request, { params }: { params: Promise<{ i
     if (!deletedPromo) {
       return NextResponse.json({ success: false, message: 'Promo not found.' }, { status: 404 });
     }
+
+    await writeAuditLog(request, {
+      action: 'DELETE',
+      entityType: 'PROMO',
+      entityId: String(deletedPromo._id),
+      entityLabel: `${deletedPromo.name} (${deletedPromo.code})`,
+      summary: 'Permanently deleted a promo.',
+    });
 
     await triggerDashboardUpdate('dashboard-updated', {
       type: 'promo-deleted',

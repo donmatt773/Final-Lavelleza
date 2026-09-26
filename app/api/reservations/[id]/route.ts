@@ -11,6 +11,7 @@ import { computeReservationPaymentRollup } from '@/app/lib/paymentTracking';
 import { validateSelectedPromoEligibility } from '@/app/lib/promoEligibility';
 import { triggerReservationUpdate } from '@/app/lib/pusher-server';
 import { AddOnAvailabilityError, AddOnInventoryBusyError, withAddOnInventoryLock } from '@/app/lib/addOnAvailability';
+import { writeAuditLog } from '@/app/lib/auditLogWriter';
 
 const VALID_RESERVATION_STATUSES = ['PENDING', 'CONFIRMED', 'CANCELLED', 'NO_SHOW', 'CHECKED_IN', 'CHECKED_OUT'] as const;
 const VALID_PAYMENT_STATUSES = ['UNPAID', 'PENDING_VERIFICATION', 'PARTIALLY_PAID', 'PAID', 'REFUNDED'] as const;
@@ -430,6 +431,17 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
     if (!updated) {
       return NextResponse.json({ success: false, message: 'Reservation not found.' }, { status: 404 });
     }
+
+    await writeAuditLog(request, {
+      action: candidateStatus !== currentStatus ? `STATUS_${candidateStatus}` : 'UPDATE',
+      entityType: 'RESERVATION',
+      entityId: id,
+      entityLabel: `${updated.reservationNumber} (${updated.guestName})`,
+      summary: candidateStatus !== currentStatus
+        ? `Changed reservation status from ${currentStatus} to ${candidateStatus}.`
+        : 'Updated reservation details.',
+      changedFields: Object.keys(body),
+    });
 
     await triggerReservationUpdate(id, {
       type: 'reservation-updated',

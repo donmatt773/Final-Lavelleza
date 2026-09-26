@@ -6,6 +6,7 @@ import Payment, { IPayment } from '@/app/lib/Payment';
 import { getSessionFromRequest, requireOwnerOrStaff } from '@/app/lib/auth';
 import { computeReservationPaymentRollup, generatePaymentNumber, generateReceiptNumber, syncReservationPaymentStatus } from '@/app/lib/paymentTracking';
 import { triggerReservationUpdate } from '@/app/lib/pusher-server';
+import { writeAuditLog } from '@/app/lib/auditLogWriter';
 
 const VALID_PAYMENT_METHODS = ['CASH_ON_ARRIVAL', 'GCASH'] as const;
 const VALID_PAYMENT_TYPES = ['RESERVATION_DEPOSIT', 'PARTIAL_PAYMENT', 'FULL_PAYMENT', 'REFUND'] as const;
@@ -38,7 +39,7 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
     }
 
     const reservation = await Reservation.findById(id)
-      .select('pricingSummary.grandTotal paymentStatus')
+      .select('reservationNumber guestName pricingSummary.grandTotal paymentStatus')
       .lean();
 
     if (!reservation) {
@@ -77,7 +78,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     }
 
     const reservation = await Reservation.findById(id)
-      .select('pricingSummary.grandTotal paymentStatus')
+      .select('reservationNumber guestName pricingSummary.grandTotal paymentStatus')
       .lean();
 
     if (!reservation) {
@@ -200,6 +201,15 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
 
     const { rollup } = await syncReservationPaymentStatus(id);
 
+    await writeAuditLog(request, {
+      action: 'RECORD_PAYMENT',
+      entityType: 'PAYMENT',
+      entityId: String(payment._id),
+      entityLabel: payment.paymentNumber,
+      summary: `Recorded a ${paymentType} payment for reservation ${reservation.reservationNumber}.`,
+      changedFields: ['paymentMethod', 'paymentType', 'amountPaid', 'paymentStatus'],
+    });
+
     await triggerReservationUpdate(id, {
       type: 'reservation-payment-updated',
       reservationStatus: rollup.reservationPaymentStatus,
@@ -296,6 +306,17 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
         { new: true }
       ).lean();
 
+      if (updated) {
+        await writeAuditLog(request, {
+          action: 'GENERATE_RECEIPT',
+          entityType: 'PAYMENT',
+          entityId: String(updated._id),
+          entityLabel: updated.paymentNumber,
+          summary: `Generated receipt ${updated.receiptNumber} for a reservation payment.`,
+          changedFields: ['receiptNumber', 'receiptDate', 'issuedBy'],
+        });
+      }
+
       return NextResponse.json(
         {
           success: true,
@@ -343,6 +364,17 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
     });
 
     const synced = await syncReservationPaymentStatus(id);
+
+    if (updated) {
+      await writeAuditLog(request, {
+        action: paymentStatus === 'PAID' ? 'VERIFY_PAYMENT' : 'UPDATE_PAYMENT_STATUS',
+        entityType: 'PAYMENT',
+        entityId: String(updated._id),
+        entityLabel: updated.paymentNumber,
+        summary: `Changed payment status to ${paymentStatus}.`,
+        changedFields: ['paymentStatus', ...(body.notes !== undefined ? ['notes'] : []), ...(body.referenceNumber !== undefined ? ['referenceNumber'] : [])],
+      });
+    }
 
     return NextResponse.json(
       {

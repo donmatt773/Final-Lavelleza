@@ -4,6 +4,7 @@ import AddOn from '@/app/lib/AddOn';
 import { getAddOnAvailability } from '@/app/lib/addOnAvailability';
 import { requireOwner } from '@/app/lib/auth';
 import { triggerDashboardUpdate } from '@/app/lib/pusher-server';
+import { writeAuditLog } from '@/app/lib/auditLogWriter';
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
@@ -63,6 +64,14 @@ export async function POST(request: Request) {
       price,
       isActive: body.isActive !== false,
       stockQuantity,
+    });
+    await writeAuditLog(request, {
+      action: 'CREATE',
+      entityType: 'ADD_ON',
+      entityId: String(addOn._id),
+      entityLabel: addOn.name,
+      summary: 'Created a reservation add-on.',
+      changedFields: ['name', 'description', 'category', 'price', 'stockQuantity', 'isActive'],
     });
     await triggerDashboardUpdate('dashboard-updated', { type: 'add-on-created', addOnId: String(addOn._id) });
     return NextResponse.json({ success: true, addOn }, { status: 201 });

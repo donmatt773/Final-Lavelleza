@@ -11,6 +11,7 @@ import { validateSelectedPromoEligibility } from '@/app/lib/promoEligibility';
 import { generatePaymentNumber } from '@/app/lib/paymentTracking';
 import { triggerReservationUpdate } from '@/app/lib/pusher-server';
 import { AddOnAvailabilityError, AddOnInventoryBusyError, withAddOnInventoryLock } from '@/app/lib/addOnAvailability';
+import { writeAuditLog } from '@/app/lib/auditLogWriter';
 
 const VALID_RESERVATION_STATUSES = ['PENDING', 'CONFIRMED', 'CANCELLED', 'NO_SHOW', 'CHECKED_IN', 'CHECKED_OUT'] as const;
 const VALID_PAYMENT_STATUSES = ['UNPAID', 'PENDING_VERIFICATION', 'PARTIALLY_PAID', 'PAID', 'REFUNDED'] as const;
@@ -405,7 +406,7 @@ export async function POST(request: Request) {
 
       const totalDue = Number(pricingSummary.grandTotal || 0);
       if (isOnlineGcash && Number.isFinite(gcashAmountPaid) && gcashAmountPaid > totalDue) {
-        return { reservation: null, error: { status: 400, message: 'GCash amount cannot exceed outstanding balance.' } };
+        return { reservation: null, onlinePayment: null, error: { status: 400, message: 'GCash amount cannot exceed outstanding balance.' } };
       }
 
       const reservation = await Reservation.create({
@@ -433,12 +434,13 @@ export async function POST(request: Request) {
         createdBy: reservationSource === 'WALK_IN' ? actingStaffMember : 'PUBLIC',
       });
 
+      let onlinePayment: { _id: unknown; paymentNumber: string } | null = null;
       if (isOnlineGcash) {
         try {
           const paymentNumber = await generatePaymentNumber();
           const paymentType = gcashAmountPaid >= totalDue ? 'FULL_PAYMENT' : 'RESERVATION_DEPOSIT';
 
-          await Payment.create({
+          const payment = await Payment.create({
             paymentNumber,
             reservation: reservation._id,
             paymentDate: new Date(),
@@ -452,13 +454,14 @@ export async function POST(request: Request) {
             notes: 'Submitted by guest during online reservation.',
             proofOfPaymentUrl: gcashProofOfPaymentUrl || undefined,
           });
+          onlinePayment = { _id: payment._id, paymentNumber: payment.paymentNumber };
         } catch {
           await Reservation.findByIdAndDelete(reservation._id);
-          return { reservation: null, error: { status: 500, message: 'Failed to record GCash payment. Please try again.' } };
+          return { reservation: null, onlinePayment: null, error: { status: 500, message: 'Failed to record GCash payment. Please try again.' } };
         }
       }
 
-      return { reservation, error: null };
+      return { reservation, onlinePayment, error: null };
     });
 
     if (reservationResult.error) {
@@ -466,6 +469,28 @@ export async function POST(request: Request) {
     }
 
     const reservation = reservationResult.reservation!;
+
+    await writeAuditLog(request, {
+      action: 'CREATE',
+      entityType: 'RESERVATION',
+      entityId: String(reservation._id),
+      entityLabel: `${reservation.reservationNumber} (${guestName})`,
+      summary: isWalkInRequest ? 'Created a walk-in reservation.' : 'Submitted a customer reservation request.',
+      changedFields: ['guestName', 'email', 'phone', 'rooms', 'checkIn', 'checkOut', 'guestCounts', 'promo', 'addOns', 'paymentMethod'],
+      actor: isOnlineRequest ? { name: guestName, role: 'CUSTOMER' } : undefined,
+    });
+
+    if (reservationResult.onlinePayment) {
+      await writeAuditLog(request, {
+        action: 'SUBMIT',
+        entityType: 'PAYMENT',
+        entityId: String(reservationResult.onlinePayment._id),
+        entityLabel: reservationResult.onlinePayment.paymentNumber,
+        summary: `Submitted a GCash payment for reservation ${reservation.reservationNumber}.`,
+        changedFields: ['paymentMethod', 'amountPaid', 'referenceNumber', 'proofOfPaymentUrl'],
+        actor: { name: guestName, role: 'CUSTOMER' },
+      });
+    }
 
     await triggerReservationUpdate(String(reservation._id), {
       type: 'reservation-created',

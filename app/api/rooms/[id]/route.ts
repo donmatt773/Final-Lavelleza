@@ -7,6 +7,7 @@ import Feature from '@/app/lib/Feature';
 import Amenity from '@/app/lib/Amenity';
 import { requireOwner } from '@/app/lib/auth';
 import { triggerDashboardUpdate } from '@/app/lib/pusher-server';
+import { writeAuditLog } from '@/app/lib/auditLogWriter';
 
 const VALID_STATUSES = ['AVAILABLE', 'MAINTENANCE', 'INACTIVE'];
 
@@ -253,6 +254,15 @@ export async function PUT(request: Request, { params }: { params: Promise<{ id: 
       return NextResponse.json({ success: false, message: 'Room not found.' }, { status: 404 });
     }
 
+    await writeAuditLog(request, {
+      action: 'UPDATE',
+      entityType: 'ROOM',
+      entityId: String(updatedRoom._id),
+      entityLabel: `${updatedRoom.name} (${updatedRoom.code})`,
+      summary: 'Updated room details.',
+      changedFields: Object.keys(updatePayload),
+    });
+
       await triggerDashboardUpdate('dashboard-updated', {
         type: 'room-updated',
         roomId: String(updatedRoom._id),
@@ -340,6 +350,15 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
       return NextResponse.json({ success: false, message: 'Room not found.' }, { status: 404 });
     }
 
+    await writeAuditLog(request, {
+      action: input.isArchived === true ? 'ARCHIVE' : input.isArchived === false ? 'RESTORE' : 'UPDATE',
+      entityType: 'ROOM',
+      entityId: String(updatedRoom._id),
+      entityLabel: `${updatedRoom.name} (${updatedRoom.code})`,
+      summary: input.isArchived === true ? 'Archived a room.' : input.isArchived === false ? 'Restored a room.' : 'Updated room status.',
+      changedFields: Object.keys(updatePayload),
+    });
+
     await triggerDashboardUpdate('dashboard-updated', {
       type: 'room-updated',
       roomId: String(updatedRoom._id),
@@ -367,6 +386,14 @@ export async function DELETE(request: Request, { params }: { params: Promise<{ i
     if (!deletedRoom) {
       return NextResponse.json({ success: false, message: 'Room not found.' }, { status: 404 });
     }
+
+    await writeAuditLog(request, {
+      action: 'DELETE',
+      entityType: 'ROOM',
+      entityId: String(deletedRoom._id),
+      entityLabel: `${deletedRoom.name} (${deletedRoom.code})`,
+      summary: 'Permanently deleted a room.',
+    });
 
     await triggerDashboardUpdate('dashboard-updated', {
       type: 'room-deleted',

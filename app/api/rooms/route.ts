@@ -8,6 +8,7 @@ import Amenity from '@/app/lib/Amenity';
 import { requireOwner } from '@/app/lib/auth';
 import { getRoomAvailabilityLabels } from '@/app/lib/reservationAvailability';
 import { triggerDashboardUpdate } from '@/app/lib/pusher-server';
+import { writeAuditLog } from '@/app/lib/auditLogWriter';
 
 const VALID_STATUSES = ['AVAILABLE', 'MAINTENANCE', 'INACTIVE'];
 
@@ -267,6 +268,15 @@ export async function POST(request: Request) {
   isArchived: false,
   archivedAt: null,
 });
+
+    await writeAuditLog(request, {
+      action: 'CREATE',
+      entityType: 'ROOM',
+      entityId: String(room._id),
+      entityLabel: `${room.name} (${room.code})`,
+      summary: 'Created a room.',
+      changedFields: ['name', 'code', 'description', 'maxGuests', 'status', 'nightlyRate', 'halfDayRate', 'wholeDayRate', 'beds', 'features', 'amenities', 'images'],
+    });
 
     await triggerDashboardUpdate('dashboard-updated', {
       type: 'room-created',

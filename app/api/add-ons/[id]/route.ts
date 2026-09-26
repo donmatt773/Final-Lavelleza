@@ -4,6 +4,7 @@ import AddOn from '@/app/lib/AddOn';
 import { requireOwner } from '@/app/lib/auth';
 import { triggerDashboardUpdate } from '@/app/lib/pusher-server';
 import { AddOnInventoryBusyError, withAddOnInventoryLock } from '@/app/lib/addOnAvailability';
+import { writeAuditLog } from '@/app/lib/auditLogWriter';
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
@@ -32,6 +33,14 @@ export async function PUT(request: Request, { params }: { params: Promise<{ id: 
 
     const addOn = await withAddOnInventoryLock([id], () => AddOn.findByIdAndUpdate(id, update, { new: true, runValidators: true }));
     if (!addOn) return NextResponse.json({ success: false, message: 'Add-on not found.' }, { status: 404 });
+    await writeAuditLog(request, {
+      action: 'UPDATE',
+      entityType: 'ADD_ON',
+      entityId: String(addOn._id),
+      entityLabel: addOn.name,
+      summary: 'Updated a reservation add-on.',
+      changedFields: Object.keys(update),
+    });
     await triggerDashboardUpdate('dashboard-updated', { type: 'add-on-updated', addOnId: String(addOn._id) });
     return NextResponse.json({ success: true, addOn }, { status: 200 });
   } catch (error: unknown) {
@@ -49,6 +58,14 @@ export async function DELETE(request: Request, { params }: { params: Promise<{ i
     if (!mongoose.Types.ObjectId.isValid(id)) return NextResponse.json({ success: false, message: 'Invalid add-on ID.' }, { status: 400 });
     const addOn = await AddOn.findByIdAndUpdate(id, { isActive: false }, { new: true });
     if (!addOn) return NextResponse.json({ success: false, message: 'Add-on not found.' }, { status: 404 });
+    await writeAuditLog(request, {
+      action: 'DEACTIVATE',
+      entityType: 'ADD_ON',
+      entityId: String(addOn._id),
+      entityLabel: addOn.name,
+      summary: 'Deactivated a reservation add-on.',
+      changedFields: ['isActive'],
+    });
     await triggerDashboardUpdate('dashboard-updated', { type: 'add-on-archived', addOnId: String(addOn._id) });
     return NextResponse.json({ success: true, addOn }, { status: 200 });
   } catch {

@@ -5,6 +5,7 @@ import Promo, { getPromoEffectiveStatus } from '@/app/lib/Promo';
 import Room from '@/app/lib/Room';
 import { requireOwner } from '@/app/lib/auth';
 import { triggerDashboardUpdate } from '@/app/lib/pusher-server';
+import { writeAuditLog } from '@/app/lib/auditLogWriter';
 
 const VALID_STATUSES = ['DRAFT', 'ACTIVE', 'INACTIVE', 'EXPIRED'] as const;
 
@@ -440,6 +441,15 @@ export async function POST(request: Request) {
     }
 
     const promo = await Promo.create(payload);
+
+    await writeAuditLog(request, {
+      action: 'CREATE',
+      entityType: 'PROMO',
+      entityId: String(promo._id),
+      entityLabel: `${promo.name} (${promo.code})`,
+      summary: 'Created a promo.',
+      changedFields: Object.keys(payload),
+    });
 
     await triggerDashboardUpdate('dashboard-updated', {
       type: 'promo-created',

@@ -10,6 +10,7 @@ import ReservationManagementPanel from '@/app/components/ReservationManagementPa
 import ReservationDashboardPanel from '@/app/components/ReservationDashboardPanel';
 import PaymentReportsPanel from '@/app/components/PaymentReportsPanel';
 import AddOnManagementPanel from '@/app/components/AddOnManagementPanel';
+import SystemActivityLogModal from '@/app/components/SystemActivityLogModal';
 
 type DashboardTab = 'overview' | 'users' | 'rooms' | 'promos' | 'add-ons' | 'reservations' | 'reports' | 'rate-settings';
 
@@ -24,6 +25,7 @@ export default function DashboardLayout({
   const [isOwner, setIsOwner] = useState(false);
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
   const [sessionReady, setSessionReady] = useState(false);
+  const [activityLogOpen, setActivityLogOpen] = useState(false);
   const sessionCheckInFlight = useRef(false);
 
   React.useEffect(() => {
@@ -72,6 +74,20 @@ export default function DashboardLayout({
       window.removeEventListener('popstate', revalidateAfterHistoryNavigation);
     };
   }, [router]);
+
+  React.useEffect(() => {
+    if (!isOwner || !sessionReady) return;
+
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.altKey && event.shiftKey && !event.ctrlKey && !event.metaKey && event.code === 'KeyL') {
+        event.preventDefault();
+        setActivityLogOpen((open) => !open);
+      }
+    };
+
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, [isOwner, sessionReady]);
 
   const handleLogout = async () => {
     localStorage.removeItem('auth_role');
@@ -225,6 +241,7 @@ export default function DashboardLayout({
           )}
         </div>
       </div>
+      <SystemActivityLogModal open={activityLogOpen && isOwner} onClose={() => setActivityLogOpen(false)} />
     </div>
   );
 }

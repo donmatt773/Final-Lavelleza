@@ -3,6 +3,7 @@ import { connectDB } from '@/app/lib/db';
 import User from '@/app/lib/User';
 import { hashPassword } from '@/app/lib/password';
 import { requireOwner } from '@/app/lib/auth';
+import { writeAuditLog } from '@/app/lib/auditLogWriter';
 
 export async function GET(request: Request) {
   try {
@@ -38,6 +39,14 @@ export async function POST(request: Request) {
     });
 
     const { password: _password, ...responseUser } = user.toObject();
+    await writeAuditLog(request, {
+      action: 'CREATE',
+      entityType: 'USER',
+      entityId: String(user._id),
+      entityLabel: `${user.name} (${user.employeeId})`,
+      summary: 'Created a staff account.',
+      changedFields: ['name', 'employeeId', 'username', 'role'],
+    });
     return NextResponse.json({ success: true, user: responseUser }, { status: 201 });
   } catch {
     return NextResponse.json({ success: false, message: 'Failed to create user' }, { status: 500 });
