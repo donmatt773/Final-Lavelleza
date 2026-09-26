@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useRef, useState } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
 import UserManagementPanel from '@/app/components/UserManagementPanel';
 import RoomManagementPanel from '@/app/components/RoomManagementPanel';
@@ -23,28 +23,71 @@ export default function DashboardLayout({
   const [activeTab, setActiveTab] = useState<DashboardTab>('reservations');
   const [isOwner, setIsOwner] = useState(false);
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
+  const [sessionReady, setSessionReady] = useState(false);
+  const sessionCheckInFlight = useRef(false);
 
   React.useEffect(() => {
-    const timeoutId = window.setTimeout(() => {
-      const role = Number(localStorage.getItem('auth_role'));
-      const owner = role === 0;
-      setIsOwner(owner);
-      if (!owner) setActiveTab('reservations');
-    }, 0);
+    let mounted = true;
 
-    return () => window.clearTimeout(timeoutId);
-  }, []);
+    const validateServerSession = async () => {
+      if (sessionCheckInFlight.current) return;
+      sessionCheckInFlight.current = true;
+      try {
+        const response = await fetch('/api/session', { credentials: 'same-origin', cache: 'no-store' });
+        const data = await response.json().catch(() => null);
+        const role = Number(data?.role);
+        if (!response.ok || !data?.success || (role !== 0 && role !== 1)) {
+          localStorage.removeItem('auth_role');
+          localStorage.removeItem('auth_name');
+          if (mounted) router.replace('/login');
+          return;
+        }
+
+        if (mounted) {
+          setIsOwner(role === 0);
+          if (role !== 0) setActiveTab('reservations');
+          setSessionReady(true);
+        }
+      } catch {
+        localStorage.removeItem('auth_role');
+        localStorage.removeItem('auth_name');
+        if (mounted) router.replace('/login');
+      } finally {
+        sessionCheckInFlight.current = false;
+      }
+    };
+
+    const revalidateAfterHistoryNavigation = () => {
+      setSessionReady(false);
+      void validateServerSession();
+    };
+
+    void validateServerSession();
+    window.addEventListener('pageshow', revalidateAfterHistoryNavigation);
+    window.addEventListener('popstate', revalidateAfterHistoryNavigation);
+
+    return () => {
+      mounted = false;
+      window.removeEventListener('pageshow', revalidateAfterHistoryNavigation);
+      window.removeEventListener('popstate', revalidateAfterHistoryNavigation);
+    };
+  }, [router]);
 
   const handleLogout = async () => {
+    localStorage.removeItem('auth_role');
+    localStorage.removeItem('auth_name');
+    setSessionReady(false);
     try {
       await fetch('/api/logout', { method: 'POST', credentials: 'same-origin' });
     } catch {
       // ignore and fall back to the login screen
     }
-    localStorage.removeItem('auth_role');
-    localStorage.removeItem('auth_name');
-    router.push('/login');
+    router.replace('/login');
   };
+
+  if (!sessionReady) {
+    return <main className="flex min-h-screen items-center justify-center bg-slate-950 text-sm text-slate-400">Checking session...</main>;
+  }
 
   return (
     <div className="flex min-h-screen bg-slate-950">
