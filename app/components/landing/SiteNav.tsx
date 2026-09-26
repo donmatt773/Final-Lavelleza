@@ -50,20 +50,23 @@ export default function SiteNav() {
         }}
       />
       <div className="relative z-10 mx-auto flex max-w-6xl items-center justify-between px-4 py-3 sm:px-6 sm:py-4">
-        <Link href="/" className="flex items-center gap-3">
-          <Image
-            src={logo}
-            alt="La Velleza Resort"
-            className="h-9 w-9 rounded-full object-cover"
-            priority
-          />
-          <span
+        <div className="flex items-center gap-3">
+          <Link href="/login" aria-label="Staff login" className="flex items-center">
+            <Image
+              src={logo}
+              alt="La Velleza Resort"
+              className="h-9 w-9 rounded-full object-cover"
+              priority
+            />
+          </Link>
+          <Link
+            href="/"
             className="font-serif text-lg transition-colors duration-300"
             style={{ color: theme.sand }}
           >
             La Velleza
-          </span>
-        </Link>
+          </Link>
+        </div>
 
         <nav className="hidden items-center gap-8 sm:flex">
           {NAV_LINKS.map((link) => (
