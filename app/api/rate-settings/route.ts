@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server';
 import { connectDB } from '@/app/lib/db';
 import RateSettings from '@/app/lib/RateSettings';
 import { requireOwner } from '@/app/lib/auth';
-import { writeAuditLog } from '@/app/lib/auditLogWriter';
+import { diffAuditFields, writeAuditLog } from '@/app/lib/auditLogWriter';
 
 const DEFAULT_RATE_SETTINGS = {
   key: 'default',
@@ -130,6 +130,7 @@ export async function PUT(request: Request) {
       afterCutoffRateType: 'WHOLE_DAY',
     };
 
+    const previous = await RateSettings.findOne({ key: 'default' }).lean();
     const updated = await RateSettings.findOneAndUpdate(
       { key: 'default' },
       payload,
@@ -142,7 +143,7 @@ export async function PUT(request: Request) {
       entityId: String(updated?._id || 'default'),
       entityLabel: 'Default rate settings',
       summary: 'Updated room and resort rate settings.',
-      changedFields: Object.keys(payload).filter((field) => field !== 'key'),
+      changedFields: diffAuditFields(previous, updated, Object.keys(payload).filter((field) => field !== 'key')),
     });
 
     return NextResponse.json({ success: true, settings: updated }, { status: 200 });

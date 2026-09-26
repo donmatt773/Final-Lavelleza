@@ -7,7 +7,7 @@ import Feature from '@/app/lib/Feature';
 import Amenity from '@/app/lib/Amenity';
 import { requireOwner } from '@/app/lib/auth';
 import { triggerDashboardUpdate } from '@/app/lib/pusher-server';
-import { writeAuditLog } from '@/app/lib/auditLogWriter';
+import { diffAuditFields, writeAuditLog } from '@/app/lib/auditLogWriter';
 
 const VALID_STATUSES = ['AVAILABLE', 'MAINTENANCE', 'INACTIVE'];
 
@@ -169,7 +169,7 @@ export async function PUT(request: Request, { params }: { params: Promise<{ id: 
       return NextResponse.json({ success: false, message: 'Invalid room ID.' }, { status: 400 });
     }
 
-    const existingRoom = await Room.findById(id).select('isArchived').lean();
+    const existingRoom = await Room.findById(id).lean();
     if (!existingRoom) {
       return NextResponse.json({ success: false, message: 'Room not found.' }, { status: 404 });
     }
@@ -260,7 +260,7 @@ export async function PUT(request: Request, { params }: { params: Promise<{ id: 
       entityId: String(updatedRoom._id),
       entityLabel: `${updatedRoom.name} (${updatedRoom.code})`,
       summary: 'Updated room details.',
-      changedFields: Object.keys(updatePayload),
+      changedFields: diffAuditFields(existingRoom, updatedRoom, Object.keys(updatePayload)),
     });
 
       await triggerDashboardUpdate('dashboard-updated', {
@@ -308,7 +308,7 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
       return NextResponse.json({ success: false, message: 'Request body must be a JSON object.' }, { status: 400 });
     }
 
-    const existingRoom = await Room.findById(id).select('isArchived').lean();
+    const existingRoom = await Room.findById(id).select('name code status isArchived archivedAt').lean();
     if (!existingRoom) {
       return NextResponse.json({ success: false, message: 'Room not found.' }, { status: 404 });
     }
@@ -356,7 +356,7 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
       entityId: String(updatedRoom._id),
       entityLabel: `${updatedRoom.name} (${updatedRoom.code})`,
       summary: input.isArchived === true ? 'Archived a room.' : input.isArchived === false ? 'Restored a room.' : 'Updated room status.',
-      changedFields: Object.keys(updatePayload),
+      changedFields: diffAuditFields(existingRoom, updatedRoom, Object.keys(updatePayload)),
     });
 
     await triggerDashboardUpdate('dashboard-updated', {

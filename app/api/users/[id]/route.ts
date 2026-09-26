@@ -3,7 +3,7 @@ import { connectDB } from '@/app/lib/db';
 import User from '@/app/lib/User';
 import { hashPassword } from '@/app/lib/password';
 import { requireOwner } from '@/app/lib/auth';
-import { writeAuditLog } from '@/app/lib/auditLogWriter';
+import { diffAuditFields, writeAuditLog } from '@/app/lib/auditLogWriter';
 
 export async function PUT(request: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
@@ -12,6 +12,8 @@ export async function PUT(request: Request, { params }: { params: Promise<{ id: 
     await connectDB();
     const { id } = await params;
     const body = await request.json();
+    const previous = await User.findById(id).select('-password').lean();
+    if (!previous) return NextResponse.json({ success: false, message: 'User not found' }, { status: 404 });
 
     const updatePayload: Record<string, unknown> = {};
     if (body.employeeId !== undefined) updatePayload.employeeId = String(body.employeeId).toUpperCase();
@@ -43,7 +45,7 @@ export async function PUT(request: Request, { params }: { params: Promise<{ id: 
       entityId: String(updated._id),
       entityLabel: `${updated.name} (${updated.employeeId})`,
       summary: 'Updated a staff account.',
-      changedFields: Object.keys(updatePayload),
+      changedFields: diffAuditFields(previous, responseUser, Object.keys(updatePayload)),
     });
     return NextResponse.json({ success: true, user: responseUser });
   } catch {

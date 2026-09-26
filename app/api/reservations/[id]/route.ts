@@ -11,7 +11,7 @@ import { computeReservationPaymentRollup } from '@/app/lib/paymentTracking';
 import { validateSelectedPromoEligibility } from '@/app/lib/promoEligibility';
 import { triggerReservationUpdate } from '@/app/lib/pusher-server';
 import { AddOnAvailabilityError, AddOnInventoryBusyError, withAddOnInventoryLock } from '@/app/lib/addOnAvailability';
-import { writeAuditLog } from '@/app/lib/auditLogWriter';
+import { diffAuditFields, writeAuditLog } from '@/app/lib/auditLogWriter';
 
 const VALID_RESERVATION_STATUSES = ['PENDING', 'CONFIRMED', 'CANCELLED', 'NO_SHOW', 'CHECKED_IN', 'CHECKED_OUT'] as const;
 const VALID_PAYMENT_STATUSES = ['UNPAID', 'PENDING_VERIFICATION', 'PARTIALLY_PAID', 'PAID', 'REFUNDED'] as const;
@@ -440,7 +440,11 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
       summary: candidateStatus !== currentStatus
         ? `Changed reservation status from ${currentStatus} to ${candidateStatus}.`
         : 'Updated reservation details.',
-      changedFields: Object.keys(body),
+      changedFields: diffAuditFields(
+        existingReservation,
+        updated,
+        Object.keys(updatePayload).filter((field) => field !== 'pricingSummary' && field !== 'addOns' && field !== 'statusHistory')
+      ),
     });
 
     await triggerReservationUpdate(id, {

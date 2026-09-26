@@ -12,7 +12,7 @@ type AuditLogRecord = {
   entityId?: string;
   entityLabel: string;
   summary: string;
-  changedFields?: string[];
+  changedFields?: Array<string | { field: string; before: string; after: string }>;
   createdAt: string;
 };
 
@@ -139,7 +139,15 @@ export default function SystemActivityLogModal({ open, onClose }: Props) {
                       </p>
                       <p className="mt-1 break-words text-xs text-slate-500">{log.entityType.replace('_', ' ')} · {log.entityLabel}</p>
                       {log.changedFields && log.changedFields.length > 0 ? (
-                        <p className="mt-2 break-words text-[11px] text-slate-500">Changed: {log.changedFields.join(', ')}</p>
+                        <ul className="mt-2 space-y-1 text-[11px] text-slate-500">
+                          {log.changedFields.map((change, index) => (
+                            <li key={typeof change === 'string' ? `${change}-${index}` : `${change.field}-${index}`} className="break-words">
+                              {typeof change === 'string'
+                                ? `Changed: ${change}`
+                                : <><span className="font-medium text-slate-400">{change.field.replace(/([A-Z])/g, ' $1').toLowerCase()}:</span> {change.before} <span className="px-1 text-slate-600">→</span> {change.after}</>}
+                            </li>
+                          ))}
+                        </ul>
                       ) : null}
                     </div>
                     <div className="flex shrink-0 items-center justify-between gap-3 sm:flex-col sm:items-end">

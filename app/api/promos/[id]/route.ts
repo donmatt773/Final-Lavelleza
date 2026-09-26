@@ -5,7 +5,7 @@ import Promo, { getPromoEffectiveStatus, resolvePromoStatus } from '@/app/lib/Pr
 import Room from '@/app/lib/Room';
 import { requireOwner } from '@/app/lib/auth';
 import { triggerDashboardUpdate } from '@/app/lib/pusher-server';
-import { writeAuditLog } from '@/app/lib/auditLogWriter';
+import { diffAuditFields, writeAuditLog } from '@/app/lib/auditLogWriter';
 
 const VALID_STATUSES = ['DRAFT', 'ACTIVE', 'INACTIVE', 'EXPIRED'] as const;
 
@@ -406,6 +406,7 @@ export async function PUT(request: Request, { params }: { params: Promise<{ id: 
     if (!promo) {
       return NextResponse.json({ success: false, message: 'Promo not found.' }, { status: 404 });
     }
+    const previousPromo = promo.toObject();
 
     const nextStartDate = (payload.startDate !== undefined ? payload.startDate : promo.startDate) as Date | undefined;
     const nextEndDate = (payload.endDate !== undefined ? payload.endDate : promo.endDate) as Date | undefined;
@@ -449,7 +450,7 @@ export async function PUT(request: Request, { params }: { params: Promise<{ id: 
       entityId: String(promo._id),
       entityLabel: `${promo.name} (${promo.code})`,
       summary: 'Updated a promo.',
-      changedFields: Object.keys(payload),
+      changedFields: diffAuditFields(previousPromo, promo, Object.keys(payload)),
     });
 
     await triggerDashboardUpdate('dashboard-updated', {
@@ -508,6 +509,7 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
     if (!promo) {
       return NextResponse.json({ success: false, message: 'Promo not found.' }, { status: 404 });
     }
+    const previousPromo = promo.toObject();
 
     if (input.status !== undefined) {
       const status = String(input.status).toUpperCase();
@@ -542,7 +544,7 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
       entityId: String(promo._id),
       entityLabel: `${promo.name} (${promo.code})`,
       summary: input.isArchived === true ? 'Archived a promo.' : input.isArchived === false ? 'Restored a promo.' : 'Updated promo status.',
-      changedFields: Object.keys(input),
+      changedFields: diffAuditFields(previousPromo, promo, Object.keys(input)),
     });
 
     await triggerDashboardUpdate('dashboard-updated', {

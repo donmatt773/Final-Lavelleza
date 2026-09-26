@@ -6,7 +6,7 @@ import Payment, { IPayment } from '@/app/lib/Payment';
 import { getSessionFromRequest, requireOwnerOrStaff } from '@/app/lib/auth';
 import { computeReservationPaymentRollup, generatePaymentNumber, generateReceiptNumber, syncReservationPaymentStatus } from '@/app/lib/paymentTracking';
 import { triggerReservationUpdate } from '@/app/lib/pusher-server';
-import { writeAuditLog } from '@/app/lib/auditLogWriter';
+import { diffAuditFields, writeAuditLog } from '@/app/lib/auditLogWriter';
 
 const VALID_PAYMENT_METHODS = ['CASH_ON_ARRIVAL', 'GCASH'] as const;
 const VALID_PAYMENT_TYPES = ['RESERVATION_DEPOSIT', 'PARTIAL_PAYMENT', 'FULL_PAYMENT', 'REFUND'] as const;
@@ -313,7 +313,7 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
           entityId: String(updated._id),
           entityLabel: updated.paymentNumber,
           summary: `Generated receipt ${updated.receiptNumber} for a reservation payment.`,
-          changedFields: ['receiptNumber', 'receiptDate', 'issuedBy'],
+          changedFields: diffAuditFields(payment, updated, ['receiptNumber', 'receiptDate', 'issuedBy']),
         });
       }
 
@@ -372,7 +372,7 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
         entityId: String(updated._id),
         entityLabel: updated.paymentNumber,
         summary: `Changed payment status to ${paymentStatus}.`,
-        changedFields: ['paymentStatus', ...(body.notes !== undefined ? ['notes'] : []), ...(body.referenceNumber !== undefined ? ['referenceNumber'] : [])],
+        changedFields: diffAuditFields(payment, updated, Object.keys(updatePayload)),
       });
     }
 

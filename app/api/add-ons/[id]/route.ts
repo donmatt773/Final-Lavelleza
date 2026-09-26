@@ -4,7 +4,7 @@ import AddOn from '@/app/lib/AddOn';
 import { requireOwner } from '@/app/lib/auth';
 import { triggerDashboardUpdate } from '@/app/lib/pusher-server';
 import { AddOnInventoryBusyError, withAddOnInventoryLock } from '@/app/lib/addOnAvailability';
-import { writeAuditLog } from '@/app/lib/auditLogWriter';
+import { diffAuditFields, writeAuditLog } from '@/app/lib/auditLogWriter';
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
@@ -31,7 +31,11 @@ export async function PUT(request: Request, { params }: { params: Promise<{ id: 
       return NextResponse.json({ success: false, message: 'Add-on values are invalid.' }, { status: 400 });
     }
 
-    const addOn = await withAddOnInventoryLock([id], () => AddOn.findByIdAndUpdate(id, update, { new: true, runValidators: true }));
+    let previousAddOn: Record<string, unknown> | null = null;
+    const addOn = await withAddOnInventoryLock([id], async () => {
+      previousAddOn = await AddOn.findById(id).lean() as Record<string, unknown> | null;
+      return AddOn.findByIdAndUpdate(id, update, { new: true, runValidators: true });
+    });
     if (!addOn) return NextResponse.json({ success: false, message: 'Add-on not found.' }, { status: 404 });
     await writeAuditLog(request, {
       action: 'UPDATE',
@@ -39,7 +43,7 @@ export async function PUT(request: Request, { params }: { params: Promise<{ id: 
       entityId: String(addOn._id),
       entityLabel: addOn.name,
       summary: 'Updated a reservation add-on.',
-      changedFields: Object.keys(update),
+      changedFields: diffAuditFields(previousAddOn, addOn, Object.keys(update)),
     });
     await triggerDashboardUpdate('dashboard-updated', { type: 'add-on-updated', addOnId: String(addOn._id) });
     return NextResponse.json({ success: true, addOn }, { status: 200 });

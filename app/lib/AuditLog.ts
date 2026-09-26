@@ -2,6 +2,11 @@ import mongoose, { Model, Schema, Types } from 'mongoose';
 
 export type AuditEntityType = 'RESERVATION' | 'PAYMENT' | 'USER' | 'ROOM' | 'PROMO' | 'ADD_ON' | 'RATE_SETTINGS';
 export type AuditActorRole = 'OWNER' | 'STAFF' | 'CUSTOMER' | 'SYSTEM';
+export type AuditFieldChange = {
+  field: string;
+  before: string;
+  after: string;
+};
 
 export interface IAuditLog {
   _id?: Types.ObjectId;
@@ -14,7 +19,7 @@ export interface IAuditLog {
   entityId?: string;
   entityLabel: string;
   summary: string;
-  changedFields?: string[];
+  changedFields?: Array<string | AuditFieldChange>;
   createdAt?: Date;
 }
 
@@ -29,7 +34,7 @@ const auditLogSchema = new Schema<IAuditLog>(
     entityId: { type: String, trim: true },
     entityLabel: { type: String, required: true, trim: true },
     summary: { type: String, required: true, trim: true },
-    changedFields: { type: [String], default: [] },
+    changedFields: { type: [Schema.Types.Mixed], default: [] },
   },
   { timestamps: { createdAt: true, updatedAt: false }, collection: 'audit_logs' }
 );
