@@ -37,6 +37,16 @@ Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/bui
 
 ### Required environment variables
 
+MongoDB is required in production. Set `MONGODB_URI` in your local `.env` file and in the Vercel project's environment variables. In development, when it is unset, the app connects to a local MongoDB database at `mongodb://127.0.0.1:27017/la_velleza`.
+
+For MongoDB Atlas, use your cluster's connection string and select the `la_velleza` database:
+
+```env
+MONGODB_URI=mongodb+srv://<username>:<password>@<cluster-host>/la_velleza?retryWrites=true&w=majority
+```
+
+Replace the placeholders with your Atlas credentials and host. URL-encode special characters in the username or password, and never commit real credentials.
+
 Room images are uploaded to Cloudinary because Vercel's filesystem is ephemeral. Create a Cloudinary account and add these variables to `.env` locally and to the Vercel project settings:
 
 ```env
@@ -45,7 +55,17 @@ CLOUDINARY_API_KEY=your_api_key
 CLOUDINARY_API_SECRET=your_api_secret
 ```
 
-The room image upload endpoint accepts image files up to 4 MB and stores their Cloudinary secure URL and public ID in the room record.
+Room images are uploaded directly from the browser to Cloudinary using a short-lived server signature. Each image can be up to 10 MB; the room record stores its Cloudinary secure URL and public ID.
+
+### Dashboard room operations
+
+Owners can create rooms, edit room details and rates, and archive rooms. Staff can view rooms and change their status to `AVAILABLE`, `MAINTENANCE`, or `INACTIVE`; staff cannot edit room details or prices, or archive rooms. These restrictions are enforced by the room API as well as the dashboard controls.
+
+The Reservation Management notification bell also shows checkout reminders for checked-in rooms. Each reminder uses that room's checkout date and the resort's configured checkout time. The panel checks for due reminders every 30 seconds while it is open. The browser may require a user interaction before it allows the notification sound. Opening a reminder marks it as seen in that browser.
+
+### Landing page promos
+
+The landing page currently displays up to the three newest promos that are not archived and have `ACTIVE` status. A promo is excluded when its `endDate` is earlier than the current time; promos without an `endDate` are included. The landing query does not currently filter by `startDate`. Check these fields when a promo is missing from the landing page.
 
 ### Connect Gmail for reservation emails
 
