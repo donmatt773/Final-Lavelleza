@@ -2,7 +2,10 @@
 
 import React, { useState } from 'react';
 import Link from 'next/link';
+import Image from 'next/image';
 import { useRouter } from 'next/navigation';
+import logo from '@/app/icons/logo.jpg';
+import { theme } from '@/app/lib/landingTheme';
 
 
 export default function LoginPage() {
@@ -72,29 +75,31 @@ export default function LoginPage() {
   };
 
   return (
-    <main className="flex min-h-screen items-center justify-center bg-linear-to-br from-slate-950 via-slate-900 to-zinc-900 p-6">
-      <div className="w-full max-w-md rounded-2xl bg-slate-900 p-8 shadow-2xl border border-slate-800">
-        <div className="mb-8 text-center">
-          <div className="inline-flex items-center justify-center w-12 h-12 rounded-lg bg-emerald-500/10 text-emerald-400 font-bold text-xl border border-emerald-500/20 mb-3">
-            LV
-          </div>
-          <h1 className="text-2xl font-bold tracking-tight text-white">Management Console</h1>
-          <p className="mt-1.5 text-xs font-medium tracking-wide uppercase text-slate-400">La Velleza Resort Staff Portal</p>
-        </div>
+    <main className="flex min-h-screen items-center justify-center p-4 sm:p-6" style={{ backgroundColor: theme.sand, color: theme.ink }}>
+      <div className="w-full max-w-md overflow-hidden rounded-3xl border bg-[#FFFDF8] shadow-xl" style={{ borderColor: `${theme.navy}26`, boxShadow: `0 20px 50px ${theme.navy}1F` }}>
+        <header className="px-6 py-8 text-center sm:px-8" style={{ background: `linear-gradient(135deg, ${theme.navy}, ${theme.royal} 58%, ${theme.navy})` }}>
+          <Image src={logo} alt="La Velleza Resort" className="mb-3 inline-block h-12 w-12 rounded-full object-cover ring-2 ring-white/50" priority />
+          <h1 className="font-serif text-2xl font-semibold" style={{ color: theme.sand }}>Management Console</h1>
+          <p className="mt-1.5 text-xs font-medium uppercase tracking-wide" style={{ color: `${theme.sand}C2` }}>La Velleza Resort Staff Portal</p>
+        </header>
 
+        <div className="p-6 sm:p-8">
         <form onSubmit={handleLoginSubmit} className="space-y-5">
           {status ? (
             <div
               role="status"
               aria-live="polite"
-              className={`rounded-lg border px-4 py-3 text-xs ${status.type === 'success' ? 'border-emerald-500/30 bg-emerald-950/20 text-emerald-300' : 'border-rose-500/30 bg-rose-950/20 text-rose-300'}`}
+              className="rounded-lg border px-4 py-3 text-xs"
+              style={status.type === 'success'
+                ? { borderColor: '#4C8C4A66', backgroundColor: '#4C8C4A14', color: '#275D2A' }
+                : { borderColor: `${theme.coral}66`, backgroundColor: `${theme.coral}14`, color: '#9E3327' }}
             >
               {status.message}
             </div>
           ) : null}
 
           <div>
-            <label className="block text-xs font-semibold uppercase tracking-wider text-slate-300 mb-2">Employee ID or Username</label>
+            <label className="mb-2 block text-xs font-semibold uppercase tracking-wider" style={{ color: theme.navy }}>Employee ID or Username</label>
             <input 
               type="text" 
               required
@@ -102,12 +107,13 @@ export default function LoginPage() {
               value={employeeId}
               onChange={(e) => setEmployeeId(e.target.value)}
               placeholder="ADMIN, USER-001, or username"
-              className="w-full rounded-lg border border-slate-700 bg-slate-950 px-4 py-2.5 text-sm text-white placeholder-slate-600 transition-all focus:border-emerald-500 focus:outline-none focus:ring-1 focus:ring-emerald-500 disabled:opacity-50"
+              className="w-full rounded-lg border px-4 py-2.5 text-sm placeholder:text-[#738095] focus:border-[#2E5AA8] focus:outline-none focus:ring-1 focus:ring-[#2E5AA8] disabled:opacity-50"
+              style={{ borderColor: `${theme.ink}33`, backgroundColor: '#FFFFFF', color: theme.ink }}
             />
           </div>
 
           <div>
-            <label className="block text-xs font-semibold uppercase tracking-wider text-slate-300 mb-2">Security Key / Password</label>
+            <label className="mb-2 block text-xs font-semibold uppercase tracking-wider" style={{ color: theme.navy }}>Security Key / Password</label>
             <div className="relative">
               <input 
                 type={showPassword ? 'text' : 'password'} 
@@ -116,12 +122,14 @@ export default function LoginPage() {
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 placeholder="••••••••"
-                className="w-full rounded-lg border border-slate-700 bg-slate-950 px-4 py-2.5 pr-14 text-sm text-white placeholder-slate-600 transition-all focus:border-emerald-500 focus:outline-none focus:ring-1 focus:ring-emerald-500 disabled:opacity-50"
+                className="w-full rounded-lg border px-4 py-2.5 pr-14 text-sm placeholder:text-[#738095] focus:border-[#2E5AA8] focus:outline-none focus:ring-1 focus:ring-[#2E5AA8] disabled:opacity-50"
+                style={{ borderColor: `${theme.ink}33`, backgroundColor: '#FFFFFF', color: theme.ink }}
               />
               <button
                 type="button"
                 onClick={() => setShowPassword((value) => !value)}
-                className="absolute right-3 top-1/2 -translate-y-1/2 text-xs font-semibold text-slate-400 hover:text-white"
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-xs font-semibold transition hover:opacity-75"
+                style={{ color: theme.royal }}
               >
                 {showPassword ? 'Hide' : 'Show'}
               </button>
@@ -131,21 +139,24 @@ export default function LoginPage() {
           <button 
             type="submit" 
             disabled={loading}
-            className="w-full rounded-lg bg-emerald-600 px-4 py-2.5 text-sm font-semibold text-white tracking-wide shadow-lg shadow-emerald-900/20 transition-all hover:bg-emerald-500 focus:outline-none focus:ring-2 focus:ring-emerald-500 disabled:bg-emerald-800"
+            className="w-full rounded-lg px-4 py-2.5 text-sm font-semibold tracking-wide shadow-sm transition-all hover:brightness-105 focus:outline-none focus:ring-2 focus:ring-[#F7C948] disabled:cursor-not-allowed disabled:opacity-60"
+            style={{ backgroundColor: theme.sunset, color: theme.navy }}
           >
             {loading ? 'Authenticating...' : 'Authenticate & Access Terminal'}
           </button>
           <Link
             href="/"
-            className="block pt-1 text-center text-sm text-slate-400 transition hover:text-slate-200 focus-visible:outline-none focus-visible:underline"
+            className="block pt-1 text-center text-sm transition hover:underline focus-visible:outline-none focus-visible:underline"
+            style={{ color: theme.royal }}
           >
             Back to home
           </Link>
         </form>
 
-        <div className="mt-6 p-3 rounded-lg bg-slate-950/60 border border-slate-800 text-[11px] text-slate-400 space-y-1">
-          <p className="font-semibold text-slate-300">⚙️ Secure API Mode Active:</p>
+        <div className="mt-6 space-y-1 border-t pt-5 text-[11px]" style={{ borderColor: `${theme.ink}1A`, color: `${theme.ink}B3` }}>
+          <p className="font-semibold" style={{ color: theme.navy }}>⚙️ Secure API Mode Active:</p>
           <p>The code is processing requests strictly inside the node runtime system environment away from the client browser interface layer.</p>
+        </div>
         </div>
       </div>
     </main>
