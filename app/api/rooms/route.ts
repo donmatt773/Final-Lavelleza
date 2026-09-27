@@ -5,7 +5,7 @@ import Room from '@/app/lib/Room';
 import BedType from '@/app/lib/BedType';
 import Feature from '@/app/lib/Feature';
 import Amenity from '@/app/lib/Amenity';
-import { requireOwner } from '@/app/lib/auth';
+import { requireOwner, requireOwnerOrStaff } from '@/app/lib/auth';
 import { getRoomAvailabilityLabels } from '@/app/lib/reservationAvailability';
 import { triggerDashboardUpdate } from '@/app/lib/pusher-server';
 import { writeAuditLog } from '@/app/lib/auditLogWriter';
@@ -189,21 +189,27 @@ function validateCreatePayload(body: unknown) {
 
 export async function GET(request: Request) {
   try {
-    const authError = requireOwner(request);
+    const ownerAuthError = requireOwner(request);
+    const authError = ownerAuthError ? requireOwnerOrStaff(request) : null;
     if (authError) return authError;
 
     await connectDB();
     const { searchParams } = new URL(request.url);
     const search = searchParams.get('search');
     const status = searchParams.get('status');
-    const includeArchived = searchParams.get('includeArchived') === 'true';
+    const includeArchived = !ownerAuthError && searchParams.get('includeArchived') === 'true';
 
     const query = buildRoomQuery(search, status);
     if (includeArchived) {
       delete query.isArchived;
     }
 
-    const rooms = await Room.find(query)
+    const roomQuery = Room.find(query);
+    if (ownerAuthError) {
+      roomQuery.select('-nightlyRate -halfDayRate -wholeDayRate');
+    }
+
+    const rooms = await roomQuery
       .populate('beds.bedTypeId', 'name slug')
       .populate('features', 'name slug')
       .populate('amenities', 'name slug')

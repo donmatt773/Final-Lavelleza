@@ -5,7 +5,7 @@ import Room from '@/app/lib/Room';
 import BedType from '@/app/lib/BedType';
 import Feature from '@/app/lib/Feature';
 import Amenity from '@/app/lib/Amenity';
-import { requireOwner } from '@/app/lib/auth';
+import { requireOwner, requireOwnerOrStaff } from '@/app/lib/auth';
 import { triggerDashboardUpdate } from '@/app/lib/pusher-server';
 import { diffAuditFields, writeAuditLog } from '@/app/lib/auditLogWriter';
 
@@ -124,7 +124,8 @@ async function resolveReferences(features: unknown, amenities: unknown, beds: un
 
 export async function GET(request: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
-    const authError = requireOwner(request);
+    const ownerAuthError = requireOwner(request);
+    const authError = ownerAuthError ? requireOwnerOrStaff(request) : null;
     if (authError) return authError;
 
     await connectDB();
@@ -135,9 +136,14 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
     }
 
     const { searchParams } = new URL(request.url);
-    const includeArchived = searchParams.get('includeArchived') === 'true';
+    const includeArchived = !ownerAuthError && searchParams.get('includeArchived') === 'true';
 
-    const room = await Room.findById(id)
+    const roomQuery = Room.findById(id);
+    if (ownerAuthError) {
+      roomQuery.select('-nightlyRate -halfDayRate -wholeDayRate');
+    }
+
+    const room = await roomQuery
       .populate('beds.bedTypeId', 'name slug')
       .populate('features', 'name slug')
       .populate('amenities', 'name slug')
@@ -286,8 +292,10 @@ export async function PUT(request: Request, { params }: { params: Promise<{ id: 
 
 export async function PATCH(request: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
-    const authError = requireOwner(request);
+    const ownerAuthError = requireOwner(request);
+    const authError = ownerAuthError ? requireOwnerOrStaff(request) : null;
     if (authError) return authError;
+    const isStaff = ownerAuthError !== null;
 
     await connectDB();
     const { id } = await params;
@@ -313,13 +321,13 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
       return NextResponse.json({ success: false, message: 'Room not found.' }, { status: 404 });
     }
 
-    const allowedFields = ['status', 'isArchived'];
+    const allowedFields = isStaff ? ['status'] : ['status', 'isArchived'];
     const invalidFields = Object.keys(input).filter((field) => !allowedFields.includes(field));
     if (invalidFields.length > 0) {
-      return NextResponse.json({ success: false, message: 'Only status and isArchived updates are allowed.' }, { status: 400 });
+      return NextResponse.json({ success: false, message: isStaff ? 'Staff may only update room status.' : 'Only status and isArchived updates are allowed.' }, { status: 400 });
     }
-    if (!input) {
-      return NextResponse.json({ success: false, message: 'Request body must be a JSON object.' }, { status: 400 });
+    if (isStaff && input.status === undefined) {
+      return NextResponse.json({ success: false, message: 'Staff may only update room status.' }, { status: 400 });
     }
 
     const updatePayload: Record<string, unknown> = {};

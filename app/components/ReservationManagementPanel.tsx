@@ -155,6 +155,16 @@ type ReservationRecord = {
   pricingSummary?: ReservationPricingSummary;
 };
 
+type CheckoutReminder = {
+  id: string;
+  reservationId: string;
+  reservationNumber: string;
+  guestName: string;
+  roomId: string;
+  roomName: string;
+  checkOut: string;
+};
+
 function getReservationRoomLabel(reservation: ReservationRecord) {
   const assignedRooms = reservation.roomAssignments?.map((assignment) => (
     typeof assignment.room === 'string' ? 'Room' : assignment.room?.name || 'Room'
@@ -203,6 +213,8 @@ type RoomOption = {
 
 const PAGE_SIZE = 8;
 const SEEN_RESERVATION_NOTIFICATIONS_KEY = 'lavelleza-seen-reservation-notifications';
+const SEEN_CHECKOUT_NOTIFICATIONS_KEY = 'lavelleza-seen-checkout-notifications';
+const RESORT_TIME_ZONE = 'Asia/Manila';
 
 const normalizeReservationSource = (value?: string | null): ReservationSource => (value === 'WALK_IN' ? 'WALK_IN' : 'ONLINE');
 
@@ -227,6 +239,35 @@ const getNextDateInputValue = (value: string) => {
   date.setUTCDate(date.getUTCDate() + 1);
   return date.toISOString().slice(0, 10);
 };
+
+function readStoredNotificationIds(key: string) {
+  try {
+    const stored = window.localStorage.getItem(key);
+    const parsed = stored ? JSON.parse(stored) : [];
+    return Array.isArray(parsed) ? parsed.filter((id): id is string => typeof id === 'string') : [];
+  } catch {
+    return [];
+  }
+}
+
+function getCheckoutReminderDate(checkOut: string, checkOutTime: string) {
+  const datePart = /^\d{4}-\d{2}-\d{2}/.exec(checkOut)?.[0];
+  const timeParts = /^(\d{1,2}):(\d{2})\s*(AM|PM)$/i.exec(checkOutTime.trim());
+  if (!datePart || !timeParts) return null;
+
+  const hour = (Number(timeParts[1]) % 12) + (timeParts[3].toUpperCase() === 'PM' ? 12 : 0);
+  const time = `${String(hour).padStart(2, '0')}:${timeParts[2]}`;
+  const dueAt = new Date(`${datePart}T${time}:00+08:00`);
+  return Number.isNaN(dueAt.getTime()) ? null : dueAt;
+}
+
+function formatCheckoutReminderDate(value: Date) {
+  return new Intl.DateTimeFormat('en-PH', {
+    dateStyle: 'medium',
+    timeStyle: 'short',
+    timeZone: RESORT_TIME_ZONE,
+  }).format(value);
+}
 
 function playReservationNotificationSound(context: AudioContext) {
   if (context.state !== 'running') return;
@@ -278,8 +319,12 @@ export default function ReservationManagementPanel({ active, canManageGmail = fa
   const [walkInRooms, setWalkInRooms] = useState<RoomOption[]>([]);
   const [notificationsOpen, setNotificationsOpen] = useState(false);
   const [seenReservationIds, setSeenReservationIds] = useState<string[]>([]);
+  const [checkoutReminders, setCheckoutReminders] = useState<CheckoutReminder[]>([]);
+  const [seenCheckoutReminderIds, setSeenCheckoutReminderIds] = useState<string[]>([]);
+  const [checkoutTime, setCheckoutTime] = useState('11:00 AM');
   const audioContextRef = useRef<AudioContext | null>(null);
   const handledNotificationIdsRef = useRef<Set<string>>(new Set());
+  const playedCheckoutReminderIdsRef = useRef<Set<string>>(new Set());
   const [paymentsLoading, setPaymentsLoading] = useState(false);
   const [paymentsSaving, setPaymentsSaving] = useState(false);
   const [paymentActionId, setPaymentActionId] = useState<string | null>(null);
@@ -596,19 +641,56 @@ export default function ReservationManagementPanel({ active, canManageGmail = fa
 
   useEffect(() => {
     const timeoutId = window.setTimeout(() => {
-      try {
-        const stored = window.localStorage.getItem(SEEN_RESERVATION_NOTIFICATIONS_KEY);
-        const parsed = stored ? JSON.parse(stored) : [];
-        if (Array.isArray(parsed)) {
-          setSeenReservationIds(parsed.filter((id): id is string => typeof id === 'string'));
-        }
-      } catch {
-        setSeenReservationIds([]);
-      }
+      setSeenReservationIds(readStoredNotificationIds(SEEN_RESERVATION_NOTIFICATIONS_KEY));
+      setSeenCheckoutReminderIds(readStoredNotificationIds(SEEN_CHECKOUT_NOTIFICATIONS_KEY));
     }, 0);
 
     return () => window.clearTimeout(timeoutId);
   }, []);
+
+  const loadCheckoutReminders = React.useCallback(async () => {
+    try {
+      const response = await fetch('/api/reservations/checkout-reminders', {
+        cache: 'no-store',
+        credentials: 'same-origin',
+      });
+      const data = await response.json().catch(() => null);
+      if (!response.ok || !data?.success) return;
+
+      const checkOutTime = typeof data.checkOutTime === 'string' ? data.checkOutTime : '11:00 AM';
+      setCheckoutTime(checkOutTime);
+      const now = Date.now();
+      const dueReminders = (Array.isArray(data.reminders) ? data.reminders : [])
+        .filter((reminder: CheckoutReminder) => {
+          const dueAt = getCheckoutReminderDate(reminder.checkOut, checkOutTime);
+          return dueAt !== null && dueAt.getTime() <= now;
+        }) as CheckoutReminder[];
+
+      setCheckoutReminders(dueReminders);
+
+      const seenIds = readStoredNotificationIds(SEEN_CHECKOUT_NOTIFICATIONS_KEY);
+      const newUnseenReminders = dueReminders.filter((reminder) => (
+        !seenIds.includes(reminder.id) && !playedCheckoutReminderIdsRef.current.has(reminder.id)
+      ));
+      if (newUnseenReminders.length > 0 && audioContextRef.current?.state === 'running') {
+        playReservationNotificationSound(audioContextRef.current);
+        newUnseenReminders.forEach((reminder) => playedCheckoutReminderIdsRef.current.add(reminder.id));
+      }
+    } catch {
+      // A failed reminder refresh should not interrupt reservation management.
+    }
+  }, []);
+
+  useEffect(() => {
+    if (!active) return;
+
+    const timeoutId = window.setTimeout(() => void loadCheckoutReminders(), 0);
+    const intervalId = window.setInterval(() => void loadCheckoutReminders(), 30_000);
+    return () => {
+      window.clearTimeout(timeoutId);
+      window.clearInterval(intervalId);
+    };
+  }, [active, loadCheckoutReminders]);
 
   useEffect(() => {
     if (!active) return;
@@ -656,12 +738,27 @@ export default function ReservationManagementPanel({ active, canManageGmail = fa
     [reservations, seenReservationIds]
   );
 
+  const unseenCheckoutReminders = useMemo(
+    () => checkoutReminders.filter((reminder) => !seenCheckoutReminderIds.includes(reminder.id)),
+    [checkoutReminders, seenCheckoutReminderIds]
+  );
+
   const markReservationNotificationSeen = (reservationId: string) => {
     setSeenReservationIds((current) => {
       if (current.includes(reservationId)) return current;
 
       const next = [...current, reservationId];
       window.localStorage.setItem(SEEN_RESERVATION_NOTIFICATIONS_KEY, JSON.stringify(next));
+      return next;
+    });
+  };
+
+  const markCheckoutReminderSeen = (reminderId: string) => {
+    setSeenCheckoutReminderIds((current) => {
+      if (current.includes(reminderId)) return current;
+
+      const next = [...current, reminderId];
+      window.localStorage.setItem(SEEN_CHECKOUT_NOTIFICATIONS_KEY, JSON.stringify(next));
       return next;
     });
   };
@@ -1298,9 +1395,9 @@ export default function ReservationManagementPanel({ active, canManageGmail = fa
               className="relative inline-flex h-10 w-10 items-center justify-center rounded-lg border border-slate-700 bg-slate-950/70 text-lg text-slate-200 hover:bg-slate-800"
             >
               <span aria-hidden="true">🔔</span>
-              {unseenReservations.length > 0 ? (
+              {unseenReservations.length + unseenCheckoutReminders.length > 0 ? (
                 <span className="absolute -right-1 -top-1 min-w-5 rounded-full bg-rose-500 px-1 text-center text-[10px] font-bold leading-5 text-white">
-                  {unseenReservations.length > 99 ? '99+' : unseenReservations.length}
+                  {unseenReservations.length + unseenCheckoutReminders.length > 99 ? '99+' : unseenReservations.length + unseenCheckoutReminders.length}
                 </span>
               ) : null}
             </button>
@@ -1308,13 +1405,35 @@ export default function ReservationManagementPanel({ active, canManageGmail = fa
             {notificationsOpen ? (
               <div className="absolute right-0 top-12 z-40 w-80 rounded-xl border border-slate-700 bg-slate-900 p-2 shadow-2xl shadow-black/40">
                 <div className="flex items-center justify-between px-2 py-2">
-                  <p className="text-sm font-semibold text-white">New reservation requests</p>
-                  <span className="text-xs text-slate-400">{unseenReservations.length} unseen</span>
+                  <p className="text-sm font-semibold text-white">Reservation notifications</p>
+                  <span className="text-xs text-slate-400">{unseenReservations.length + unseenCheckoutReminders.length} unseen</span>
                 </div>
-                {unseenReservations.length === 0 ? (
-                  <p className="px-2 py-5 text-center text-xs text-slate-400">No unseen reservation requests.</p>
-                ) : (
+                {unseenCheckoutReminders.length > 0 ? (
                   <div className="max-h-80 space-y-1 overflow-y-auto">
+                    <p className="px-2 pb-1 pt-2 text-xs font-semibold uppercase tracking-wide text-amber-300">Room checkout time reached</p>
+                    {unseenCheckoutReminders.map((reminder) => {
+                      const dueAt = getCheckoutReminderDate(reminder.checkOut, checkoutTime);
+                      return (
+                        <button
+                          type="button"
+                          key={reminder.id}
+                          onClick={() => markCheckoutReminderSeen(reminder.id)}
+                          className="w-full rounded-lg border border-amber-700/30 bg-amber-500/5 px-3 py-2 text-left hover:border-amber-500/50 hover:bg-amber-500/10"
+                        >
+                          <div className="flex items-start justify-between gap-2">
+                            <span className="font-semibold text-white">{reminder.roomName}</span>
+                            <span className="text-[10px] font-semibold uppercase text-amber-300">Time up</span>
+                          </div>
+                          <p className="mt-1 text-xs text-slate-300">{reminder.guestName} · {reminder.reservationNumber}</p>
+                          <p className="text-xs text-slate-500">Checkout: {dueAt ? formatCheckoutReminderDate(dueAt) : formatDate(reminder.checkOut)}</p>
+                        </button>
+                      );
+                    })}
+                  </div>
+                ) : null}
+                {unseenReservations.length > 0 ? (
+                  <div className="max-h-80 space-y-1 overflow-y-auto">
+                    <p className="px-2 pb-1 pt-2 text-xs font-semibold uppercase tracking-wide text-slate-400">New reservation requests</p>
                     {unseenReservations.map((reservation) => (
                       <button
                         type="button"
@@ -1331,7 +1450,10 @@ export default function ReservationManagementPanel({ active, canManageGmail = fa
                       </button>
                     ))}
                   </div>
-                )}
+                ) : null}
+                {unseenReservations.length + unseenCheckoutReminders.length === 0 ? (
+                  <p className="px-2 py-5 text-center text-xs text-slate-400">No unseen reservation notifications.</p>
+                ) : null}
               </div>
             ) : null}
           </div>
