@@ -256,11 +256,15 @@ export default function DashboardLayout({
             <div className="mt-2">
               {activeTab === 'users' && isOwner ? <UserManagementPanel active={true} /> : activeTab === 'rooms' ? <RoomManagementPanel active={true} staffMode={!isOwner} /> : activeTab === 'promos' && isOwner ? <PromoManagementPanel active={true} /> : activeTab === 'add-ons' && isOwner ? <AddOnManagementPanel active={true} /> : activeTab === 'reservations' ? <ReservationManagementPanel active={true} canManageGmail={isOwner} /> : activeTab === 'reports' ? <PaymentReportsPanel active={true} /> : activeTab === 'rate-settings' && isOwner ? <RoomRateSettingsPanel active={true} /> : (
                 <>
-                  {isOwner ? children : <ReservationDashboardPanel />}
-                  <div className="mt-6 rounded-3xl border border-slate-800 bg-slate-900/80 p-6 text-slate-300">
-                    <h2 className="text-xl font-semibold text-white">{isOwner ? 'Owner Overview' : 'Staff Overview'}</h2>
-                    <p className="mt-2 text-sm text-slate-400">{isOwner ? 'This is the main owner workspace view. Switch tabs to manage users, rooms, promos, reservations, or rate settings.' : 'Use the tabs to switch between the overview, reservations, and payment reports.'}</p>
-                  </div>
+                  {isOwner ? children : (
+                    <>
+                      <ReservationDashboardPanel />
+                      <div className="mt-6 rounded-3xl border border-slate-800 bg-slate-900/80 p-6 text-slate-300">
+                        <h2 className="text-xl font-semibold text-white">Staff Overview</h2>
+                        <p className="mt-2 text-sm text-slate-400">Use the tabs to switch between the overview, reservations, and payment reports.</p>
+                      </div>
+                    </>
+                  )}
                 </>
               )}
             </div>

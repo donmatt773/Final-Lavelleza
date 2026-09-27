@@ -266,9 +266,100 @@ export default function ReservationDashboardPanel() {
         <div className="rounded-xl border border-slate-800 bg-slate-950/60 p-5 text-sm text-slate-400">Loading reservation metrics...</div>
       ) : (
         <>
-          <div className="mb-4 rounded-xl border border-slate-800 bg-slate-950/70 p-4">
-            <p className="text-xs uppercase tracking-wider text-slate-500">Payment Dashboard</p>
-            <div className="mt-3 grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
+          <div className="space-y-5">
+            <section aria-labelledby="reservation-activity-heading">
+              <div className="mb-3 border-b border-slate-800 pb-2">
+                <h3 id="reservation-activity-heading" className="text-sm font-semibold uppercase tracking-wider text-white">Reservation Activity</h3>
+              </div>
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
+                <div className="rounded-xl border border-slate-800 bg-slate-950/70 p-4">
+                  <p className="text-xs uppercase tracking-wider text-slate-500">Pending Reservations</p>
+                  <p className="mt-2 text-2xl font-semibold text-white">{metrics.pendingReservations}</p>
+                </div>
+                <div className="rounded-xl border border-slate-800 bg-slate-950/70 p-4">
+                  <p className="text-xs uppercase tracking-wider text-slate-500">Confirmed Reservations</p>
+                  <p className="mt-2 text-2xl font-semibold text-white">{metrics.confirmedReservations}</p>
+                </div>
+                <div className="rounded-xl border border-slate-800 bg-slate-950/70 p-4">
+                  <p className="text-xs uppercase tracking-wider text-slate-500">Today&apos;s Check-ins</p>
+                  <p className="mt-2 text-2xl font-semibold text-white">{metrics.todaysCheckIns}</p>
+                </div>
+                <div className="rounded-xl border border-slate-800 bg-slate-950/70 p-4">
+                  <p className="text-xs uppercase tracking-wider text-slate-500">Today&apos;s Check-outs</p>
+                  <p className="mt-2 text-2xl font-semibold text-white">{metrics.todaysCheckOuts}</p>
+                </div>
+                <div className="rounded-xl border border-slate-800 bg-slate-950/70 p-4">
+                  <p className="text-xs uppercase tracking-wider text-slate-500">Upcoming Reservations</p>
+                  <p className="mt-2 text-2xl font-semibold text-white">{metrics.upcomingReservations}</p>
+                </div>
+                <div className="rounded-xl border border-slate-800 bg-slate-950/70 p-4">
+                  <p className="text-xs uppercase tracking-wider text-slate-500">Monthly Reservation Count</p>
+                  <p className="mt-2 text-2xl font-semibold text-white">{metrics.monthlyReservationCount}</p>
+                </div>
+                <div className="rounded-xl border border-slate-800 bg-slate-950/70 p-4">
+                  <p className="text-xs uppercase tracking-wider text-slate-500">Online Reservations</p>
+                  <p className="mt-2 text-2xl font-semibold text-sky-300">{metrics.onlineReservations}</p>
+                </div>
+                <div className="rounded-xl border border-slate-800 bg-slate-950/70 p-4">
+                  <p className="text-xs uppercase tracking-wider text-slate-500">Walk-In Reservations</p>
+                  <p className="mt-2 text-2xl font-semibold text-amber-300">{metrics.walkInReservations}</p>
+                </div>
+              </div>
+            </section>
+
+            <section aria-labelledby="room-availability-heading">
+              <div className="mb-3 border-b border-slate-800 pb-2">
+                <h3 id="room-availability-heading" className="text-sm font-semibold uppercase tracking-wider text-white">Room Availability</h3>
+              </div>
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
+                <div className="rounded-xl border border-slate-800 bg-slate-950/70 p-4">
+                  <p className="text-xs uppercase tracking-wider text-slate-500">Available Rooms</p>
+                  <p className="mt-2 text-2xl font-semibold text-white">{metrics.availableRooms}</p>
+                </div>
+                <div className="rounded-xl border border-slate-800 bg-slate-950/70 p-4">
+                  <p className="text-xs uppercase tracking-wider text-slate-500">Occupied Rooms</p>
+                  <p className="mt-2 text-2xl font-semibold text-white">{metrics.occupiedRooms}</p>
+                </div>
+              </div>
+            </section>
+
+            <section aria-labelledby="revenue-heading">
+              <div className="mb-3 border-b border-slate-800 pb-2">
+                <h3 id="revenue-heading" className="text-sm font-semibold uppercase tracking-wider text-white">Revenue</h3>
+              </div>
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
+                <div className="rounded-xl border border-slate-800 bg-slate-950/70 p-4">
+                  <p className="text-xs uppercase tracking-wider text-slate-500">Monthly Reservation Revenue</p>
+                  <p className="mt-2 text-2xl font-semibold text-emerald-300">{formatCurrency(metrics.monthlyRevenue)}</p>
+                </div>
+                <div className="rounded-xl border border-slate-800 bg-slate-950/70 p-4">
+                  <p className="text-xs uppercase tracking-wider text-slate-500">Monthly Payments Received</p>
+                  <p className="mt-2 text-2xl font-semibold text-emerald-300">{formatCurrency(metrics.paymentDashboard.monthlyRevenue)}</p>
+                </div>
+                <div className="rounded-xl border border-slate-800 bg-slate-950/70 p-4">
+                  <p className="text-xs uppercase tracking-wider text-slate-500">Online Revenue</p>
+                  <p className="mt-2 text-2xl font-semibold text-sky-300">{formatCurrency(metrics.onlineRevenue)}</p>
+                </div>
+                <div className="rounded-xl border border-slate-800 bg-slate-950/70 p-4">
+                  <p className="text-xs uppercase tracking-wider text-slate-500">Walk-In Revenue</p>
+                  <p className="mt-2 text-2xl font-semibold text-amber-300">{formatCurrency(metrics.walkInRevenue)}</p>
+                </div>
+                <div className="rounded-xl border border-slate-800 bg-slate-950/70 p-4">
+                  <p className="text-xs uppercase tracking-wider text-slate-500">Cash Revenue</p>
+                  <p className="mt-2 text-2xl font-semibold text-orange-300">{formatCurrency(metrics.cashRevenue)}</p>
+                </div>
+                <div className="rounded-xl border border-slate-800 bg-slate-950/70 p-4">
+                  <p className="text-xs uppercase tracking-wider text-slate-500">GCash Revenue</p>
+                  <p className="mt-2 text-2xl font-semibold text-cyan-300">{formatCurrency(metrics.gcashRevenue)}</p>
+                </div>
+              </div>
+            </section>
+
+            <section aria-labelledby="payments-heading">
+              <div className="mb-3 border-b border-slate-800 pb-2">
+                <h3 id="payments-heading" className="text-sm font-semibold uppercase tracking-wider text-white">Payments &amp; Balances</h3>
+              </div>
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
               <div className="rounded-xl border border-slate-800 bg-slate-900/70 p-4">
                 <p className="text-xs uppercase tracking-wider text-slate-500">Today&apos;s Payments</p>
                 <p className="mt-2 text-2xl font-semibold text-white">{metrics.paymentDashboard.todaysPayments}</p>
@@ -297,82 +388,16 @@ export default function ReservationDashboardPanel() {
                 <p className="text-xs uppercase tracking-wider text-slate-500">Outstanding Balances</p>
                 <p className="mt-2 text-2xl font-semibold text-rose-300">{formatCurrency(metrics.paymentDashboard.outstandingBalances)}</p>
               </div>
-              <div className="rounded-xl border border-slate-800 bg-slate-900/70 p-4">
-                <p className="text-xs uppercase tracking-wider text-slate-500">Monthly Revenue</p>
-                <p className="mt-2 text-2xl font-semibold text-emerald-300">{formatCurrency(metrics.paymentDashboard.monthlyRevenue)}</p>
+                <div className="rounded-xl border border-slate-800 bg-slate-900/70 p-4">
+                  <p className="text-xs uppercase tracking-wider text-slate-500">Monthly Cash Payment Records</p>
+                  <p className="mt-2 text-2xl font-semibold text-orange-300">{metrics.cashPayments}</p>
+                </div>
+                <div className="rounded-xl border border-slate-800 bg-slate-900/70 p-4">
+                  <p className="text-xs uppercase tracking-wider text-slate-500">Monthly GCash Payment Records</p>
+                  <p className="mt-2 text-2xl font-semibold text-cyan-300">{metrics.gcashPayments}</p>
+                </div>
               </div>
-            </div>
-          </div>
-
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
-            <div className="rounded-xl border border-slate-800 bg-slate-950/70 p-4">
-              <p className="text-xs uppercase tracking-wider text-slate-500">Pending Reservations</p>
-              <p className="mt-2 text-2xl font-semibold text-white">{metrics.pendingReservations}</p>
-            </div>
-            <div className="rounded-xl border border-slate-800 bg-slate-950/70 p-4">
-              <p className="text-xs uppercase tracking-wider text-slate-500">Confirmed Reservations</p>
-              <p className="mt-2 text-2xl font-semibold text-white">{metrics.confirmedReservations}</p>
-            </div>
-            <div className="rounded-xl border border-slate-800 bg-slate-950/70 p-4">
-              <p className="text-xs uppercase tracking-wider text-slate-500">Today&apos;s Check-ins</p>
-              <p className="mt-2 text-2xl font-semibold text-white">{metrics.todaysCheckIns}</p>
-            </div>
-            <div className="rounded-xl border border-slate-800 bg-slate-950/70 p-4">
-              <p className="text-xs uppercase tracking-wider text-slate-500">Today&apos;s Check-outs</p>
-              <p className="mt-2 text-2xl font-semibold text-white">{metrics.todaysCheckOuts}</p>
-            </div>
-            <div className="rounded-xl border border-slate-800 bg-slate-950/70 p-4">
-              <p className="text-xs uppercase tracking-wider text-slate-500">Available Rooms</p>
-              <p className="mt-2 text-2xl font-semibold text-white">{metrics.availableRooms}</p>
-            </div>
-            <div className="rounded-xl border border-slate-800 bg-slate-950/70 p-4">
-              <p className="text-xs uppercase tracking-wider text-slate-500">Occupied Rooms</p>
-              <p className="mt-2 text-2xl font-semibold text-white">{metrics.occupiedRooms}</p>
-            </div>
-            <div className="rounded-xl border border-slate-800 bg-slate-950/70 p-4">
-              <p className="text-xs uppercase tracking-wider text-slate-500">Upcoming Reservations</p>
-              <p className="mt-2 text-2xl font-semibold text-white">{metrics.upcomingReservations}</p>
-            </div>
-            <div className="rounded-xl border border-slate-800 bg-slate-950/70 p-4">
-              <p className="text-xs uppercase tracking-wider text-slate-500">Monthly Reservation Count</p>
-              <p className="mt-2 text-2xl font-semibold text-white">{metrics.monthlyReservationCount}</p>
-            </div>
-            <div className="rounded-xl border border-slate-800 bg-slate-950/70 p-4">
-              <p className="text-xs uppercase tracking-wider text-slate-500">Monthly Revenue</p>
-              <p className="mt-2 text-2xl font-semibold text-emerald-300">{formatCurrency(metrics.monthlyRevenue)}</p>
-            </div>
-            <div className="rounded-xl border border-slate-800 bg-slate-950/70 p-4">
-              <p className="text-xs uppercase tracking-wider text-slate-500">Online Reservations</p>
-              <p className="mt-2 text-2xl font-semibold text-sky-300">{metrics.onlineReservations}</p>
-            </div>
-            <div className="rounded-xl border border-slate-800 bg-slate-950/70 p-4">
-              <p className="text-xs uppercase tracking-wider text-slate-500">Walk-In Reservations</p>
-              <p className="mt-2 text-2xl font-semibold text-amber-300">{metrics.walkInReservations}</p>
-            </div>
-            <div className="rounded-xl border border-slate-800 bg-slate-950/70 p-4">
-              <p className="text-xs uppercase tracking-wider text-slate-500">Online Revenue</p>
-              <p className="mt-2 text-2xl font-semibold text-sky-300">{formatCurrency(metrics.onlineRevenue)}</p>
-            </div>
-            <div className="rounded-xl border border-slate-800 bg-slate-950/70 p-4">
-              <p className="text-xs uppercase tracking-wider text-slate-500">Walk-In Revenue</p>
-              <p className="mt-2 text-2xl font-semibold text-amber-300">{formatCurrency(metrics.walkInRevenue)}</p>
-            </div>
-            <div className="rounded-xl border border-slate-800 bg-slate-950/70 p-4">
-              <p className="text-xs uppercase tracking-wider text-slate-500">Cash Payments</p>
-              <p className="mt-2 text-2xl font-semibold text-orange-300">{metrics.cashPayments}</p>
-            </div>
-            <div className="rounded-xl border border-slate-800 bg-slate-950/70 p-4">
-              <p className="text-xs uppercase tracking-wider text-slate-500">GCash Payments</p>
-              <p className="mt-2 text-2xl font-semibold text-cyan-300">{metrics.gcashPayments}</p>
-            </div>
-            <div className="rounded-xl border border-slate-800 bg-slate-950/70 p-4">
-              <p className="text-xs uppercase tracking-wider text-slate-500">Cash Revenue</p>
-              <p className="mt-2 text-2xl font-semibold text-orange-300">{formatCurrency(metrics.cashRevenue)}</p>
-            </div>
-            <div className="rounded-xl border border-slate-800 bg-slate-950/70 p-4">
-              <p className="text-xs uppercase tracking-wider text-slate-500">GCash Revenue</p>
-              <p className="mt-2 text-2xl font-semibold text-cyan-300">{formatCurrency(metrics.gcashRevenue)}</p>
-            </div>
+            </section>
           </div>
 
           <div className="mt-4 rounded-xl border border-slate-800 bg-slate-950/70 p-4">
