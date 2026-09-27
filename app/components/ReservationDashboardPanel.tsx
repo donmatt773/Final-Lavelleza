@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useEffect, useMemo, useState } from 'react';
+import MobileRowToggle from '@/app/components/MobileRowToggle';
 
 type MostBookedRoom = {
   roomId: string;
@@ -196,7 +197,7 @@ export default function ReservationDashboardPanel() {
         </p>
       </div>
 
-      <div className="mb-4 grid grid-cols-1 gap-3 rounded-xl border border-slate-800 bg-slate-950/60 p-4 md:grid-cols-3">
+      <div className="mb-4 grid grid-cols-1 gap-3 rounded-xl border border-slate-800 bg-slate-950/60 p-4 lg:grid-cols-3">
         <div>
           <label className="mb-1 block text-xs uppercase tracking-wider text-slate-500">Date</label>
           <input
@@ -243,7 +244,7 @@ export default function ReservationDashboardPanel() {
             <option value="REFUNDED">Refunded</option>
           </select>
         </div>
-        <div className="md:col-span-3 flex justify-end">
+        <div className="lg:col-span-3 flex justify-end">
           <button
             type="button"
             onClick={() => {
@@ -406,7 +407,7 @@ export default function ReservationDashboardPanel() {
               <p className="mt-2 text-sm text-slate-400">No source data available for this period.</p>
             ) : (
               <div className="mt-3 overflow-x-auto">
-                <table className="min-w-full text-left text-sm text-slate-300">
+                <table data-mobile-expandable className="min-w-full text-left text-sm text-slate-300">
                   <thead className="text-xs uppercase tracking-wider text-slate-500">
                     <tr>
                       <th className="py-2 pr-3">Source</th>
@@ -417,13 +418,14 @@ export default function ReservationDashboardPanel() {
                   <tbody className="divide-y divide-slate-800">
                     {metrics.sourceBreakdown.map((item) => (
                       <tr key={item.source}>
-                        <td className="py-2 pr-3">
+                        <td data-mobile-label="Source" className="mobile-row-primary py-2 pr-3">
                           <span className={`rounded-full px-2.5 py-1 text-[11px] font-semibold ${item.source === 'WALK_IN' ? 'bg-amber-500/10 text-amber-300' : 'bg-sky-500/10 text-sky-300'}`}>
                             {item.source}
                           </span>
+                          <MobileRowToggle />
                         </td>
-                        <td className="py-2 pr-3">{item.reservations}</td>
-                        <td className="py-2 pr-3 text-emerald-300">{formatCurrency(item.revenue)}</td>
+                        <td data-mobile-label="Reservations" className="py-2 pr-3">{item.reservations}</td>
+                        <td data-mobile-label="Revenue" className="py-2 pr-3 text-emerald-300">{formatCurrency(item.revenue)}</td>
                       </tr>
                     ))}
                   </tbody>
@@ -438,7 +440,7 @@ export default function ReservationDashboardPanel() {
               <p className="mt-2 text-sm text-slate-400">No room booking records for this period.</p>
             ) : (
               <div className="mt-3 overflow-x-auto">
-                <table className="min-w-full text-left text-sm text-slate-300">
+                <table data-mobile-expandable className="min-w-full text-left text-sm text-slate-300">
                   <thead className="text-xs uppercase tracking-wider text-slate-500">
                     <tr>
                       <th className="py-2 pr-3">Room</th>
@@ -449,9 +451,9 @@ export default function ReservationDashboardPanel() {
                   <tbody className="divide-y divide-slate-800">
                     {metrics.mostBookedRooms.map((room) => (
                       <tr key={room.roomId}>
-                        <td className="py-2 pr-3 text-white">{room.roomName}</td>
-                        <td className="py-2 pr-3">{room.roomCode}</td>
-                        <td className="py-2 pr-3">{room.reservations}</td>
+                        <td data-mobile-label="Room" className="mobile-row-primary py-2 pr-3 text-white">{room.roomName}<MobileRowToggle /></td>
+                        <td data-mobile-label="Code" className="py-2 pr-3">{room.roomCode}</td>
+                        <td data-mobile-label="Reservations" className="py-2 pr-3">{room.reservations}</td>
                       </tr>
                     ))}
                   </tbody>

@@ -4,6 +4,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import Image from 'next/image';
 import PromoForm from '@/app/components/PromoForm';
 import PromoDetailsView from '@/app/components/PromoDetailsView';
+import MobileRowToggle from '@/app/components/MobileRowToggle';
 
 type PromoImage = {
   fileUrl?: string;
@@ -431,7 +432,7 @@ export default function PromoManagementPanel({ active }: Props) {
       ) : (
         <>
           <div className="overflow-x-auto rounded-xl border border-slate-800">
-            <table className="min-w-full divide-y divide-slate-800 text-left text-sm text-slate-300">
+            <table data-mobile-expandable className="min-w-full divide-y divide-slate-800 text-left text-sm text-slate-300">
               <thead className="bg-slate-900/70 text-xs uppercase tracking-wider text-slate-400">
                 <tr>
                   <th className="px-3 py-3">Image</th>
@@ -451,7 +452,7 @@ export default function PromoManagementPanel({ active }: Props) {
                   const imageCount = showBanner ? 1 : 0;
                   return (
                     <tr key={promo._id} className="hover:bg-slate-900/60">
-                      <td className="px-3 py-3">
+                      <td data-mobile-label="Image" className="px-3 py-3">
                         <div className="flex h-12 w-20 items-center justify-center overflow-hidden rounded-lg border border-slate-800 bg-slate-900">
                           {showBanner ? (
                             <Image
@@ -475,24 +476,25 @@ export default function PromoManagementPanel({ active }: Props) {
                         </div>
                         <p className="mt-1 text-[11px] text-slate-500">{imageCount} image{imageCount === 1 ? '' : 's'}</p>
                       </td>
-                      <td className="px-3 py-3">
+                      <td data-mobile-label="Promo Name" className="mobile-row-primary px-3 py-3">
                         <div className="font-medium text-white">{promo.name}</div>
                         <div className="mt-1 text-xs text-slate-500">{promo.description || 'No description provided.'}</div>
+                        <MobileRowToggle />
                       </td>
-                      <td className="px-3 py-3">{promo.code}</td>
-                      <td className="px-3 py-3">{formatPrice(promo.packagePrice)}</td>
-                      <td className="px-3 py-3">
+                      <td data-mobile-label="Promo Code" className="px-3 py-3">{promo.code}</td>
+                      <td data-mobile-label="Package Price" className="px-3 py-3">{formatPrice(promo.packagePrice)}</td>
+                      <td data-mobile-label="Validity" className="px-3 py-3">
                         <div>{formatValidity(promo.startDate, promo.endDate)}</div>
                         <div className={`mt-1 text-[11px] ${currentlyValid ? 'text-emerald-400' : 'text-slate-500'}`}>
                           {currentlyValid ? 'Valid now' : 'Not currently valid'}
                         </div>
                       </td>
-                      <td className="px-3 py-3">
+                      <td data-mobile-label="Status" className="px-3 py-3">
                         <span className={`rounded-full px-2.5 py-1 text-[11px] font-semibold ${promo.status === 'ACTIVE' ? 'bg-emerald-500/10 text-emerald-400' : promo.status === 'DRAFT' ? 'bg-sky-500/10 text-sky-300' : promo.status === 'EXPIRED' ? 'bg-rose-500/10 text-rose-300' : 'bg-slate-500/10 text-slate-300'}`}>
                           {promo.status}
                         </span>
                       </td>
-                      <td className="px-3 py-3">
+                      <td data-mobile-label="Actions" className="px-3 py-3">
                         <div className="flex flex-wrap gap-2">
                           <button
                             type="button"

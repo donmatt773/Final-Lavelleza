@@ -330,3 +330,93 @@ textarea:focus-visible {
 .dashboard-theme textarea::placeholder {
   color: #17263A80;
 }
+
+.mobile-row-toggle {
+  display: none;
+}
+
+@media (max-width: 767px) {
+  table[data-mobile-expandable] {
+    display: block;
+    width: 100%;
+    min-width: 0;
+  }
+
+  table[data-mobile-expandable] thead {
+    display: none;
+  }
+
+  table[data-mobile-expandable] tbody {
+    display: grid;
+    gap: 0.5rem;
+  }
+
+  table[data-mobile-expandable] tbody tr {
+    display: block;
+    border: 1px solid var(--dashboard-border);
+    border-radius: 0.5rem;
+    background: #FFFFFF;
+    padding: 0.75rem;
+  }
+
+  table[data-mobile-expandable] tbody td {
+    display: none;
+    width: 100%;
+    border: 0;
+    padding: 0.35rem 0;
+    overflow-wrap: anywhere;
+    white-space: normal;
+  }
+
+  table[data-mobile-expandable] tbody td::before {
+    display: block;
+    margin-bottom: 0.15rem;
+    color: #748397;
+    content: attr(data-mobile-label);
+    font-size: 0.625rem;
+    font-weight: 600;
+    text-transform: uppercase;
+  }
+
+  table[data-mobile-expandable] tbody td.mobile-row-primary,
+  table[data-mobile-expandable] tbody tr:has(details[open]) td,
+  table[data-mobile-expandable] tbody tr:not(:has(details)) td {
+    display: block;
+  }
+
+  table[data-mobile-expandable] tbody td.mobile-row-primary {
+    position: relative;
+    padding-right: 4rem;
+  }
+
+  table[data-mobile-expandable] .mobile-row-toggle {
+    position: absolute;
+    top: 0.25rem;
+    right: 0;
+    display: block;
+  }
+
+  .mobile-row-toggle summary {
+    list-style: none;
+    cursor: pointer;
+    border: 1px solid #17263A33;
+    border-radius: 0.375rem;
+    padding: 0.25rem 0.5rem;
+    color: #1F3A5F;
+    font-size: 0.75rem;
+    font-weight: 600;
+  }
+
+  .mobile-row-toggle summary::-webkit-details-marker {
+    display: none;
+  }
+
+  .mobile-row-toggle-less,
+  .mobile-row-toggle[open] .mobile-row-toggle-more {
+    display: none;
+  }
+
+  .mobile-row-toggle[open] .mobile-row-toggle-less {
+    display: inline;
+  }
+}

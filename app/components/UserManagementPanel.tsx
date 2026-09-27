@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useEffect, useState } from 'react';
+import MobileRowToggle from '@/app/components/MobileRowToggle';
 
 type UserRecord = {
   _id: string;
@@ -286,7 +287,7 @@ export default function UserManagementPanel({ active }: Props) {
             <p className="text-sm text-slate-400">No users yet. Create the first one from the form.</p>
           ) : (
             <div className="overflow-x-auto">
-              <table className="min-w-full divide-y divide-slate-800 text-left text-sm text-slate-300">
+              <table data-mobile-expandable className="min-w-full divide-y divide-slate-800 text-left text-sm text-slate-300">
                 <thead className="bg-slate-900/70 text-xs uppercase tracking-wider text-slate-400">
                   <tr>
                     <th className="px-3 py-2">Name</th>
@@ -299,15 +300,15 @@ export default function UserManagementPanel({ active }: Props) {
                 <tbody className="divide-y divide-slate-800">
                   {users.map((user) => (
                     <tr key={user._id} className="hover:bg-slate-900/60">
-                      <td className="px-3 py-2 font-medium text-white">{user.name}</td>
-                      <td className="px-3 py-2">{user.username}</td>
-                      <td className="px-3 py-2">{user.employeeId}</td>
-                      <td className="px-3 py-2">
+                      <td data-mobile-label="Name" className="mobile-row-primary px-3 py-2 font-medium text-white">{user.name}<MobileRowToggle /></td>
+                      <td data-mobile-label="Username" className="px-3 py-2">{user.username}</td>
+                      <td data-mobile-label="Employee ID" className="px-3 py-2">{user.employeeId}</td>
+                      <td data-mobile-label="Role" className="px-3 py-2">
                         <span className={`rounded-full px-2.5 py-1 text-[11px] font-semibold ${user.role === 0 ? 'bg-emerald-500/10 text-emerald-400' : 'bg-blue-500/10 text-blue-400'}`}>
                           {user.role === 0 ? 'Admin' : 'Staff'}
                         </span>
                       </td>
-                      <td className="px-3 py-2">
+                      <td data-mobile-label="Actions" className="px-3 py-2">
                         <div className="flex gap-2">
                           <button
                             type="button"

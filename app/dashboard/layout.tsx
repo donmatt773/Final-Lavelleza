@@ -120,10 +120,10 @@ export default function DashboardLayout({
         aria-label="Close dashboard navigation"
         tabIndex={isMobileNavOpen ? 0 : -1}
         onClick={() => setIsMobileNavOpen(false)}
-        className={`fixed inset-0 z-30 bg-[#1F3A5F]/55 transition-opacity sm:hidden ${isMobileNavOpen ? 'opacity-100' : 'pointer-events-none opacity-0'}`}
+        className={`fixed inset-0 z-30 bg-[#1F3A5F]/55 transition-opacity md:hidden ${isMobileNavOpen ? 'opacity-100' : 'pointer-events-none opacity-0'}`}
       />
       {/* Persistent System Control Sidebar */}
-      <aside className={`dashboard-sidebar fixed inset-y-0 left-0 z-40 flex h-dvh w-72 shrink-0 flex-col justify-between overflow-y-auto border-r p-3 transition-[width,transform] duration-200 sm:sticky sm:top-0 sm:z-auto sm:h-screen sm:max-h-screen sm:p-4 lg:p-6 ${isSidebarCollapsed ? 'sm:w-16' : 'sm:w-64'} ${isMobileNavOpen ? 'translate-x-0' : '-translate-x-full sm:translate-x-0'}`}>
+      <aside className={`dashboard-sidebar fixed inset-y-0 left-0 z-40 flex h-dvh w-72 shrink-0 flex-col justify-between overflow-y-auto border-r p-3 transition-[width,transform] duration-200 md:sticky md:top-0 md:z-auto md:h-screen md:max-h-screen md:p-4 lg:p-6 ${isSidebarCollapsed ? 'md:w-16' : 'md:w-64'} ${isMobileNavOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0'}`}>
         <div className="space-y-6">
           {/* Logo Element */}
           <div className={`flex items-center ${isSidebarCollapsed ? 'flex-col justify-center gap-2' : 'justify-between gap-3'} px-1`}>
@@ -136,7 +136,7 @@ export default function DashboardLayout({
               onClick={() => setIsSidebarCollapsed((collapsed) => !collapsed)}
               aria-label={isSidebarCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
               title={isSidebarCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
-              className="hidden h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-slate-700 text-lg text-slate-400 transition hover:bg-slate-800 hover:text-white sm:flex"
+              className="hidden h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-slate-700 text-lg text-slate-400 transition hover:bg-slate-800 hover:text-white md:flex"
             >
               {isSidebarCollapsed ? '›' : '‹'}
             </button>
@@ -234,8 +234,8 @@ export default function DashboardLayout({
 
       {/* Main Core Component Viewport Area */}
       <div className="min-w-0 flex-1 overflow-y-auto">
-        <div className="p-3 sm:p-6 lg:p-8">
-          <div className="sticky top-0 z-20 -mx-3 -mt-3 mb-4 flex items-center justify-between border-b border-[#17263A1F] bg-[#FBF3E4]/95 px-3 py-3 backdrop-blur sm:hidden">
+        <div className="p-3 md:p-6 lg:p-8">
+          <div className="sticky top-0 z-20 -mx-3 -mt-3 mb-4 flex items-center justify-between border-b border-[#17263A1F] bg-[#FBF3E4]/95 px-3 py-3 backdrop-blur md:hidden">
             <button
               type="button"
               aria-label="Open dashboard navigation"

@@ -3,6 +3,7 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import ReservationCalendar from '@/app/components/ReservationCalendar';
 import ReservationForm from '@/app/components/ReservationForm';
+import MobileRowToggle from '@/app/components/MobileRowToggle';
 import { readGcashReceiptDetails, uploadPaymentReceipt } from '@/app/lib/paymentReceiptClient';
 import { DashboardReservationEvent, useDashboardReservationRealtime } from '@/hooks/useDashboardReservationRealtime';
 
@@ -1573,7 +1574,7 @@ export default function ReservationManagementPanel({ active, canManageGmail = fa
       ) : (
         <>
           <div className="overflow-x-auto rounded-xl border border-slate-800">
-            <table className="min-w-full divide-y divide-slate-800 text-left text-sm text-slate-300">
+            <table data-mobile-expandable className="min-w-full divide-y divide-slate-800 text-left text-sm text-slate-300">
               <thead className="bg-slate-900/70 text-xs uppercase tracking-wider text-slate-400">
                 <tr>
                   <th className="px-3 py-3">Reservation No.</th>
@@ -1592,35 +1593,35 @@ export default function ReservationManagementPanel({ active, canManageGmail = fa
               <tbody className="divide-y divide-slate-800">
                 {pagedReservations.map((reservation) => (
                   <tr key={reservation._id} className="hover:bg-slate-900/60">
-                    <td className="px-3 py-3 font-semibold text-white">{reservation.reservationNumber}</td>
-                    <td className="px-3 py-3">
+                    <td data-mobile-label="Reservation No." className="mobile-row-primary px-3 py-3 font-semibold text-white">{reservation.reservationNumber}<MobileRowToggle /></td>
+                    <td data-mobile-label="Source" className="px-3 py-3">
                       {normalizeReservationSource(reservation.reservationSource) === 'WALK_IN' ? (
                         <span className="rounded-full bg-amber-500/10 px-2.5 py-1 text-[11px] font-semibold text-amber-300">WALK_IN</span>
                       ) : (
                         <span className="rounded-full bg-sky-500/10 px-2.5 py-1 text-[11px] font-semibold text-sky-300">ONLINE</span>
                       )}
                     </td>
-                    <td className="px-3 py-3">
+                    <td data-mobile-label="Guest" className="px-3 py-3">
                       <div className="font-medium text-white">{reservation.guestName}</div>
                       <div className="text-xs text-slate-400">{reservation.email}</div>
                       <div className="text-xs text-slate-500">{reservation.phone}</div>
                     </td>
-                    <td className="px-3 py-3">{getReservationRoomLabel(reservation)}</td>
-                    <td className="px-3 py-3">{reservation.promo?.name || '—'}</td>
-                    <td className="px-3 py-3">{formatDate(reservation.checkIn)}</td>
-                    <td className="px-3 py-3">{formatDate(reservation.checkOut)}</td>
-                    <td className="px-3 py-3 font-semibold text-emerald-300">{formatMoney(reservation.pricingSummary?.grandTotal || 0)}</td>
-                    <td className="px-3 py-3">
+                    <td data-mobile-label="Room" className="px-3 py-3">{getReservationRoomLabel(reservation)}</td>
+                    <td data-mobile-label="Promo" className="px-3 py-3">{reservation.promo?.name || '—'}</td>
+                    <td data-mobile-label="Check In" className="px-3 py-3">{formatDate(reservation.checkIn)}</td>
+                    <td data-mobile-label="Check Out" className="px-3 py-3">{formatDate(reservation.checkOut)}</td>
+                    <td data-mobile-label="Grand Total" className="px-3 py-3 font-semibold text-emerald-300">{formatMoney(reservation.pricingSummary?.grandTotal || 0)}</td>
+                    <td data-mobile-label="Reservation Status" className="px-3 py-3">
                       <span className={`inline-flex rounded-full border px-2.5 py-1 text-[11px] font-semibold ${RESERVATION_STATUS_STYLES[reservation.reservationStatus]}`}>
                         {reservation.reservationStatus.replace('_', ' ')}
                       </span>
                     </td>
-                    <td className="px-3 py-3">
+                    <td data-mobile-label="Payment Status" className="px-3 py-3">
                       <span className={`inline-flex rounded-full border px-2.5 py-1 text-[11px] font-semibold ${PAYMENT_STATUS_STYLES[reservation.paymentStatus]}`}>
                         {reservation.paymentStatus.replace('_', ' ')}
                       </span>
                     </td>
-                    <td className="px-3 py-3">
+                    <td data-mobile-label="Actions" className="px-3 py-3">
                       <div className="flex flex-wrap gap-2">
                         <button
                           type="button"
@@ -2073,7 +2074,7 @@ export default function ReservationManagementPanel({ active, canManageGmail = fa
               </div>
 
               <div className="mt-4 overflow-x-auto rounded-lg border border-slate-800">
-                <table className="min-w-full divide-y divide-slate-800 text-left text-xs text-slate-300">
+                <table data-mobile-expandable className="min-w-full divide-y divide-slate-800 text-left text-xs text-slate-300">
                   <thead className="bg-slate-900/70 uppercase tracking-wider text-slate-500">
                     <tr>
                       <th className="px-2 py-2">Payment No.</th>
@@ -2097,17 +2098,17 @@ export default function ReservationManagementPanel({ active, canManageGmail = fa
                     ) : (
                       payments.map((payment) => (
                         <tr key={payment._id}>
-                          <td className="px-2 py-2 text-white">{payment.paymentNumber}</td>
-                          <td className="px-2 py-2">{formatDate(payment.paymentDate)}</td>
-                          <td className="px-2 py-2">{payment.paymentMethod}</td>
-                          <td className="px-2 py-2">{payment.paymentType}</td>
-                          <td className="px-2 py-2 text-emerald-300">{formatMoney(Number(payment.amountPaid || 0))}</td>
-                          <td className="px-2 py-2">{payment.paymentStatus}</td>
-                          <td className="px-2 py-2">{payment.referenceNumber || '—'}</td>
-                          <td className="px-2 py-2">{payment.proofOfPaymentUrl ? <a href={payment.proofOfPaymentUrl} target="_blank" rel="noreferrer" className="text-sky-300 underline hover:text-sky-200">View</a> : '—'}</td>
-                          <td className="px-2 py-2 text-emerald-200">{payment.receiptNumber || '—'}</td>
-                          <td className="px-2 py-2">{payment.issuedBy || '—'}</td>
-                          <td className="px-2 py-2">
+                          <td data-mobile-label="Payment No." className="mobile-row-primary px-2 py-2 text-white">{payment.paymentNumber}<MobileRowToggle /></td>
+                          <td data-mobile-label="Date" className="px-2 py-2">{formatDate(payment.paymentDate)}</td>
+                          <td data-mobile-label="Method" className="px-2 py-2">{payment.paymentMethod}</td>
+                          <td data-mobile-label="Type" className="px-2 py-2">{payment.paymentType}</td>
+                          <td data-mobile-label="Amount" className="px-2 py-2 text-emerald-300">{formatMoney(Number(payment.amountPaid || 0))}</td>
+                          <td data-mobile-label="Status" className="px-2 py-2">{payment.paymentStatus}</td>
+                          <td data-mobile-label="Reference" className="px-2 py-2">{payment.referenceNumber || '—'}</td>
+                          <td data-mobile-label="Proof" className="px-2 py-2">{payment.proofOfPaymentUrl ? <a href={payment.proofOfPaymentUrl} target="_blank" rel="noreferrer" className="text-sky-300 underline hover:text-sky-200">View</a> : '—'}</td>
+                          <td data-mobile-label="Receipt No." className="px-2 py-2 text-emerald-200">{payment.receiptNumber || '—'}</td>
+                          <td data-mobile-label="Issued By" className="px-2 py-2">{payment.issuedBy || '—'}</td>
+                          <td data-mobile-label="Actions" className="px-2 py-2">
                             <div className="flex flex-wrap gap-1">
                               {payment.paymentMethod === 'GCASH' && payment.paymentStatus === 'PENDING_VERIFICATION' ? (
                                 <button
@@ -2231,7 +2232,7 @@ export default function ReservationManagementPanel({ active, canManageGmail = fa
               <p>Reservation Number: <span className="text-white">{editingReservation.reservationNumber}</span></p>
               <p>Guest Name: <span className="text-white">{editingReservation.guestName}</span></p>
               <div className="overflow-x-auto rounded-lg border border-slate-800">
-                <table className="min-w-full text-left text-xs text-slate-300">
+                <table data-mobile-expandable className="min-w-full text-left text-xs text-slate-300">
                   <thead className="bg-slate-900/70 uppercase tracking-wider text-slate-500">
                     <tr>
                       <th className="px-2 py-2">Payment No.</th>
@@ -2245,12 +2246,12 @@ export default function ReservationManagementPanel({ active, canManageGmail = fa
                   <tbody className="divide-y divide-slate-800">
                     {receiptPayments.map((payment) => (
                       <tr key={payment._id}>
-                        <td className="px-2 py-2 text-white">{payment.paymentNumber}</td>
-                        <td className="px-2 py-2">{formatDate(payment.paymentDate)}</td>
-                        <td className="px-2 py-2">{payment.paymentMethod}</td>
-                        <td className="px-2 py-2">{payment.paymentType}</td>
-                        <td className="px-2 py-2 text-emerald-300">{formatMoney(Number(payment.amountPaid || 0))}</td>
-                        <td className="px-2 py-2">{payment.paymentStatus}</td>
+                        <td data-mobile-label="Payment No." className="mobile-row-primary px-2 py-2 text-white">{payment.paymentNumber}<MobileRowToggle /></td>
+                        <td data-mobile-label="Date" className="px-2 py-2">{formatDate(payment.paymentDate)}</td>
+                        <td data-mobile-label="Method" className="px-2 py-2">{payment.paymentMethod}</td>
+                        <td data-mobile-label="Type" className="px-2 py-2">{payment.paymentType}</td>
+                        <td data-mobile-label="Amount" className="px-2 py-2 text-emerald-300">{formatMoney(Number(payment.amountPaid || 0))}</td>
+                        <td data-mobile-label="Status" className="px-2 py-2">{payment.paymentStatus}</td>
                       </tr>
                     ))}
                   </tbody>

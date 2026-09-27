@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useEffect, useMemo, useState } from 'react';
+import MobileRowToggle from '@/app/components/MobileRowToggle';
 
 type PaymentByDateItem = {
   date: string;
@@ -411,7 +412,7 @@ export default function PaymentReportsPanel({ active }: Props) {
           <p className="mt-2 text-sm text-slate-400">No payments found for current filters.</p>
         ) : (
           <div className="mt-3 overflow-x-auto">
-            <table className="min-w-full text-left text-sm text-slate-300">
+            <table data-mobile-expandable className="min-w-full text-left text-sm text-slate-300">
               <thead className="text-xs uppercase tracking-wider text-slate-500">
                 <tr>
                   <th className="py-2 pr-3">Date</th>
@@ -424,11 +425,11 @@ export default function PaymentReportsPanel({ active }: Props) {
               <tbody className="divide-y divide-slate-800">
                 {report.paymentsByDate.map((item) => (
                   <tr key={item.date}>
-                    <td className="py-2 pr-3 text-white">{item.date}</td>
-                    <td className="py-2 pr-3">{item.payments}</td>
-                    <td className="py-2 pr-3">{formatMoney(item.amount)}</td>
-                    <td className="py-2 pr-3">{formatMoney(item.refundAmount)}</td>
-                    <td className="py-2 pr-3 text-emerald-300">{formatMoney(item.netAmount)}</td>
+                    <td data-mobile-label="Date" className="mobile-row-primary py-2 pr-3 text-white">{item.date}<MobileRowToggle /></td>
+                    <td data-mobile-label="Payments" className="py-2 pr-3">{item.payments}</td>
+                    <td data-mobile-label="Amount" className="py-2 pr-3">{formatMoney(item.amount)}</td>
+                    <td data-mobile-label="Refund Amount" className="py-2 pr-3">{formatMoney(item.refundAmount)}</td>
+                    <td data-mobile-label="Net Amount" className="py-2 pr-3 text-emerald-300">{formatMoney(item.netAmount)}</td>
                   </tr>
                 ))}
               </tbody>
@@ -443,7 +444,7 @@ export default function PaymentReportsPanel({ active }: Props) {
           <p className="mt-2 text-sm text-slate-400">No method breakdown available.</p>
         ) : (
           <div className="mt-3 overflow-x-auto">
-            <table className="min-w-full text-left text-sm text-slate-300">
+            <table data-mobile-expandable className="min-w-full text-left text-sm text-slate-300">
               <thead className="text-xs uppercase tracking-wider text-slate-500">
                 <tr>
                   <th className="py-2 pr-3">Method</th>
@@ -455,10 +456,10 @@ export default function PaymentReportsPanel({ active }: Props) {
               <tbody className="divide-y divide-slate-800">
                 {report.paymentMethodBreakdown.map((item) => (
                   <tr key={item.method}>
-                    <td className="py-2 pr-3 text-white">{item.method}</td>
-                    <td className="py-2 pr-3">{item.payments}</td>
-                    <td className="py-2 pr-3">{formatMoney(item.amount)}</td>
-                    <td className="py-2 pr-3 text-emerald-300">{formatMoney(item.netRevenue)}</td>
+                    <td data-mobile-label="Method" className="mobile-row-primary py-2 pr-3 text-white">{item.method}<MobileRowToggle /></td>
+                    <td data-mobile-label="Payments" className="py-2 pr-3">{item.payments}</td>
+                    <td data-mobile-label="Amount" className="py-2 pr-3">{formatMoney(item.amount)}</td>
+                    <td data-mobile-label="Net Revenue" className="py-2 pr-3 text-emerald-300">{formatMoney(item.netRevenue)}</td>
                   </tr>
                 ))}
               </tbody>
@@ -473,7 +474,7 @@ export default function PaymentReportsPanel({ active }: Props) {
           <p className="mt-2 text-sm text-slate-400">No payment records matched the selected filters.</p>
         ) : (
           <div className="mt-3 overflow-x-auto">
-            <table className="min-w-full text-left text-xs text-slate-300">
+            <table data-mobile-expandable className="min-w-full text-left text-xs text-slate-300">
               <thead className="text-[11px] uppercase tracking-wider text-slate-500">
                 <tr>
                   <th className="py-2 pr-3">Payment No</th>
@@ -489,14 +490,14 @@ export default function PaymentReportsPanel({ active }: Props) {
               <tbody className="divide-y divide-slate-800">
                 {report.payments.map((item) => (
                   <tr key={`${item.paymentNumber}-${item.paymentDate}-${item.referenceNumber}`}>
-                    <td className="py-2 pr-3 text-white">{item.paymentNumber}</td>
-                    <td className="py-2 pr-3">{item.paymentDate}</td>
-                    <td className="py-2 pr-3">{item.reservationNumber || '—'}</td>
-                    <td className="py-2 pr-3">{item.guestName || '—'}</td>
-                    <td className="py-2 pr-3">{item.paymentMethod}</td>
-                    <td className="py-2 pr-3">{item.paymentStatus}</td>
-                    <td className="py-2 pr-3">{item.paymentType}</td>
-                    <td className="py-2 pr-3 text-emerald-300">{formatMoney(item.amountPaid)}</td>
+                    <td data-mobile-label="Payment No" className="mobile-row-primary py-2 pr-3 text-white">{item.paymentNumber}<MobileRowToggle /></td>
+                    <td data-mobile-label="Date" className="py-2 pr-3">{item.paymentDate}</td>
+                    <td data-mobile-label="Reservation" className="py-2 pr-3">{item.reservationNumber || '—'}</td>
+                    <td data-mobile-label="Guest" className="py-2 pr-3">{item.guestName || '—'}</td>
+                    <td data-mobile-label="Method" className="py-2 pr-3">{item.paymentMethod}</td>
+                    <td data-mobile-label="Status" className="py-2 pr-3">{item.paymentStatus}</td>
+                    <td data-mobile-label="Type" className="py-2 pr-3">{item.paymentType}</td>
+                    <td data-mobile-label="Amount" className="py-2 pr-3 text-emerald-300">{formatMoney(item.amountPaid)}</td>
                   </tr>
                 ))}
               </tbody>

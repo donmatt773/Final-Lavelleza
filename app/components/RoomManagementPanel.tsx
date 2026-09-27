@@ -3,6 +3,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import Image from 'next/image';
 import RoomForm from '@/app/components/RoomForm';
+import MobileRowToggle from '@/app/components/MobileRowToggle';
 
 type RoomRecord = {
   _id: string;
@@ -312,7 +313,7 @@ export default function RoomManagementPanel({ active, staffMode = false }: Props
       ) : (
         <>
           <div className="overflow-x-auto rounded-xl border border-slate-800">
-            <table className="min-w-full divide-y divide-slate-800 text-left text-sm text-slate-300">
+            <table data-mobile-expandable className="min-w-full divide-y divide-slate-800 text-left text-sm text-slate-300">
               <thead className="bg-slate-900/70 text-xs uppercase tracking-wider text-slate-400">
                 <tr>
                   <th className="px-3 py-3">Image</th>
@@ -355,7 +356,7 @@ export default function RoomManagementPanel({ active, staffMode = false }: Props
 
                   return (
                     <tr key={room._id} className="hover:bg-slate-900/60">
-                      <td className="px-3 py-3">
+                      <td data-mobile-label="Image" className="px-3 py-3">
                         <div className="flex h-12 w-20 items-center justify-center overflow-hidden rounded-lg border border-slate-800 bg-slate-900">
                           {primaryImage?.fileUrl ? (
                             <Image
@@ -371,22 +372,23 @@ export default function RoomManagementPanel({ active, staffMode = false }: Props
                         </div>
                         <p className="mt-1 text-[11px] text-slate-500">{imageCount} image{imageCount === 1 ? '' : 's'}</p>
                       </td>
-                      <td className="px-3 py-3">
+                      <td data-mobile-label="Room Name" className="mobile-row-primary px-3 py-3">
                         <div className="font-medium text-white">{room.name}</div>
                         <div className="mt-1 text-xs text-slate-500">{room.description || 'No description provided.'}</div>
+                        <MobileRowToggle />
                       </td>
-                      <td className="px-3 py-3">{room.code}</td>
-                      <td className="px-3 py-3">{room.maxGuests}</td>
-                      <td className="px-3 py-3">{bedSummary}</td>
-                      <td className="px-3 py-3 max-w-52.5 text-xs text-slate-300">{featureSummary}</td>
-                      <td className="px-3 py-3 max-w-60 text-xs text-slate-300">{amenitySummary}</td>
-                      {!staffMode ? <td className="px-3 py-3">{formatRate(room.nightlyRate)}</td> : null}
-                      <td className="px-3 py-3">
+                      <td data-mobile-label="Room Code" className="px-3 py-3">{room.code}</td>
+                      <td data-mobile-label="Capacity" className="px-3 py-3">{room.maxGuests}</td>
+                      <td data-mobile-label="Beds" className="px-3 py-3">{bedSummary}</td>
+                      <td data-mobile-label="Features" className="px-3 py-3 max-w-52.5 text-xs text-slate-300">{featureSummary}</td>
+                      <td data-mobile-label="Amenities" className="px-3 py-3 max-w-60 text-xs text-slate-300">{amenitySummary}</td>
+                      {!staffMode ? <td data-mobile-label="Rate" className="px-3 py-3">{formatRate(room.nightlyRate)}</td> : null}
+                      <td data-mobile-label="Availability" className="px-3 py-3">
                         <span className={`rounded-full px-2.5 py-1 text-[11px] font-semibold ${availabilityClasses}`}>
                           {availabilityText}
                         </span>
                       </td>
-                      <td className="px-3 py-3">
+                      <td data-mobile-label="Status" className="px-3 py-3">
                         {staffMode ? (
                           <select
                             aria-label={`Status for ${room.name}`}
@@ -405,7 +407,7 @@ export default function RoomManagementPanel({ active, staffMode = false }: Props
                           </span>
                         )}
                       </td>
-                      <td className="px-3 py-3">
+                      <td data-mobile-label="Actions" className="px-3 py-3">
                         <div className="flex flex-wrap gap-2">
                           <button
                             type="button"

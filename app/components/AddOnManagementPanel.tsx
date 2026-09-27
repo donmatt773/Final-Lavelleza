@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useEffect, useState } from 'react';
+import MobileRowToggle from '@/app/components/MobileRowToggle';
 
 type AddOnRecord = {
   _id: string;
@@ -140,10 +141,10 @@ export default function AddOnManagementPanel({ active }: { active: boolean }) {
 
       {loading ? <p className="text-sm text-slate-400">Loading add-ons...</p> : addOns.length === 0 ? <p className="rounded-xl border border-slate-800 bg-slate-950/60 p-6 text-center text-sm text-slate-400">No add-ons configured.</p> : (
         <div className="overflow-x-auto rounded-xl border border-slate-800">
-          <table className="min-w-full divide-y divide-slate-800 text-left text-sm">
+          <table data-mobile-expandable className="min-w-full divide-y divide-slate-800 text-left text-sm">
             <thead className="bg-slate-900/70 text-xs uppercase tracking-wider text-slate-400"><tr><th className="px-3 py-3">Item</th><th className="px-3 py-3">Category</th><th className="px-3 py-3">Price</th><th className="px-3 py-3">Stock</th><th className="px-3 py-3">Status</th><th className="px-3 py-3">Actions</th></tr></thead>
             <tbody className="divide-y divide-slate-800">
-              {addOns.map((addOn) => <tr key={addOn._id}><td className="px-3 py-3"><p className="font-semibold text-white">{addOn.name}</p><p className="text-xs text-slate-500">{addOn.description || '—'}</p></td><td className="px-3 py-3">{addOn.category || 'OTHER'}</td><td className="px-3 py-3 text-emerald-300">{formatMoney(addOn.price)}</td><td className="px-3 py-3">{addOn.stockQuantity ?? 'Unlimited'}</td><td className="px-3 py-3">{addOn.isActive ? <span className="text-emerald-300">Active</span> : <span className="text-slate-500">Inactive</span>}</td><td className="px-3 py-3"><div className="flex gap-2"><button type="button" onClick={() => edit(addOn)} className="rounded-lg border border-slate-700 px-2 py-1 text-xs text-slate-200 hover:bg-slate-800">Edit</button><button type="button" onClick={() => { void toggleActive(addOn); }} className="rounded-lg border border-slate-700 px-2 py-1 text-xs text-slate-200 hover:bg-slate-800">{addOn.isActive ? 'Deactivate' : 'Activate'}</button></div></td></tr>)}
+              {addOns.map((addOn) => <tr key={addOn._id}><td data-mobile-label="Item" className="mobile-row-primary px-3 py-3"><p className="font-semibold text-white">{addOn.name}</p><p className="text-xs text-slate-500">{addOn.description || '—'}</p><MobileRowToggle /></td><td data-mobile-label="Category" className="px-3 py-3">{addOn.category || 'OTHER'}</td><td data-mobile-label="Price" className="px-3 py-3 text-emerald-300">{formatMoney(addOn.price)}</td><td data-mobile-label="Stock" className="px-3 py-3">{addOn.stockQuantity ?? 'Unlimited'}</td><td data-mobile-label="Status" className="px-3 py-3">{addOn.isActive ? <span className="text-emerald-300">Active</span> : <span className="text-slate-500">Inactive</span>}</td><td data-mobile-label="Actions" className="px-3 py-3"><div className="flex gap-2"><button type="button" onClick={() => edit(addOn)} className="rounded-lg border border-slate-700 px-2 py-1 text-xs text-slate-200 hover:bg-slate-800">Edit</button><button type="button" onClick={() => { void toggleActive(addOn); }} className="rounded-lg border border-slate-700 px-2 py-1 text-xs text-slate-200 hover:bg-slate-800">{addOn.isActive ? 'Deactivate' : 'Activate'}</button></div></td></tr>)}
             </tbody>
           </table>
         </div>
