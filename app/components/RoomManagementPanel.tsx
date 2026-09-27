@@ -43,6 +43,7 @@ type RoomRecord = {
 
 type Props = {
   active: boolean;
+  staffMode?: boolean;
 };
 
 const PAGE_SIZE = 6;
@@ -54,7 +55,7 @@ const formatRate = (value: number) =>
     maximumFractionDigits: 0,
   }).format(value);
 
-export default function RoomManagementPanel({ active }: Props) {
+export default function RoomManagementPanel({ active, staffMode = false }: Props) {
   const [rooms, setRooms] = useState<RoomRecord[]>([]);
   const [loading, setLoading] = useState(false);
   const [search, setSearch] = useState('');
@@ -180,6 +181,30 @@ export default function RoomManagementPanel({ active }: Props) {
     }
   };
 
+  const handleStatusChange = async (roomId: string, status: string) => {
+    setProcessingId(roomId);
+    setMessage(null);
+    try {
+      const res = await fetch(`/api/rooms/${roomId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json', ...getAuthHeaders() },
+        body: JSON.stringify({ status }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        throw new Error(data.message || 'Unable to update room status');
+      }
+      setRooms((current) => current.map((room) => room._id === roomId ? { ...room, status } : room));
+      setMessage('Room status updated successfully.');
+      setMessageType('success');
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : 'Unable to update room status');
+      setMessageType('error');
+    } finally {
+      setProcessingId(null);
+    }
+  };
+
   const openAddForm = () => {
     setSelectedRoom(null);
     setFormMode('add');
@@ -219,15 +244,17 @@ export default function RoomManagementPanel({ active }: Props) {
       <div className="mb-6 flex flex-col gap-3 border-b border-slate-800 pb-5 md:flex-row md:items-end md:justify-between">
         <div>
           <p className="text-xs font-semibold uppercase tracking-[0.3em] text-emerald-400">Room Management</p>
-          <h2 className="text-2xl font-semibold text-white">Manage rooms, rates, and availability</h2>
+          <h2 className="text-2xl font-semibold text-white">{staffMode ? 'Manage room availability' : 'Manage rooms, rates, and availability'}</h2>
         </div>
-        <button
-          type="button"
-          onClick={openAddForm}
-          className="rounded-lg bg-emerald-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-emerald-500"
-        >
-          + Add Room
-        </button>
+        {!staffMode ? (
+          <button
+            type="button"
+            onClick={openAddForm}
+            className="rounded-lg bg-emerald-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-emerald-500"
+          >
+            + Add Room
+          </button>
+        ) : null}
       </div>
 
       {message ? (
@@ -295,7 +322,7 @@ export default function RoomManagementPanel({ active }: Props) {
                   <th className="px-3 py-3">Beds</th>
                   <th className="px-3 py-3">Features</th>
                   <th className="px-3 py-3">Amenities</th>
-                  <th className="px-3 py-3">Rate</th>
+                  {!staffMode ? <th className="px-3 py-3">Rate</th> : null}
                   <th className="px-3 py-3">Availability</th>
                   <th className="px-3 py-3">Status</th>
                   <th className="px-3 py-3">Actions</th>
@@ -353,16 +380,30 @@ export default function RoomManagementPanel({ active }: Props) {
                       <td className="px-3 py-3">{bedSummary}</td>
                       <td className="px-3 py-3 max-w-52.5 text-xs text-slate-300">{featureSummary}</td>
                       <td className="px-3 py-3 max-w-60 text-xs text-slate-300">{amenitySummary}</td>
-                      <td className="px-3 py-3">{formatRate(room.nightlyRate)}</td>
+                      {!staffMode ? <td className="px-3 py-3">{formatRate(room.nightlyRate)}</td> : null}
                       <td className="px-3 py-3">
                         <span className={`rounded-full px-2.5 py-1 text-[11px] font-semibold ${availabilityClasses}`}>
                           {availabilityText}
                         </span>
                       </td>
                       <td className="px-3 py-3">
-                        <span className={`rounded-full px-2.5 py-1 text-[11px] font-semibold ${room.status === 'AVAILABLE' ? 'bg-emerald-500/10 text-emerald-400' : room.status === 'MAINTENANCE' ? 'bg-amber-500/10 text-amber-400' : 'bg-slate-500/10 text-slate-300'}`}>
-                          {room.status}
-                        </span>
+                        {staffMode ? (
+                          <select
+                            aria-label={`Status for ${room.name}`}
+                            value={room.status}
+                            disabled={processingId === room._id}
+                            onChange={(event) => void handleStatusChange(room._id, event.target.value)}
+                            className="rounded-lg border border-slate-700 bg-slate-900 px-2 py-1.5 text-xs text-white disabled:opacity-60"
+                          >
+                            <option value="AVAILABLE">AVAILABLE</option>
+                            <option value="MAINTENANCE">MAINTENANCE</option>
+                            <option value="INACTIVE">INACTIVE</option>
+                          </select>
+                        ) : (
+                          <span className={`rounded-full px-2.5 py-1 text-[11px] font-semibold ${room.status === 'AVAILABLE' ? 'bg-emerald-500/10 text-emerald-400' : room.status === 'MAINTENANCE' ? 'bg-amber-500/10 text-amber-400' : 'bg-slate-500/10 text-slate-300'}`}>
+                            {room.status}
+                          </span>
+                        )}
                       </td>
                       <td className="px-3 py-3">
                         <div className="flex flex-wrap gap-2">
@@ -373,21 +414,25 @@ export default function RoomManagementPanel({ active }: Props) {
                           >
                             {viewLoading ? 'Loading...' : 'View'}
                           </button>
-                          <button
-                            type="button"
-                            onClick={() => openEditForm(room)}
-                            className="rounded-lg border border-slate-700 px-3 py-1.5 text-sm text-slate-300 hover:bg-slate-800"
-                          >
-                            Edit
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => handleArchive(room._id)}
-                            disabled={processingId === room._id}
-                            className="rounded-lg border border-amber-700/30 px-3 py-1.5 text-sm text-amber-300 hover:bg-amber-900/20 disabled:opacity-60"
-                          >
-                            {processingId === room._id ? 'Archiving...' : 'Archive'}
-                          </button>
+                          {!staffMode ? (
+                            <>
+                              <button
+                                type="button"
+                                onClick={() => openEditForm(room)}
+                                className="rounded-lg border border-slate-700 px-3 py-1.5 text-sm text-slate-300 hover:bg-slate-800"
+                              >
+                                Edit
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => handleArchive(room._id)}
+                                disabled={processingId === room._id}
+                                className="rounded-lg border border-amber-700/30 px-3 py-1.5 text-sm text-amber-300 hover:bg-amber-900/20 disabled:opacity-60"
+                              >
+                                {processingId === room._id ? 'Archiving...' : 'Archive'}
+                              </button>
+                            </>
+                          ) : null}
                         </div>
                       </td>
                     </tr>
@@ -423,7 +468,7 @@ export default function RoomManagementPanel({ active }: Props) {
         </>
       )}
 
-      <RoomForm
+      {!staffMode ? <RoomForm
         open={formOpen}
         mode={formMode}
         roomId={selectedRoom?._id || null}
@@ -454,7 +499,7 @@ export default function RoomManagementPanel({ active }: Props) {
         } : null}
         onClose={() => setFormOpen(false)}
         onSaved={handleSaved}
-      />
+      /> : null}
 
       {viewRoom ? (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/80 px-4 py-6">
@@ -472,7 +517,7 @@ export default function RoomManagementPanel({ active }: Props) {
               <div><span className="text-slate-500">Room Code:</span> {viewRoom.code}</div>
               <div><span className="text-slate-500">Capacity:</span> {viewRoom.maxGuests}</div>
               <div><span className="text-slate-500">Status:</span> {viewRoom.status}</div>
-              <div><span className="text-slate-500">Nightly Rate:</span> {formatRate(viewRoom.nightlyRate)}</div>
+              {!staffMode ? <div><span className="text-slate-500">Nightly Rate:</span> {formatRate(viewRoom.nightlyRate)}</div> : null}
             </div>
 
             <div className="mt-4 rounded-lg border border-slate-800 bg-slate-950/70 p-3 text-sm text-slate-300">

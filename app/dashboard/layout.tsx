@@ -171,16 +171,14 @@ export default function DashboardLayout({
                 <span aria-hidden="true">👤</span>{!isSidebarCollapsed ? <span>User Management</span> : null}
               </button>
             ) : null}
-            {isOwner ? (
-              <button
+            <button
               type="button"
               onClick={() => selectTab('rooms')}
               aria-label="Room Management"
               className={`flex w-full items-center ${isSidebarCollapsed ? 'justify-center' : ''} gap-2 rounded-lg px-3 py-2.5 text-left text-xs font-medium transition-all ${activeTab === 'rooms' ? 'border border-emerald-500/20 bg-emerald-500/10 text-emerald-400' : 'text-slate-400 hover:bg-slate-800/30 hover:text-white'}`}
-              >
-                <span aria-hidden="true">🛏️</span>{!isSidebarCollapsed ? <span>Room Management</span> : null}
-              </button>
-            ) : null}
+            >
+              <span aria-hidden="true">🛏️</span>{!isSidebarCollapsed ? <span>Room Management</span> : null}
+            </button>
             {isOwner ? (
               <button
               type="button"
@@ -256,7 +254,7 @@ export default function DashboardLayout({
           </div>
           {pathname?.includes('/dashboard/owner') || pathname?.includes('/dashboard/staff') ? (
             <div className="mt-2">
-              {activeTab === 'users' && isOwner ? <UserManagementPanel active={true} /> : activeTab === 'rooms' && isOwner ? <RoomManagementPanel active={true} /> : activeTab === 'promos' && isOwner ? <PromoManagementPanel active={true} /> : activeTab === 'add-ons' && isOwner ? <AddOnManagementPanel active={true} /> : activeTab === 'reservations' ? <ReservationManagementPanel active={true} canManageGmail={isOwner} /> : activeTab === 'reports' ? <PaymentReportsPanel active={true} /> : activeTab === 'rate-settings' && isOwner ? <RoomRateSettingsPanel active={true} /> : (
+              {activeTab === 'users' && isOwner ? <UserManagementPanel active={true} /> : activeTab === 'rooms' ? <RoomManagementPanel active={true} staffMode={!isOwner} /> : activeTab === 'promos' && isOwner ? <PromoManagementPanel active={true} /> : activeTab === 'add-ons' && isOwner ? <AddOnManagementPanel active={true} /> : activeTab === 'reservations' ? <ReservationManagementPanel active={true} canManageGmail={isOwner} /> : activeTab === 'reports' ? <PaymentReportsPanel active={true} /> : activeTab === 'rate-settings' && isOwner ? <RoomRateSettingsPanel active={true} /> : (
                 <>
                   {isOwner ? children : <ReservationDashboardPanel />}
                   <div className="mt-6 rounded-3xl border border-slate-800 bg-slate-900/80 p-6 text-slate-300">
