@@ -228,3 +228,105 @@ textarea:focus-visible {
   outline: 3px solid #F7C948;
   outline-offset: 3px;
 }
+
+.dashboard-theme {
+  --dashboard-ink: #17263A;
+  --dashboard-navy: #1F3A5F;
+  --dashboard-sand: #FBF3E4;
+  --dashboard-border: #17263A1F;
+  --color-slate-50: #17263A;
+  --color-slate-100: #1F3A5F;
+  --color-slate-200: #304968;
+  --color-slate-300: #304968;
+  --color-slate-400: #53677E;
+  --color-slate-500: #748397;
+  --color-slate-600: #9AA8B8;
+  --color-slate-700: #C7CDD2;
+  --color-slate-800: #E2DCCD;
+  --color-slate-900: #FFFFFF;
+  --color-slate-950: #F7F0E3;
+  min-width: 0;
+  background: var(--dashboard-sand);
+  color: var(--dashboard-ink);
+}
+
+.dashboard-theme .text-white {
+  color: var(--dashboard-ink);
+}
+
+.dashboard-theme .text-emerald-300,
+.dashboard-theme .text-emerald-400 {
+  color: #A85512;
+}
+
+.dashboard-theme .text-amber-300,
+.dashboard-theme .text-orange-300 {
+  color: #8A5B08;
+}
+
+.dashboard-theme .text-rose-300 {
+  color: #AB311C;
+}
+
+.dashboard-theme .text-sky-300,
+.dashboard-theme .text-cyan-300 {
+  color: #24528E;
+}
+
+.dashboard-theme .text-fuchsia-300 {
+  color: #8B3C59;
+}
+
+.dashboard-sidebar {
+  border-color: #FBF3E433;
+  background: linear-gradient(165deg, #1F3A5F, #17263A 80%);
+  color: var(--dashboard-sand);
+}
+
+.dashboard-sidebar .text-white {
+  color: var(--dashboard-sand);
+}
+
+.dashboard-sidebar .text-slate-400 {
+  color: #FBF3E4B8;
+}
+
+.dashboard-sidebar .text-slate-500 {
+  color: #FBF3E480;
+}
+
+.dashboard-sidebar .border-slate-800,
+.dashboard-sidebar .border-slate-700 {
+  border-color: #FBF3E426;
+}
+
+.dashboard-sidebar .hover\:bg-slate-800:hover {
+  background-color: #FBF3E41A;
+}
+
+.dashboard-sidebar .dashboard-logout {
+  border-color: #F0923C;
+  background-color: #F0923C;
+  color: #17263A;
+}
+
+.dashboard-sidebar .dashboard-logout:hover {
+  border-color: #F7C948;
+  background-color: #F7C948;
+  color: #17263A;
+}
+
+.dashboard-theme .fixed.inset-0.bg-slate-950\/80 {
+  background-color: #1F3A5FCC;
+}
+
+.dashboard-theme input,
+.dashboard-theme select,
+.dashboard-theme textarea {
+  color: var(--dashboard-ink);
+}
+
+.dashboard-theme input::placeholder,
+.dashboard-theme textarea::placeholder {
+  color: #17263A80;
+}

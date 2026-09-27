@@ -1,7 +1,9 @@
 'use client';
 
 import React, { useRef, useState } from 'react';
+import Image from 'next/image';
 import { useRouter, usePathname } from 'next/navigation';
+import logo from '@/app/icons/logo.jpg';
 import UserManagementPanel from '@/app/components/UserManagementPanel';
 import RoomManagementPanel from '@/app/components/RoomManagementPanel';
 import RoomRateSettingsPanel from '@/app/components/RoomRateSettingsPanel';
@@ -24,6 +26,7 @@ export default function DashboardLayout({
   const [activeTab, setActiveTab] = useState<DashboardTab>('reservations');
   const [isOwner, setIsOwner] = useState(false);
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
+  const [isMobileNavOpen, setIsMobileNavOpen] = useState(false);
   const [sessionReady, setSessionReady] = useState(false);
   const [activityLogOpen, setActivityLogOpen] = useState(false);
   const sessionCheckInFlight = useRef(false);
@@ -101,21 +104,31 @@ export default function DashboardLayout({
     router.replace('/login');
   };
 
+  const selectTab = (tab: DashboardTab) => {
+    setActiveTab(tab);
+    setIsMobileNavOpen(false);
+  };
+
   if (!sessionReady) {
-    return <main className="flex min-h-screen items-center justify-center bg-slate-950 text-sm text-slate-400">Checking session...</main>;
+    return <main className="dashboard-theme flex min-h-screen items-center justify-center text-sm text-slate-400">Checking session...</main>;
   }
 
   return (
-    <div className="flex min-h-screen bg-slate-950">
+    <div className="dashboard-theme flex min-h-screen">
+      <button
+        type="button"
+        aria-label="Close dashboard navigation"
+        tabIndex={isMobileNavOpen ? 0 : -1}
+        onClick={() => setIsMobileNavOpen(false)}
+        className={`fixed inset-0 z-30 bg-[#1F3A5F]/55 transition-opacity sm:hidden ${isMobileNavOpen ? 'opacity-100' : 'pointer-events-none opacity-0'}`}
+      />
       {/* Persistent System Control Sidebar */}
-      <aside className={`${isSidebarCollapsed ? 'w-14 sm:w-16' : 'w-64 max-sm:absolute max-sm:z-30'} sticky top-0 flex h-screen max-h-screen shrink-0 flex-col justify-between overflow-y-auto border-r border-slate-800 bg-slate-900 p-3 transition-[width] duration-200 sm:p-4 lg:p-6`}>
+      <aside className={`dashboard-sidebar fixed inset-y-0 left-0 z-40 flex h-dvh w-72 shrink-0 flex-col justify-between overflow-y-auto border-r p-3 transition-[width,transform] duration-200 sm:sticky sm:top-0 sm:z-auto sm:h-screen sm:max-h-screen sm:p-4 lg:p-6 ${isSidebarCollapsed ? 'sm:w-16' : 'sm:w-64'} ${isMobileNavOpen ? 'translate-x-0' : '-translate-x-full sm:translate-x-0'}`}>
         <div className="space-y-6">
           {/* Logo Element */}
           <div className={`flex items-center ${isSidebarCollapsed ? 'flex-col justify-center gap-2' : 'justify-between gap-3'} px-1`}>
             <div className="flex min-w-0 items-center gap-3">
-              <div className="flex h-8 w-8 items-center justify-center rounded bg-emerald-600 text-sm font-bold text-white">
-                LV
-              </div>
+              <Image src={logo} alt="La Velleza Resort" className="h-8 w-8 rounded-full object-cover" priority />
               {!isSidebarCollapsed ? <span className="truncate text-sm font-bold tracking-wide text-white">La Velleza System</span> : null}
             </div>
             <button
@@ -123,7 +136,7 @@ export default function DashboardLayout({
               onClick={() => setIsSidebarCollapsed((collapsed) => !collapsed)}
               aria-label={isSidebarCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
               title={isSidebarCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
-              className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-slate-700 text-lg text-slate-400 transition hover:bg-slate-800 hover:text-white"
+              className="hidden h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-slate-700 text-lg text-slate-400 transition hover:bg-slate-800 hover:text-white sm:flex"
             >
               {isSidebarCollapsed ? '›' : '‹'}
             </button>
@@ -134,7 +147,7 @@ export default function DashboardLayout({
             {!isSidebarCollapsed ? <p className="mb-2 px-2 text-[10px] font-bold uppercase tracking-wider text-slate-500">Main Menu</p> : null}
             <button
               type="button"
-              onClick={() => setActiveTab('overview')}
+              onClick={() => selectTab('overview')}
               aria-label={isOwner ? 'Owner Overview' : 'Overview'}
               className={`flex w-full items-center ${isSidebarCollapsed ? 'justify-center' : ''} gap-2 rounded-lg px-3 py-2.5 text-left text-xs font-medium transition-all ${activeTab === 'overview' ? 'border border-emerald-500/20 bg-emerald-500/10 text-emerald-400' : 'text-slate-400 hover:bg-slate-800/30 hover:text-white'}`}
             >
@@ -142,7 +155,7 @@ export default function DashboardLayout({
             </button>
             <button
               type="button"
-              onClick={() => setActiveTab('reservations')}
+              onClick={() => selectTab('reservations')}
               aria-label="Reservation Management"
               className={`flex w-full items-center ${isSidebarCollapsed ? 'justify-center' : ''} gap-2 rounded-lg px-3 py-2.5 text-left text-xs font-medium transition-all ${activeTab === 'reservations' ? 'border border-emerald-500/20 bg-emerald-500/10 text-emerald-400' : 'text-slate-400 hover:bg-slate-800/30 hover:text-white'}`}
             >
@@ -151,7 +164,7 @@ export default function DashboardLayout({
             {isOwner ? (
               <button
                 type="button"
-                onClick={() => setActiveTab('users')}
+                onClick={() => selectTab('users')}
                 aria-label="User Management"
                 className={`flex w-full items-center ${isSidebarCollapsed ? 'justify-center' : ''} gap-2 rounded-lg px-3 py-2.5 text-left text-xs font-medium transition-all ${activeTab === 'users' ? 'border border-emerald-500/20 bg-emerald-500/10 text-emerald-400' : 'text-slate-400 hover:bg-slate-800/30 hover:text-white'}`}
               >
@@ -161,7 +174,7 @@ export default function DashboardLayout({
             {isOwner ? (
               <button
               type="button"
-              onClick={() => setActiveTab('rooms')}
+              onClick={() => selectTab('rooms')}
               aria-label="Room Management"
               className={`flex w-full items-center ${isSidebarCollapsed ? 'justify-center' : ''} gap-2 rounded-lg px-3 py-2.5 text-left text-xs font-medium transition-all ${activeTab === 'rooms' ? 'border border-emerald-500/20 bg-emerald-500/10 text-emerald-400' : 'text-slate-400 hover:bg-slate-800/30 hover:text-white'}`}
               >
@@ -171,7 +184,7 @@ export default function DashboardLayout({
             {isOwner ? (
               <button
               type="button"
-              onClick={() => setActiveTab('promos')}
+              onClick={() => selectTab('promos')}
               aria-label="Promo Management"
               className={`flex w-full items-center ${isSidebarCollapsed ? 'justify-center' : ''} gap-2 rounded-lg px-3 py-2.5 text-left text-xs font-medium transition-all ${activeTab === 'promos' ? 'border border-emerald-500/20 bg-emerald-500/10 text-emerald-400' : 'text-slate-400 hover:bg-slate-800/30 hover:text-white'}`}
               >
@@ -181,7 +194,7 @@ export default function DashboardLayout({
             {isOwner ? (
               <button
               type="button"
-              onClick={() => setActiveTab('add-ons')}
+              onClick={() => selectTab('add-ons')}
               aria-label="Add-On Management"
               className={`flex w-full items-center ${isSidebarCollapsed ? 'justify-center' : ''} gap-2 rounded-lg px-3 py-2.5 text-left text-xs font-medium transition-all ${activeTab === 'add-ons' ? 'border border-emerald-500/20 bg-emerald-500/10 text-emerald-400' : 'text-slate-400 hover:bg-slate-800/30 hover:text-white'}`}
               >
@@ -190,7 +203,7 @@ export default function DashboardLayout({
             ) : null}
             <button
               type="button"
-              onClick={() => setActiveTab('reports')}
+              onClick={() => selectTab('reports')}
               aria-label="Payment Reports"
               className={`flex w-full items-center ${isSidebarCollapsed ? 'justify-center' : ''} gap-2 rounded-lg px-3 py-2.5 text-left text-xs font-medium transition-all ${activeTab === 'reports' ? 'border border-emerald-500/20 bg-emerald-500/10 text-emerald-400' : 'text-slate-400 hover:bg-slate-800/30 hover:text-white'}`}
             >
@@ -199,7 +212,7 @@ export default function DashboardLayout({
             {isOwner ? (
               <button
               type="button"
-              onClick={() => setActiveTab('rate-settings')}
+              onClick={() => selectTab('rate-settings')}
               aria-label="Rate Settings & Mail"
               className={`flex w-full items-center ${isSidebarCollapsed ? 'justify-center' : ''} gap-2 rounded-lg px-3 py-2.5 text-left text-xs font-medium transition-all ${activeTab === 'rate-settings' ? 'border border-emerald-500/20 bg-emerald-500/10 text-emerald-400' : 'text-slate-400 hover:bg-slate-800/30 hover:text-white'}`}
               >
@@ -213,10 +226,10 @@ export default function DashboardLayout({
         <div className="border-t border-slate-800/60 pt-4">
           <button 
             onClick={handleLogout}
-            aria-label="Terminate session"
-            className="flex w-full items-center justify-center rounded-lg border border-slate-800/80 bg-slate-950 py-2.5 text-xs font-semibold text-slate-400 shadow-inner transition-all hover:border-rose-900/30 hover:bg-rose-950/20 hover:text-rose-400"
+            aria-label="Logout"
+            className="dashboard-logout flex w-full items-center justify-center rounded-lg border py-2.5 text-xs font-semibold shadow-sm transition-all"
           >
-            <span aria-hidden="true">🛑</span>{!isSidebarCollapsed ? <span className="ml-2">Terminate Session</span> : null}
+            <span aria-hidden="true">🛑</span>{!isSidebarCollapsed ? <span className="ml-2"> Logout</span> : null}
           </button>
         </div>
       </aside>
@@ -224,6 +237,23 @@ export default function DashboardLayout({
       {/* Main Core Component Viewport Area */}
       <div className="min-w-0 flex-1 overflow-y-auto">
         <div className="p-3 sm:p-6 lg:p-8">
+          <div className="sticky top-0 z-20 -mx-3 -mt-3 mb-4 flex items-center justify-between border-b border-[#17263A1F] bg-[#FBF3E4]/95 px-3 py-3 backdrop-blur sm:hidden">
+            <button
+              type="button"
+              aria-label="Open dashboard navigation"
+              aria-expanded={isMobileNavOpen}
+              onClick={() => setIsMobileNavOpen(true)}
+              className="flex min-h-10 items-center gap-2 rounded-lg border border-[#17263A33] px-3 text-sm font-semibold text-[#1F3A5F]"
+            >
+              <span aria-hidden="true" className="flex flex-col gap-1">
+                <span className="h-px w-4 bg-current" />
+                <span className="h-px w-4 bg-current" />
+                <span className="h-px w-4 bg-current" />
+              </span>
+              Menu
+            </button>
+            <span className="font-serif text-sm font-semibold text-[#1F3A5F]">La Velleza Resort</span>
+          </div>
           {pathname?.includes('/dashboard/owner') || pathname?.includes('/dashboard/staff') ? (
             <div className="mt-2">
               {activeTab === 'users' && isOwner ? <UserManagementPanel active={true} /> : activeTab === 'rooms' && isOwner ? <RoomManagementPanel active={true} /> : activeTab === 'promos' && isOwner ? <PromoManagementPanel active={true} /> : activeTab === 'add-ons' && isOwner ? <AddOnManagementPanel active={true} /> : activeTab === 'reservations' ? <ReservationManagementPanel active={true} canManageGmail={isOwner} /> : activeTab === 'reports' ? <PaymentReportsPanel active={true} /> : activeTab === 'rate-settings' && isOwner ? <RoomRateSettingsPanel active={true} /> : (

@@ -189,7 +189,7 @@ export default function ReservationCalendar() {
             <div>Sat</div>
           </div>
 
-          <div className="grid grid-cols-7 gap-2">
+          <div className="grid grid-cols-7 gap-1 sm:gap-2">
             {days.map((day) => {
               const dayReservations = getReservationsForDate(day);
               const inMonth = day.getMonth() === currentMonth.getMonth();
@@ -208,13 +208,13 @@ export default function ReservationCalendar() {
                   type="button"
                   key={`${day.toISOString()}-${inMonth ? 'in' : 'out'}`}
                   onClick={() => setSelectedDate(day)}
-                  className={`min-h-28 rounded-xl border p-2 text-left transition ${isSelected ? 'border-emerald-500 bg-emerald-500/10' : 'border-slate-800 bg-slate-950/70 hover:bg-slate-900'} ${inMonth ? 'text-white' : 'text-slate-600'}`}
+                  className={`min-h-16 rounded-lg border p-1 text-left transition sm:min-h-28 sm:rounded-xl sm:p-2 ${isSelected ? 'border-emerald-500 bg-emerald-500/10' : 'border-slate-800 bg-slate-950/70 hover:bg-slate-900'} ${inMonth ? 'text-white' : 'text-slate-600'}`}
                 >
                   <p className="text-xs font-semibold">{day.getDate()}</p>
                   <div className="mt-1 space-y-1 text-[10px]">
                     {Object.entries(statusCounts).map(([status, count]) => (
                       count > 0 ? (
-                        <div key={status} className={`rounded border px-1 py-0.5 ${STATUS_STYLES[status]}`}>
+                        <div key={status} className={`rounded border px-0.5 py-0.5 leading-tight sm:px-1 ${STATUS_STYLES[status]}`}>
                           {status.replace('_', ' ')}: {count}
                         </div>
                       ) : null
