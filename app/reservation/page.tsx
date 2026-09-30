@@ -1,7 +1,9 @@
 import Link from 'next/link';
 import Image from 'next/image';
 import ReservationForm from '@/app/components/ReservationForm';
+import SiteFooter from '@/app/components/landing/SiteFooter';
 import { connectDB } from '@/app/lib/db';
+import RateSettings from '@/app/lib/RateSettings';
 import Room from '@/app/lib/Room';
 import { theme } from '@/app/lib/landingTheme';
 import logo from '@/app/icons/logo.jpg';
@@ -23,10 +25,15 @@ async function loadPublicReservationFormData() {
   try {
     await connectDB();
 
-    const roomsRaw = await Room.find({ isArchived: false, status: 'AVAILABLE' })
-      .select('name code description maxGuests nightlyRate halfDayRate wholeDayRate')
-      .sort({ name: 1 })
-      .lean();
+    const [roomsRaw, rateSettingsRaw] = await Promise.all([
+      Room.find({ isArchived: false, status: 'AVAILABLE' })
+        .select('name code description maxGuests nightlyRate halfDayRate wholeDayRate')
+        .sort({ name: 1 })
+        .lean(),
+      RateSettings.findOne({ key: 'default' })
+        .select('checkInTime checkOutTime')
+        .lean(),
+    ]);
 
     const rooms: RoomOption[] = roomsRaw.map((room) => ({
       _id: String(room._id),
@@ -39,19 +46,29 @@ async function loadPublicReservationFormData() {
       wholeDayRate: Number(room.wholeDayRate || 0),
     }));
 
-    return { rooms };
+    return {
+      rooms,
+      rateSettings: {
+        checkInTime: rateSettingsRaw?.checkInTime || '1:00 PM',
+        checkOutTime: rateSettingsRaw?.checkOutTime || '11:00 AM',
+      },
+    };
   } catch {
-    return { rooms: [] as RoomOption[] };
+    return {
+      rooms: [] as RoomOption[],
+      rateSettings: { checkInTime: '1:00 PM', checkOutTime: '11:00 AM' },
+    };
   }
 }
 
 export default async function ReservationPage({ searchParams }: { searchParams: Promise<ReservationSearchParams> }) {
-  const { rooms } = await loadPublicReservationFormData();
+  const { rooms, rateSettings } = await loadPublicReservationFormData();
   const query = await searchParams;
   const readParam = (value: string | string[] | undefined) => typeof value === 'string' ? value : '';
 
   return (
-    <main className="min-h-screen px-4 py-6 sm:px-6 sm:py-10" style={{ backgroundColor: theme.sand, color: theme.ink }}>
+    <div className="flex min-h-screen flex-col">
+      <main className="flex-1 px-4 py-6 sm:px-6 sm:py-10" style={{ backgroundColor: theme.sand, color: theme.ink }}>
       <div className="mx-auto w-full max-w-5xl">
         <header className="mb-6 overflow-hidden rounded-3xl border shadow-xl" style={{ borderColor: `${theme.navy}33`, background: `linear-gradient(135deg, ${theme.navy}, ${theme.royal} 58%, ${theme.navy})`, boxShadow: `0 20px 50px ${theme.navy}26` }}>
           <div className="flex flex-col gap-5 border-b p-5 sm:flex-row sm:items-start sm:justify-between sm:p-7" style={{ borderColor: `${theme.sand}26` }}>
@@ -84,6 +101,8 @@ export default async function ReservationPage({ searchParams }: { searchParams: 
           }}
         />
       </div>
-    </main>
+      </main>
+      <SiteFooter checkInTime={rateSettings.checkInTime} checkOutTime={rateSettings.checkOutTime} />
+    </div>
   );
 }

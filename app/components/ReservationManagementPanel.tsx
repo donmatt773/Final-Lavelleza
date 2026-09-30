@@ -35,10 +35,6 @@ const PAYMENT_STATUS_STYLES: Record<ReservationPaymentStatus, string> = {
   REFUNDED: 'bg-fuchsia-500/10 text-fuchsia-300 border-fuchsia-700/40',
 };
 
-function canQuickTransition(fromStatus: ReservationStatus, toStatus: ReservationStatus) {
-  return STATUS_TRANSITIONS[fromStatus].includes(toStatus);
-}
-
 type ReservationPricingSummary = {
   currency: 'PHP';
   roomRate: number;
@@ -845,12 +841,6 @@ export default function ReservationManagementPanel({ active, canManageGmail = fa
     } finally {
       setProcessingId(null);
     }
-  };
-
-  const quickSetStatus = async (reservation: ReservationRecord, targetStatus: ReservationStatus, successMessage: string) => {
-    await patchReservation(reservation._id, { reservationStatus: targetStatus });
-    setMessage(successMessage);
-    setMessageType('success');
   };
 
   const handleSaveEdit = async () => {

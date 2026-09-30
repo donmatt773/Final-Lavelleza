@@ -214,8 +214,13 @@ export default function ReservationCalendar() {
                   <div className="mt-1 space-y-1 text-[10px]">
                     {Object.entries(statusCounts).map(([status, count]) => (
                       count > 0 ? (
-                        <div key={status} className={`rounded border px-0.5 py-0.5 leading-tight sm:px-1 ${STATUS_STYLES[status]}`}>
-                          {status.replace('_', ' ')}: {count}
+                        <div
+                          key={status}
+                          aria-label={`${status.replace('_', ' ')}: ${count}`}
+                          className={`rounded border px-0.5 py-0.5 leading-tight sm:px-1 ${STATUS_STYLES[status]}`}
+                        >
+                          <span className="sm:hidden">{({ PENDING: 'Pend', CONFIRMED: 'Conf', CHECKED_IN: 'In', CHECKED_OUT: 'Out', CANCELLED: 'Can' })[status]}: {count}</span>
+                          <span className="hidden sm:inline">{status.replace('_', ' ')}: {count}</span>
                         </div>
                       ) : null
                     ))}

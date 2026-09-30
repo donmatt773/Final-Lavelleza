@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useRef, useState } from 'react';
+import React, { useState } from 'react';
 import Image from 'next/image';
 import { useRouter, usePathname } from 'next/navigation';
 import logo from '@/app/icons/logo.jpg';
@@ -29,36 +29,37 @@ export default function DashboardLayout({
   const [isMobileNavOpen, setIsMobileNavOpen] = useState(false);
   const [sessionReady, setSessionReady] = useState(false);
   const [activityLogOpen, setActivityLogOpen] = useState(false);
-  const sessionCheckInFlight = useRef(false);
 
   React.useEffect(() => {
-    let mounted = true;
+    // Each call gets its own controller so a stale in-flight request (e.g. from
+    // React Strict Mode's mount/cleanup/remount cycle) never blocks or clobbers
+    // the result of the request that actually belongs to the live effect run.
+    let controller = new AbortController();
 
     const validateServerSession = async () => {
-      if (sessionCheckInFlight.current) return;
-      sessionCheckInFlight.current = true;
+      controller.abort();
+      controller = new AbortController();
+      const { signal } = controller;
+
       try {
-        const response = await fetch('/api/session', { credentials: 'same-origin', cache: 'no-store' });
+        const response = await fetch('/api/session', { credentials: 'same-origin', cache: 'no-store', signal });
         const data = await response.json().catch(() => null);
         const role = Number(data?.role);
         if (!response.ok || !data?.success || (role !== 0 && role !== 1)) {
           localStorage.removeItem('auth_role');
           localStorage.removeItem('auth_name');
-          if (mounted) router.replace('/login');
+          router.replace('/login');
           return;
         }
 
-        if (mounted) {
-          setIsOwner(role === 0);
-          if (role !== 0) setActiveTab('reservations');
-          setSessionReady(true);
-        }
+        setIsOwner(role === 0);
+        if (role !== 0) setActiveTab('reservations');
+        setSessionReady(true);
       } catch {
+        if (signal.aborted) return;
         localStorage.removeItem('auth_role');
         localStorage.removeItem('auth_name');
-        if (mounted) router.replace('/login');
-      } finally {
-        sessionCheckInFlight.current = false;
+        router.replace('/login');
       }
     };
 
@@ -72,7 +73,7 @@ export default function DashboardLayout({
     window.addEventListener('popstate', revalidateAfterHistoryNavigation);
 
     return () => {
-      mounted = false;
+      controller.abort();
       window.removeEventListener('pageshow', revalidateAfterHistoryNavigation);
       window.removeEventListener('popstate', revalidateAfterHistoryNavigation);
     };

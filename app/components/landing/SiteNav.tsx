@@ -49,9 +49,9 @@ export default function SiteNav() {
           opacity: scrolled ? 1 : 0,
         }}
       />
-      <div className="relative z-10 mx-auto flex max-w-6xl items-center justify-between px-4 py-3 sm:px-6 sm:py-4">
-        <div className="flex items-center gap-3">
-          <Link href="/login" aria-label="Staff login" className="flex items-center">
+      <div className="relative z-10 mx-auto flex max-w-6xl items-center justify-between px-3 py-3 sm:px-6 sm:py-4">
+        <div className="flex shrink-0 items-center gap-2 sm:gap-3">
+          <Link href="/login" aria-label="Staff login" className="flex shrink-0 items-center">
             <Image
               src={logo}
               alt="La Velleza Resort"
@@ -61,7 +61,7 @@ export default function SiteNav() {
           </Link>
           <Link
             href="/"
-            className="font-serif text-lg transition-colors duration-300"
+            className="whitespace-nowrap font-serif text-lg transition-colors duration-300"
             style={{ color: theme.sand }}
           >
             La Velleza
@@ -81,10 +81,10 @@ export default function SiteNav() {
           ))}
         </nav>
 
-        <div className="flex items-center gap-2">
+        <div className="flex shrink-0 items-center gap-2">
           <Link
             href="/reservation"
-            className="rounded-full px-4 py-2 text-sm font-semibold transition-all duration-300 hover:opacity-90 sm:px-5"
+            className="whitespace-nowrap rounded-full px-3 py-2 text-sm font-semibold transition-all duration-300 hover:opacity-90 sm:px-5"
           style={{ backgroundColor: scrolled ? theme.navy : theme.sunset, color: scrolled ? theme.caramel : theme.navy }}
           >
             Book now
@@ -94,7 +94,7 @@ export default function SiteNav() {
             onClick={() => setMenuOpen((open) => !open)}
             aria-expanded={menuOpen}
             aria-label={menuOpen ? 'Close navigation menu' : 'Open navigation menu'}
-            className="flex h-10 w-10 items-center justify-center rounded-full border text-lg sm:hidden"
+            className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full border text-lg sm:hidden"
             style={{ borderColor: `${theme.sand}66`, color: theme.sand }}
           >
             {menuOpen ? '×' : '☰'}
