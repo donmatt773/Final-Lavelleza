@@ -362,7 +362,6 @@ export default function RoomManagementPanel({ active, staffMode = false }: Props
                 <tr>
                   <th className="px-3 py-3">Image</th>
                   <th className="px-3 py-3">Room Name</th>
-                  <th className="px-3 py-3">Room Code</th>
                   <th className="px-3 py-3">Capacity</th>
                   <th className="px-3 py-3">Beds</th>
                   <th className="px-3 py-3">Features</th>
@@ -421,7 +420,6 @@ export default function RoomManagementPanel({ active, staffMode = false }: Props
                         <div className="mt-1 text-xs text-slate-500">{room.description || 'No description provided.'}</div>
                         <MobileRowToggle />
                       </td>
-                      <td data-mobile-label="Room Code" className="px-3 py-3">{room.code}</td>
                       <td data-mobile-label="Capacity" className="px-3 py-3">{room.maxGuests}</td>
                       <td data-mobile-label="Beds" className="px-3 py-3">{bedSummary}</td>
                       <td data-mobile-label="Features" className="px-3 py-3 max-w-52.5 text-xs text-slate-300">{featureSummary}</td>

@@ -1716,9 +1716,8 @@ export default function ReservationManagementPanel({ active, canManageGmail = fa
             <table data-mobile-expandable className="min-w-full divide-y divide-slate-800 text-left text-sm text-slate-300">
               <thead className="bg-slate-900/70 text-xs uppercase tracking-wider text-slate-400">
                 <tr>
-                  <th className="px-3 py-3">Reservation No.</th>
-                  <th className="px-3 py-3">Source</th>
                   <th className="px-3 py-3">Guest</th>
+                  <th className="px-3 py-3">Source</th>
                   <th className="px-3 py-3">Room</th>
                   <th className="px-3 py-3">Promo</th>
                   <th className="px-3 py-3">Check In</th>
@@ -1732,18 +1731,17 @@ export default function ReservationManagementPanel({ active, canManageGmail = fa
               <tbody className="divide-y divide-slate-800">
                 {pagedReservations.map((reservation) => (
                   <tr key={reservation._id} className="hover:bg-slate-900/60">
-                    <td data-mobile-label="Reservation No." className="mobile-row-primary px-3 py-3 font-semibold text-white">{reservation.reservationNumber}<MobileRowToggle /></td>
+                    <td data-mobile-label="Guest" className="mobile-row-primary px-3 py-3">
+                      <div className="font-medium text-white">{reservation.guestName}<MobileRowToggle /></div>
+                      <div className="text-xs text-slate-400">{reservation.email}</div>
+                      <div className="text-xs text-slate-500">{reservation.phone}</div>
+                    </td>
                     <td data-mobile-label="Source" className="px-3 py-3">
                       {normalizeReservationSource(reservation.reservationSource) === 'WALK_IN' ? (
                         <span className="rounded-full bg-amber-500/10 px-2.5 py-1 text-[11px] font-semibold text-amber-300">WALK_IN</span>
                       ) : (
                         <span className="rounded-full bg-sky-500/10 px-2.5 py-1 text-[11px] font-semibold text-sky-300">ONLINE</span>
                       )}
-                    </td>
-                    <td data-mobile-label="Guest" className="px-3 py-3">
-                      <div className="font-medium text-white">{reservation.guestName}</div>
-                      <div className="text-xs text-slate-400">{reservation.email}</div>
-                      <div className="text-xs text-slate-500">{reservation.phone}</div>
                     </td>
                     <td data-mobile-label="Room" className="px-3 py-3">{getReservationRoomLabel(reservation)}</td>
                     <td data-mobile-label="Promo" className="px-3 py-3">{reservation.promo?.name || '—'}</td>
