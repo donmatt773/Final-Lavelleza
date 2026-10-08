@@ -340,7 +340,7 @@ export default function ReservationManagementPanel({ active, canManageGmail = fa
   const [emailSendingId, setEmailSendingId] = useState<string | null>(null);
   const [paymentForm, setPaymentForm] = useState({
     paymentMethod: 'CASH_ON_ARRIVAL' as PaymentMethod,
-    paymentType: 'PARTIAL_PAYMENT' as PaymentType,
+    paymentType: 'AUTO' as PaymentType | 'AUTO',
     amountPaid: '',
     referenceNumber: '',
     notes: '',
@@ -918,16 +918,23 @@ export default function ReservationManagementPanel({ active, canManageGmail = fa
 
       const outstandingBalance = Number(paymentSummary?.outstandingBalance || 0);
       const recognizedPaid = Number(paymentSummary?.recognizedPaid || 0);
+      const effectivePaymentType: PaymentType = paymentForm.paymentType === 'AUTO'
+        ? amount + 0.01 >= outstandingBalance
+          ? 'FULL_PAYMENT'
+          : recognizedPaid > 0
+            ? 'PARTIAL_PAYMENT'
+            : 'RESERVATION_DEPOSIT'
+        : paymentForm.paymentType;
 
-      if (paymentForm.paymentMethod === 'GCASH' && paymentForm.paymentType !== 'REFUND' && amount > outstandingBalance) {
+      if (paymentForm.paymentMethod === 'GCASH' && effectivePaymentType !== 'REFUND' && amount > outstandingBalance) {
         throw new Error('GCash payment cannot exceed the outstanding balance.');
       }
 
-      if (paymentForm.paymentType === 'FULL_PAYMENT' && amount + 0.01 < outstandingBalance) {
+      if (effectivePaymentType === 'FULL_PAYMENT' && amount + 0.01 < outstandingBalance) {
         throw new Error(`Full payment must be at least the outstanding balance of ${formatMoney(outstandingBalance)}.`);
       }
 
-      if (paymentForm.paymentType === 'REFUND' && amount > Math.max(recognizedPaid, 0)) {
+      if (effectivePaymentType === 'REFUND' && amount > Math.max(recognizedPaid, 0)) {
         throw new Error('Refund amount cannot exceed total recognized paid amount.');
       }
 
@@ -937,7 +944,7 @@ export default function ReservationManagementPanel({ active, canManageGmail = fa
         credentials: 'same-origin',
         body: JSON.stringify({
           paymentMethod: paymentForm.paymentMethod,
-          paymentType: paymentForm.paymentType,
+          paymentType: effectivePaymentType,
           amountPaid: amount,
           referenceNumber: paymentForm.referenceNumber.trim() || undefined,
           notes: paymentForm.notes.trim() || undefined,
@@ -953,7 +960,7 @@ export default function ReservationManagementPanel({ active, canManageGmail = fa
 
       setPaymentForm({
         paymentMethod: 'CASH_ON_ARRIVAL',
-        paymentType: 'PARTIAL_PAYMENT',
+        paymentType: 'AUTO',
         amountPaid: '',
         referenceNumber: '',
         notes: '',
@@ -976,7 +983,7 @@ export default function ReservationManagementPanel({ active, canManageGmail = fa
       } else if (data?.emailWarning) {
         setMessage(`Payment was recorded${data?.bookingConfirmed ? ' and booking confirmed' : ''}, but the email failed: ${String(data.emailWarning)}`);
         setMessageType('error');
-      } else if (paymentForm.paymentMethod === 'GCASH' && paymentForm.paymentType !== 'REFUND') {
+      } else if (paymentForm.paymentMethod === 'GCASH' && effectivePaymentType !== 'REFUND') {
         setMessage('GCash payment recorded and awaiting verification. The booking will be confirmed and emailed after verification.');
         setMessageType('info');
       } else if (data?.bookingConfirmed) {
@@ -1981,9 +1988,10 @@ export default function ReservationManagementPanel({ active, canManageGmail = fa
                   </select>
                   <select
                     value={paymentForm.paymentType}
-                    onChange={(event) => setPaymentForm((current) => ({ ...current, paymentType: event.target.value as PaymentType }))}
+                    onChange={(event) => setPaymentForm((current) => ({ ...current, paymentType: event.target.value as PaymentType | 'AUTO' }))}
                     className="rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-white outline-none focus:border-emerald-500"
                   >
+                    <option value="AUTO">Auto-detect from amount</option>
                     <option value="RESERVATION_DEPOSIT">Reservation Deposit</option>
                     <option value="PARTIAL_PAYMENT">Partial Payment</option>
                     <option value="FULL_PAYMENT">Full Payment</option>
@@ -1998,6 +2006,20 @@ export default function ReservationManagementPanel({ active, canManageGmail = fa
                     placeholder="Amount"
                     className="rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-white outline-none focus:border-emerald-500"
                   />
+                  {paymentForm.paymentType === 'AUTO' ? (
+                    <p className="text-xs text-slate-400 md:col-span-2" aria-live="polite">
+                      {(() => {
+                        const amount = Number(paymentForm.amountPaid);
+                        const outstandingBalance = Number(paymentSummary?.outstandingBalance || 0);
+                        const recognizedPaid = Number(paymentSummary?.recognizedPaid || 0);
+                        if (!Number.isFinite(amount) || amount <= 0) return 'Enter an amount to detect the payment type.';
+                        if (amount + 0.01 >= outstandingBalance) return 'Detected: Full Payment (covers the outstanding balance).';
+                        return recognizedPaid > 0
+                          ? 'Detected: Partial Payment (a previous payment was already recorded).'
+                          : 'Detected: Reservation Deposit (first payment, less than the outstanding balance).';
+                      })()}
+                    </p>
+                  ) : null}
                   {paymentForm.paymentMethod === 'GCASH' ? (
                     <>
                       <div className="md:col-span-2">
