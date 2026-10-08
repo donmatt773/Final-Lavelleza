@@ -23,6 +23,7 @@ type DashboardMetrics = {
   todaysCheckOuts: number;
   availableRooms: number;
   occupiedRooms: number;
+  maintenanceRooms: number;
   upcomingReservations: number;
   monthlyReservationCount: number;
   monthlyRevenue: number;
@@ -56,6 +57,7 @@ const emptyMetrics: DashboardMetrics = {
   todaysCheckOuts: 0,
   availableRooms: 0,
   occupiedRooms: 0,
+  maintenanceRooms: 0,
   upcomingReservations: 0,
   monthlyReservationCount: 0,
   monthlyRevenue: 0,
@@ -102,7 +104,20 @@ const formatMonthLabel = (monthKey: string) => {
   return new Intl.DateTimeFormat('en-PH', { month: 'long', year: 'numeric' }).format(new Date(year, month - 1, 1));
 };
 
-export default function ReservationDashboardPanel() {
+type DashboardTab = 'overview' | 'users' | 'rooms' | 'promos' | 'add-ons' | 'reservations' | 'reports' | 'rate-settings';
+
+type Props = {
+  onNavigate?: (tab: DashboardTab) => void;
+};
+
+function toLocalDateInputValue(date: Date) {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+}
+
+export default function ReservationDashboardPanel({ onNavigate }: Props) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [metrics, setMetrics] = useState<DashboardMetrics>(emptyMetrics);
@@ -138,6 +153,7 @@ export default function ReservationDashboardPanel() {
             todaysCheckOuts: Number(data?.dashboard?.todaysCheckOuts || 0),
             availableRooms: Number(data?.dashboard?.availableRooms || 0),
             occupiedRooms: Number(data?.dashboard?.occupiedRooms || 0),
+            maintenanceRooms: Number(data?.dashboard?.maintenanceRooms || 0),
             upcomingReservations: Number(data?.dashboard?.upcomingReservations || 0),
             monthlyReservationCount: Number(data?.dashboard?.monthlyReservationCount || 0),
             monthlyRevenue: Number(data?.dashboard?.monthlyRevenue || 0),
@@ -184,6 +200,36 @@ export default function ReservationDashboardPanel() {
   }, [dateFilter, paymentMethodFilter, paymentStatusFilter]);
 
   const monthLabel = useMemo(() => formatMonthLabel(metrics.monthKey), [metrics.monthKey]);
+
+  const today = new Date();
+  const todayInput = toLocalDateInputValue(today);
+  const monthStartInput = toLocalDateInputValue(new Date(today.getFullYear(), today.getMonth(), 1));
+  const monthEndInput = toLocalDateInputValue(new Date(today.getFullYear(), today.getMonth() + 1, 0));
+
+  const handleReservationCardClick = (filters: {
+    reservationStatus?: string;
+    reservationSource?: 'ONLINE' | 'WALK_IN';
+    startDate?: string;
+    endDate?: string;
+  }) => {
+    try {
+      window.sessionStorage.setItem('lavelleza-reservation-filter-intent', JSON.stringify(filters));
+    } catch {
+      // sessionStorage may be unavailable; navigation still works without filters.
+    }
+    window.dispatchEvent(new CustomEvent('lavelleza:reservation-filter-intent', { detail: filters }));
+    onNavigate?.('reservations');
+  };
+
+  const handleRoomCardClick = (status: 'AVAILABLE' | 'MAINTENANCE' | 'BOOKED') => {
+    try {
+      window.sessionStorage.setItem('lavelleza-room-filter-intent', JSON.stringify({ status }));
+    } catch {
+      // sessionStorage may be unavailable; navigation still works without filters.
+    }
+    window.dispatchEvent(new CustomEvent('lavelleza:room-filter-intent', { detail: { status } }));
+    onNavigate?.('rooms');
+  };
 
   return (
     <section className="mt-6 rounded-3xl border border-slate-800 bg-slate-900/80 p-4 text-slate-300 sm:p-6">
@@ -273,38 +319,38 @@ export default function ReservationDashboardPanel() {
                 <h3 id="reservation-activity-heading" className="text-sm font-semibold uppercase tracking-wider text-white">Reservation Activity</h3>
               </div>
               <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
-                <div className="rounded-xl border border-slate-800 bg-slate-950/70 p-4">
+                <button type="button" onClick={() => handleReservationCardClick({ reservationStatus: 'PENDING' })} className="rounded-xl border border-slate-800 bg-slate-950/70 p-4 text-left transition hover:border-emerald-500/50 hover:bg-slate-900">
                   <p className="text-xs uppercase tracking-wider text-slate-500">Pending Reservations</p>
                   <p className="mt-2 text-2xl font-semibold text-white">{metrics.pendingReservations}</p>
-                </div>
-                <div className="rounded-xl border border-slate-800 bg-slate-950/70 p-4">
+                </button>
+                <button type="button" onClick={() => handleReservationCardClick({ reservationStatus: 'CONFIRMED' })} className="rounded-xl border border-slate-800 bg-slate-950/70 p-4 text-left transition hover:border-emerald-500/50 hover:bg-slate-900">
                   <p className="text-xs uppercase tracking-wider text-slate-500">Confirmed Reservations</p>
                   <p className="mt-2 text-2xl font-semibold text-white">{metrics.confirmedReservations}</p>
-                </div>
-                <div className="rounded-xl border border-slate-800 bg-slate-950/70 p-4">
+                </button>
+                <button type="button" onClick={() => handleReservationCardClick({ reservationStatus: 'CHECKED_IN', startDate: todayInput, endDate: todayInput })} className="rounded-xl border border-slate-800 bg-slate-950/70 p-4 text-left transition hover:border-emerald-500/50 hover:bg-slate-900">
                   <p className="text-xs uppercase tracking-wider text-slate-500">Today&apos;s Check-ins</p>
                   <p className="mt-2 text-2xl font-semibold text-white">{metrics.todaysCheckIns}</p>
-                </div>
-                <div className="rounded-xl border border-slate-800 bg-slate-950/70 p-4">
+                </button>
+                <button type="button" onClick={() => handleReservationCardClick({ reservationStatus: 'CHECKED_OUT', startDate: todayInput, endDate: todayInput })} className="rounded-xl border border-slate-800 bg-slate-950/70 p-4 text-left transition hover:border-emerald-500/50 hover:bg-slate-900">
                   <p className="text-xs uppercase tracking-wider text-slate-500">Today&apos;s Check-outs</p>
                   <p className="mt-2 text-2xl font-semibold text-white">{metrics.todaysCheckOuts}</p>
-                </div>
-                <div className="rounded-xl border border-slate-800 bg-slate-950/70 p-4">
+                </button>
+                <button type="button" onClick={() => handleReservationCardClick({ reservationStatus: 'CONFIRMED', startDate: todayInput })} className="rounded-xl border border-slate-800 bg-slate-950/70 p-4 text-left transition hover:border-emerald-500/50 hover:bg-slate-900">
                   <p className="text-xs uppercase tracking-wider text-slate-500">Upcoming Reservations</p>
                   <p className="mt-2 text-2xl font-semibold text-white">{metrics.upcomingReservations}</p>
-                </div>
-                <div className="rounded-xl border border-slate-800 bg-slate-950/70 p-4">
+                </button>
+                <button type="button" onClick={() => handleReservationCardClick({ startDate: monthStartInput, endDate: monthEndInput })} className="rounded-xl border border-slate-800 bg-slate-950/70 p-4 text-left transition hover:border-emerald-500/50 hover:bg-slate-900">
                   <p className="text-xs uppercase tracking-wider text-slate-500">Monthly Reservation Count</p>
                   <p className="mt-2 text-2xl font-semibold text-white">{metrics.monthlyReservationCount}</p>
-                </div>
-                <div className="rounded-xl border border-slate-800 bg-slate-950/70 p-4">
+                </button>
+                <button type="button" onClick={() => handleReservationCardClick({ reservationSource: 'ONLINE' })} className="rounded-xl border border-slate-800 bg-slate-950/70 p-4 text-left transition hover:border-emerald-500/50 hover:bg-slate-900">
                   <p className="text-xs uppercase tracking-wider text-slate-500">Online Reservations</p>
                   <p className="mt-2 text-2xl font-semibold text-sky-300">{metrics.onlineReservations}</p>
-                </div>
-                <div className="rounded-xl border border-slate-800 bg-slate-950/70 p-4">
+                </button>
+                <button type="button" onClick={() => handleReservationCardClick({ reservationSource: 'WALK_IN' })} className="rounded-xl border border-slate-800 bg-slate-950/70 p-4 text-left transition hover:border-emerald-500/50 hover:bg-slate-900">
                   <p className="text-xs uppercase tracking-wider text-slate-500">Walk-In Reservations</p>
                   <p className="mt-2 text-2xl font-semibold text-amber-300">{metrics.walkInReservations}</p>
-                </div>
+                </button>
               </div>
             </section>
 
@@ -313,14 +359,18 @@ export default function ReservationDashboardPanel() {
                 <h3 id="room-availability-heading" className="text-sm font-semibold uppercase tracking-wider text-white">Room Availability</h3>
               </div>
               <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
-                <div className="rounded-xl border border-slate-800 bg-slate-950/70 p-4">
+                <button type="button" onClick={() => handleRoomCardClick('AVAILABLE')} className="rounded-xl border border-slate-800 bg-slate-950/70 p-4 text-left transition hover:border-emerald-500/50 hover:bg-slate-900">
                   <p className="text-xs uppercase tracking-wider text-slate-500">Available Rooms</p>
                   <p className="mt-2 text-2xl font-semibold text-white">{metrics.availableRooms}</p>
-                </div>
-                <div className="rounded-xl border border-slate-800 bg-slate-950/70 p-4">
+                </button>
+                <button type="button" onClick={() => handleRoomCardClick('BOOKED')} className="rounded-xl border border-slate-800 bg-slate-950/70 p-4 text-left transition hover:border-emerald-500/50 hover:bg-slate-900">
                   <p className="text-xs uppercase tracking-wider text-slate-500">Occupied Rooms</p>
                   <p className="mt-2 text-2xl font-semibold text-white">{metrics.occupiedRooms}</p>
-                </div>
+                </button>
+                <button type="button" onClick={() => handleRoomCardClick('MAINTENANCE')} className="rounded-xl border border-slate-800 bg-slate-950/70 p-4 text-left transition hover:border-emerald-500/50 hover:bg-slate-900">
+                  <p className="text-xs uppercase tracking-wider text-slate-500">Under Maintenance</p>
+                  <p className="mt-2 text-2xl font-semibold text-amber-300">{metrics.maintenanceRooms}</p>
+                </button>
               </div>
             </section>
 

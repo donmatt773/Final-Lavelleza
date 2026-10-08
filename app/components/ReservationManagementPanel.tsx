@@ -211,6 +211,13 @@ type Props = {
   canManageGmail?: boolean;
 };
 
+type ReservationFilterIntent = {
+  reservationStatus?: string;
+  reservationSource?: 'ONLINE' | 'WALK_IN';
+  startDate?: string;
+  endDate?: string;
+};
+
 type RoomOption = {
   _id: string;
   name: string;
@@ -311,6 +318,50 @@ export default function ReservationManagementPanel({ active, canManageGmail = fa
   const [startDateFilter, setStartDateFilter] = useState('');
   const [endDateFilter, setEndDateFilter] = useState('');
   const [page, setPage] = useState(1);
+  const pendingFilterIntentRef = useRef<ReservationFilterIntent | null>(null);
+
+  const applyFilterIntent = React.useCallback((intent: ReservationFilterIntent) => {
+    setSearch('');
+    setReservationStatusFilter(intent.reservationStatus || 'ALL');
+    setSourceFilter(intent.reservationSource || 'ALL');
+    setStartDateFilter(intent.startDate || '');
+    setEndDateFilter(intent.endDate || '');
+    setPage(1);
+  }, []);
+
+  // Capture any stored intent once at mount (survives Strict Mode double-run).
+  useEffect(() => {
+    try {
+      const stored = window.sessionStorage.getItem('lavelleza-reservation-filter-intent');
+      if (stored) {
+        window.sessionStorage.removeItem('lavelleza-reservation-filter-intent');
+        pendingFilterIntentRef.current = JSON.parse(stored);
+      }
+    } catch {
+      // ignore malformed intent
+    }
+  }, []);
+
+  // Apply the captured intent once the panel becomes active.
+  useEffect(() => {
+    if (!active || !pendingFilterIntentRef.current) return;
+
+    const intent = pendingFilterIntentRef.current;
+    const timeoutId = window.setTimeout(() => {
+      applyFilterIntent(intent);
+      pendingFilterIntentRef.current = null;
+    }, 0);
+
+    return () => window.clearTimeout(timeoutId);
+  }, [active, applyFilterIntent]);
+
+  useEffect(() => {
+    const onIntent = (event: Event) => {
+      applyFilterIntent((event as CustomEvent<ReservationFilterIntent>).detail || {});
+    };
+    window.addEventListener('lavelleza:reservation-filter-intent', onIntent);
+    return () => window.removeEventListener('lavelleza:reservation-filter-intent', onIntent);
+  }, [applyFilterIntent]);
   const [processingId, setProcessingId] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
   const [messageType, setMessageType] = useState<'success' | 'error' | 'info'>('info');

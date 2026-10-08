@@ -62,6 +62,47 @@ export default function RoomManagementPanel({ active, staffMode = false }: Props
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState('ALL');
   const [page, setPage] = useState(1);
+  const pendingRoomFilterRef = React.useRef<{ status?: string } | null>(null);
+
+  const applyRoomFilterIntent = React.useCallback((intent: { status?: string }) => {
+    setSearch('');
+    setStatusFilter(intent.status || 'ALL');
+    setPage(1);
+  }, []);
+
+  // Capture any stored room-filter intent once at mount.
+  useEffect(() => {
+    try {
+      const stored = window.sessionStorage.getItem('lavelleza-room-filter-intent');
+      if (stored) {
+        window.sessionStorage.removeItem('lavelleza-room-filter-intent');
+        pendingRoomFilterRef.current = JSON.parse(stored);
+      }
+    } catch {
+      // ignore malformed intent
+    }
+  }, []);
+
+  // Apply the captured intent once the panel becomes active.
+  useEffect(() => {
+    if (!active || !pendingRoomFilterRef.current) return;
+
+    const intent = pendingRoomFilterRef.current;
+    const timeoutId = window.setTimeout(() => {
+      applyRoomFilterIntent(intent);
+      pendingRoomFilterRef.current = null;
+    }, 0);
+
+    return () => window.clearTimeout(timeoutId);
+  }, [active, applyRoomFilterIntent]);
+
+  useEffect(() => {
+    const onIntent = (event: Event) => {
+      applyRoomFilterIntent((event as CustomEvent<{ status?: string }>).detail || {});
+    };
+    window.addEventListener('lavelleza:room-filter-intent', onIntent);
+    return () => window.removeEventListener('lavelleza:room-filter-intent', onIntent);
+  }, [applyRoomFilterIntent]);
   const [message, setMessage] = useState<string | null>(null);
   const [messageType, setMessageType] = useState<'success' | 'error' | 'info'>('success');
   const [processingId, setProcessingId] = useState<string | null>(null);
@@ -134,7 +175,9 @@ export default function RoomManagementPanel({ active, staffMode = false }: Props
       });
     }
 
-    if (statusFilter !== 'ALL') {
+    if (statusFilter === 'BOOKED') {
+      result = result.filter((room) => (room.availabilityLabel || 'AVAILABLE') === 'RESERVED_TODAY');
+    } else if (statusFilter !== 'ALL') {
       result = result.filter((room) => room.status === statusFilter);
     }
 
@@ -291,6 +334,7 @@ export default function RoomManagementPanel({ active, staffMode = false }: Props
             >
               <option value="ALL" className="bg-slate-900">All</option>
               <option value="AVAILABLE" className="bg-slate-900">Available</option>
+              <option value="BOOKED" className="bg-slate-900">Booked</option>
               <option value="MAINTENANCE" className="bg-slate-900">Maintenance</option>
               <option value="INACTIVE" className="bg-slate-900">Inactive</option>
             </select>

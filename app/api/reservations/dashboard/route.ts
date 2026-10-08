@@ -134,6 +134,7 @@ export async function GET(request: Request) {
       monthlyPayments,
       filteredPayments,
       monthlyFilteredPayments,
+      maintenanceRooms,
     ] = await Promise.all([
       Reservation.countDocuments({ reservationStatus: 'PENDING' }),
       Reservation.countDocuments({ reservationStatus: 'CONFIRMED' }),
@@ -174,6 +175,7 @@ export async function GET(request: Request) {
       Payment.find(monthlyPaymentFilterQuery)
         .select('paymentMethod paymentStatus paymentType amountPaid')
         .lean(),
+      Room.countDocuments({ isArchived: false, status: 'MAINTENANCE' }),
     ]);
 
     const occupiedRoomIds = new Set(occupiedRoomRefs.flatMap((reservation) => {
@@ -360,6 +362,7 @@ export async function GET(request: Request) {
           todaysCheckOuts,
           availableRooms,
           occupiedRooms,
+          maintenanceRooms,
           upcomingReservations,
           monthlyReservationCount: monthlyReservations.length,
           monthlyRevenue: Math.max(0, Math.round(monthlyRevenue * 100) / 100),

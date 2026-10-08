@@ -110,6 +110,15 @@ export default function DashboardLayout({
     setIsMobileNavOpen(false);
   };
 
+  React.useEffect(() => {
+    const onNavigateTab = (event: Event) => {
+      const tab = (event as CustomEvent<DashboardTab>).detail;
+      if (tab) selectTab(tab);
+    };
+    window.addEventListener('lavelleza:dashboard-navigate', onNavigateTab);
+    return () => window.removeEventListener('lavelleza:dashboard-navigate', onNavigateTab);
+  }, []);
+
   if (!sessionReady) {
     return <main className="dashboard-theme flex min-h-screen items-center justify-center text-sm text-slate-400">Checking session...</main>;
   }
@@ -259,7 +268,7 @@ export default function DashboardLayout({
                 <>
                   {isOwner ? children : (
                     <>
-                      <ReservationDashboardPanel />
+                      <ReservationDashboardPanel onNavigate={selectTab} />
                       <div className="mt-6 rounded-3xl border border-slate-800 bg-slate-900/80 p-6 text-slate-300">
                         <h2 className="text-xl font-semibold text-white">Staff Overview</h2>
                         <p className="mt-2 text-sm text-slate-400">Use the tabs to switch between the overview, reservations, and payment reports.</p>
