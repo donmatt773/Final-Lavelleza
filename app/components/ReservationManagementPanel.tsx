@@ -162,6 +162,15 @@ type CheckoutReminder = {
   checkOut: string;
 };
 
+type NoShowReminder = {
+  id: string;
+  reservationId: string;
+  reservationNumber: string;
+  guestName: string;
+  roomName: string;
+  checkIn: string;
+};
+
 function getReservationRoomLabel(reservation: ReservationRecord) {
   const assignedRooms = reservation.roomAssignments?.map((assignment) => (
     typeof assignment.room === 'string' ? 'Room' : assignment.room?.name || 'Room'
@@ -211,6 +220,7 @@ type RoomOption = {
 const PAGE_SIZE = 8;
 const SEEN_RESERVATION_NOTIFICATIONS_KEY = 'lavelleza-seen-reservation-notifications';
 const SEEN_CHECKOUT_NOTIFICATIONS_KEY = 'lavelleza-seen-checkout-notifications';
+const SEEN_NO_SHOW_NOTIFICATIONS_KEY = 'lavelleza-seen-no-show-notifications';
 const RESORT_TIME_ZONE = 'Asia/Manila';
 
 const normalizeReservationSource = (value?: string | null): ReservationSource => (value === 'WALK_IN' ? 'WALK_IN' : 'ONLINE');
@@ -256,6 +266,10 @@ function getCheckoutReminderDate(checkOut: string, checkOutTime: string) {
   const time = `${String(hour).padStart(2, '0')}:${timeParts[2]}`;
   const dueAt = new Date(`${datePart}T${time}:00+08:00`);
   return Number.isNaN(dueAt.getTime()) ? null : dueAt;
+}
+
+function getNoShowReminderDate(checkIn: string, checkInTime: string) {
+  return getCheckoutReminderDate(checkIn, checkInTime);
 }
 
 function formatCheckoutReminderDate(value: Date) {
@@ -319,6 +333,9 @@ export default function ReservationManagementPanel({ active, canManageGmail = fa
   const [checkoutReminders, setCheckoutReminders] = useState<CheckoutReminder[]>([]);
   const [seenCheckoutReminderIds, setSeenCheckoutReminderIds] = useState<string[]>([]);
   const [checkoutTime, setCheckoutTime] = useState('11:00 AM');
+  const [noShowReminders, setNoShowReminders] = useState<NoShowReminder[]>([]);
+  const [seenNoShowReminderIds, setSeenNoShowReminderIds] = useState<string[]>([]);
+  const [checkInTime, setCheckInTime] = useState('1:00 PM');
   const audioContextRef = useRef<AudioContext | null>(null);
   const handledNotificationIdsRef = useRef<Set<string>>(new Set());
   const playedCheckoutReminderIdsRef = useRef<Set<string>>(new Set());
@@ -640,6 +657,7 @@ export default function ReservationManagementPanel({ active, canManageGmail = fa
     const timeoutId = window.setTimeout(() => {
       setSeenReservationIds(readStoredNotificationIds(SEEN_RESERVATION_NOTIFICATIONS_KEY));
       setSeenCheckoutReminderIds(readStoredNotificationIds(SEEN_CHECKOUT_NOTIFICATIONS_KEY));
+      setSeenNoShowReminderIds(readStoredNotificationIds(SEEN_NO_SHOW_NOTIFICATIONS_KEY));
     }, 0);
 
     return () => window.clearTimeout(timeoutId);
@@ -678,6 +696,30 @@ export default function ReservationManagementPanel({ active, canManageGmail = fa
     }
   }, []);
 
+  const loadNoShowReminders = React.useCallback(async () => {
+    try {
+      const response = await fetch('/api/reservations/no-show-reminders', {
+        cache: 'no-store',
+        credentials: 'same-origin',
+      });
+      const data = await response.json().catch(() => null);
+      if (!response.ok || !data?.success) return;
+
+      const checkInTime = typeof data.checkInTime === 'string' ? data.checkInTime : '1:00 PM';
+      setCheckInTime(checkInTime);
+      const now = Date.now();
+      const dueReminders = (Array.isArray(data.reminders) ? data.reminders : [])
+        .filter((reminder: NoShowReminder) => {
+          const dueAt = getNoShowReminderDate(reminder.checkIn, checkInTime);
+          return dueAt !== null && dueAt.getTime() <= now;
+        }) as NoShowReminder[];
+
+      setNoShowReminders(dueReminders);
+    } catch {
+      // A failed reminder refresh should not interrupt reservation management.
+    }
+  }, []);
+
   useEffect(() => {
     if (!active) return;
 
@@ -688,6 +730,17 @@ export default function ReservationManagementPanel({ active, canManageGmail = fa
       window.clearInterval(intervalId);
     };
   }, [active, loadCheckoutReminders]);
+
+  useEffect(() => {
+    if (!active) return;
+
+    const timeoutId = window.setTimeout(() => void loadNoShowReminders(), 0);
+    const intervalId = window.setInterval(() => void loadNoShowReminders(), 30_000);
+    return () => {
+      window.clearTimeout(timeoutId);
+      window.clearInterval(intervalId);
+    };
+  }, [active, loadNoShowReminders]);
 
   useEffect(() => {
     if (!active) return;
@@ -740,6 +793,11 @@ export default function ReservationManagementPanel({ active, canManageGmail = fa
     [checkoutReminders, seenCheckoutReminderIds]
   );
 
+  const unseenNoShowReminders = useMemo(
+    () => noShowReminders.filter((reminder) => !seenNoShowReminderIds.includes(reminder.id)),
+    [noShowReminders, seenNoShowReminderIds]
+  );
+
   const markReservationNotificationSeen = (reservationId: string) => {
     setSeenReservationIds((current) => {
       if (current.includes(reservationId)) return current;
@@ -756,6 +814,16 @@ export default function ReservationManagementPanel({ active, canManageGmail = fa
 
       const next = [...current, reminderId];
       window.localStorage.setItem(SEEN_CHECKOUT_NOTIFICATIONS_KEY, JSON.stringify(next));
+      return next;
+    });
+  };
+
+  const markNoShowReminderSeen = (reminderId: string) => {
+    setSeenNoShowReminderIds((current) => {
+      if (current.includes(reminderId)) return current;
+
+      const next = [...current, reminderId];
+      window.localStorage.setItem(SEEN_NO_SHOW_NOTIFICATIONS_KEY, JSON.stringify(next));
       return next;
     });
   };
@@ -1393,9 +1461,9 @@ export default function ReservationManagementPanel({ active, canManageGmail = fa
               className="relative inline-flex h-10 w-10 items-center justify-center rounded-lg border border-slate-700 bg-slate-950/70 text-lg text-slate-200 hover:bg-slate-800"
             >
               <span aria-hidden="true">🔔</span>
-              {unseenReservations.length + unseenCheckoutReminders.length > 0 ? (
+              {unseenReservations.length + unseenCheckoutReminders.length + unseenNoShowReminders.length > 0 ? (
                 <span className="absolute -right-1 -top-1 min-w-5 rounded-full bg-rose-500 px-1 text-center text-[10px] font-bold leading-5 text-white">
-                  {unseenReservations.length + unseenCheckoutReminders.length > 99 ? '99+' : unseenReservations.length + unseenCheckoutReminders.length}
+                  {unseenReservations.length + unseenCheckoutReminders.length + unseenNoShowReminders.length > 99 ? '99+' : unseenReservations.length + unseenCheckoutReminders.length + unseenNoShowReminders.length}
                 </span>
               ) : null}
             </button>
@@ -1404,8 +1472,31 @@ export default function ReservationManagementPanel({ active, canManageGmail = fa
               <div className="fixed inset-x-4 top-24 z-40 max-h-[75vh] overflow-y-auto rounded-xl border border-slate-700 bg-slate-900 p-2 shadow-2xl shadow-black/40 sm:absolute sm:inset-x-auto sm:right-0 sm:top-12 sm:max-h-none sm:w-80 sm:overflow-visible">
                 <div className="flex items-center justify-between px-2 py-2">
                   <p className="text-sm font-semibold text-white">Reservation notifications</p>
-                  <span className="text-xs text-slate-400">{unseenReservations.length + unseenCheckoutReminders.length} unseen</span>
+                  <span className="text-xs text-slate-400">{unseenReservations.length + unseenCheckoutReminders.length + unseenNoShowReminders.length} unseen</span>
                 </div>
+                {unseenNoShowReminders.length > 0 ? (
+                  <div className="max-h-80 space-y-1 overflow-y-auto">
+                    <p className="px-2 pb-1 pt-2 text-xs font-semibold uppercase tracking-wide text-fuchsia-300">Possible no-show (check-in time passed)</p>
+                    {unseenNoShowReminders.map((reminder) => {
+                      const dueAt = getNoShowReminderDate(reminder.checkIn, checkInTime);
+                      return (
+                        <button
+                          type="button"
+                          key={reminder.id}
+                          onClick={() => markNoShowReminderSeen(reminder.id)}
+                          className="w-full rounded-lg border border-fuchsia-700/30 bg-fuchsia-500/5 px-3 py-2 text-left hover:border-fuchsia-500/50 hover:bg-fuchsia-500/10"
+                        >
+                          <div className="flex items-start justify-between gap-2">
+                            <span className="font-semibold text-white">{reminder.roomName}</span>
+                            <span className="text-[10px] font-semibold uppercase text-fuchsia-300">No arrival</span>
+                          </div>
+                          <p className="mt-1 text-xs text-slate-300">{reminder.guestName} · {reminder.reservationNumber}</p>
+                          <p className="text-xs text-slate-500">Check-in: {dueAt ? formatCheckoutReminderDate(dueAt) : formatDate(reminder.checkIn)}</p>
+                        </button>
+                      );
+                    })}
+                  </div>
+                ) : null}
                 {unseenCheckoutReminders.length > 0 ? (
                   <div className="max-h-80 space-y-1 overflow-y-auto">
                     <p className="px-2 pb-1 pt-2 text-xs font-semibold uppercase tracking-wide text-amber-300">Room checkout time reached</p>
@@ -1449,7 +1540,7 @@ export default function ReservationManagementPanel({ active, canManageGmail = fa
                     ))}
                   </div>
                 ) : null}
-                {unseenReservations.length + unseenCheckoutReminders.length === 0 ? (
+                {unseenReservations.length + unseenCheckoutReminders.length + unseenNoShowReminders.length === 0 ? (
                   <p className="px-2 py-5 text-center text-xs text-slate-400">No unseen reservation notifications.</p>
                 ) : null}
               </div>
