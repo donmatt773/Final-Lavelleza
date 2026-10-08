@@ -41,6 +41,8 @@ export interface IReservation {
   reservationSource?: ReservationSource;
   checkInAt?: Date | null;
   checkOutAt?: Date | null;
+  preArrivalEmailSentAt?: Date | null;
+  thankYouEmailSentAt?: Date | null;
   checkedInBy?: string | null;
   checkedOutBy?: string | null;
   statusHistory?: Array<{
@@ -160,6 +162,8 @@ const reservationSchema = new Schema<IReservation>(
     },
     checkInAt: { type: Date, default: null },
     checkOutAt: { type: Date, default: null },
+    preArrivalEmailSentAt: { type: Date, default: null },
+    thankYouEmailSentAt: { type: Date, default: null },
     checkedInBy: { type: String, trim: true, default: null },
     checkedOutBy: { type: String, trim: true, default: null },
     statusHistory: {

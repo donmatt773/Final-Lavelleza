@@ -10,6 +10,7 @@ import { calculateReservationPricing } from '@/app/lib/reservationPricing';
 import { computeReservationPaymentRollup } from '@/app/lib/paymentTracking';
 import { validateSelectedPromoEligibility } from '@/app/lib/promoEligibility';
 import { triggerReservationUpdate } from '@/app/lib/pusher-server';
+import { sendThankYouEmail } from '@/app/lib/guestEmails';
 import { AddOnAvailabilityError, AddOnInventoryBusyError, withAddOnInventoryLock } from '@/app/lib/addOnAvailability';
 import { diffAuditFields, writeAuditLog } from '@/app/lib/auditLogWriter';
 
@@ -475,7 +476,26 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
       paymentStatus: updated.paymentStatus,
     });
 
-    return NextResponse.json({ success: true, reservation: updated }, { status: 200 });
+    let thankYouEmailSent = false;
+    if (candidateStatus === 'CHECKED_OUT' && currentStatus !== 'CHECKED_OUT' && !existingReservation.thankYouEmailSentAt) {
+      try {
+        await sendThankYouEmail(updated);
+        thankYouEmailSent = true;
+        await Reservation.findByIdAndUpdate(id, { thankYouEmailSentAt: new Date() });
+        await writeAuditLog(request, {
+          action: 'SEND_THANK_YOU_EMAIL',
+          entityType: 'RESERVATION',
+          entityId: id,
+          entityLabel: `${updated.reservationNumber} (${updated.guestName})`,
+          summary: 'Emailed the post-stay thank-you message to the guest.',
+          changedFields: [],
+        });
+      } catch {
+        // Email delivery must never block check-out.
+      }
+    }
+
+    return NextResponse.json({ success: true, reservation: updated, thankYouEmailSent }, { status: 200 });
   } catch (error: unknown) {
     if (error instanceof AddOnInventoryBusyError) {
       return NextResponse.json({ success: false, message: error.message }, { status: 409 });

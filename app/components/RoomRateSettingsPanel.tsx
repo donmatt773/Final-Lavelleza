@@ -14,6 +14,14 @@ type RateSettingsForm = {
   afterCutoffRateType: 'WHOLE_DAY';
   emailSubject: string;
   emailBody: string;
+  preArrivalEmailSubject: string;
+  preArrivalEmailBody: string;
+  thankYouEmailSubject: string;
+  thankYouEmailBody: string;
+  resortAddress: string;
+  contactPhone: string;
+  reviewUrl: string;
+  cancellationPolicy: string;
 };
 
 type Props = {
@@ -48,6 +56,51 @@ const defaultForm: RateSettingsForm = {
     'Regards,',
     'La Velleza Resort',
   ].join('\n'),
+  preArrivalEmailSubject: "We're Preparing for Your Arrival at La Velleza Resort!",
+  preArrivalEmailBody: [
+    'Dear {{guestName}},',
+    '',
+    'Great news — your getaway at La Velleza Resort is almost here! We are preparing everything for your arrival.',
+    '',
+    'Reservation: {{reservationNumber}}',
+    'Check-in: {{checkIn}} (check-in time: {{checkInTime}})',
+    'Check-out: {{checkOut}}',
+    '{{roomLabel}}: {{rooms}}',
+    'Guests: {{adults}} adult(s), {{children}} child(ren)',
+    '',
+    'Highlights awaiting you:',
+    '- Warm hospitality and a freshly prepared room',
+    '- Resort amenities ready for your stay',
+    '{{specialRequests}}',
+    '',
+    'If you have any special requests (such as transfers or early check-in), reply to this email or call us at {{contactPhone}}.',
+    '',
+    'See you soon!',
+    'La Velleza Resort',
+    '{{resortAddress}}',
+  ].join('\n'),
+  thankYouEmailSubject: 'Thank you for staying with us at La Velleza Resort!',
+  thankYouEmailBody: [
+    'Dear {{guestName}},',
+    '',
+    'Thank you for staying with us at La Velleza Resort.',
+    '',
+    'It was a pleasure hosting you. We hope you had a wonderful and memorable stay.',
+    '',
+    'We would love to hear about your experience.',
+    'Please take a moment to share your feedback: {{reviewUrl}}',
+    '',
+    'We look forward to welcoming you back soon.',
+    '',
+    'Warm regards,',
+    'La Velleza Resort',
+    '{{resortAddress}}',
+    '{{contactPhone}}',
+  ].join('\n'),
+  resortAddress: 'La Velleza Resort',
+  contactPhone: '',
+  reviewUrl: '',
+  cancellationPolicy: 'Please contact the resort directly for cancellation inquiries.',
 };
 
 const peso = new Intl.NumberFormat('en-PH', {
@@ -100,6 +153,14 @@ export default function RoomRateSettingsPanel({ active }: Props) {
         afterCutoffRateType: 'WHOLE_DAY',
         emailSubject: settings.emailSubject || defaultForm.emailSubject,
         emailBody: settings.emailBody || defaultForm.emailBody,
+        preArrivalEmailSubject: settings.preArrivalEmailSubject || defaultForm.preArrivalEmailSubject,
+        preArrivalEmailBody: settings.preArrivalEmailBody || defaultForm.preArrivalEmailBody,
+        thankYouEmailSubject: settings.thankYouEmailSubject || defaultForm.thankYouEmailSubject,
+        thankYouEmailBody: settings.thankYouEmailBody || defaultForm.thankYouEmailBody,
+        resortAddress: settings.resortAddress || defaultForm.resortAddress,
+        contactPhone: settings.contactPhone || defaultForm.contactPhone,
+        reviewUrl: settings.reviewUrl || defaultForm.reviewUrl,
+        cancellationPolicy: settings.cancellationPolicy || defaultForm.cancellationPolicy,
       });
     } catch (error) {
       setMessage(error instanceof Error ? error.message : 'Unable to load settings');
@@ -182,6 +243,14 @@ export default function RoomRateSettingsPanel({ active }: Props) {
           afterCutoffRateType: 'WHOLE_DAY',
           emailSubject: form.emailSubject,
           emailBody: form.emailBody,
+          preArrivalEmailSubject: form.preArrivalEmailSubject,
+          preArrivalEmailBody: form.preArrivalEmailBody,
+          thankYouEmailSubject: form.thankYouEmailSubject,
+          thankYouEmailBody: form.thankYouEmailBody,
+          resortAddress: form.resortAddress,
+          contactPhone: form.contactPhone,
+          reviewUrl: form.reviewUrl,
+          cancellationPolicy: form.cancellationPolicy,
         }),
       });
 
@@ -287,6 +356,118 @@ export default function RoomRateSettingsPanel({ active }: Props) {
                 className="w-full resize-y rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 font-mono text-sm leading-relaxed text-white outline-none focus:border-emerald-500"
               />
               <p className="mt-1 text-right text-xs text-slate-500">{form.emailBody.length}/10,000</p>
+            </div>
+          </section>
+
+          <section className="space-y-4 rounded-2xl border border-slate-800 bg-slate-950/70 p-4">
+            <div>
+              <h3 className="text-base font-semibold text-white">Pre-arrival email (sent automatically the day before check-in)</h3>
+              <p className="mt-1 text-xs leading-relaxed text-slate-400">
+                Placeholders: {'{{guestName}}'}, {'{{reservationNumber}}'}, {'{{roomLabel}}'}, {'{{rooms}}'}, {'{{checkIn}}'}, {'{{checkOut}}'}, {'{{checkInTime}}'}, {'{{checkOutTime}}'}, {'{{adults}}'}, {'{{children}}'}, {'{{total}}'}, {'{{specialRequests}}'}, {'{{resortAddress}}'}, {'{{contactPhone}}'}.
+              </p>
+            </div>
+            <div>
+              <label htmlFor="pre-arrival-subject" className="mb-2 block text-sm text-slate-300">Subject</label>
+              <input
+                id="pre-arrival-subject"
+                value={form.preArrivalEmailSubject}
+                maxLength={200}
+                onChange={(event) => setForm({ ...form, preArrivalEmailSubject: event.target.value })}
+                className="w-full rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-white outline-none focus:border-emerald-500"
+              />
+            </div>
+            <div>
+              <label htmlFor="pre-arrival-body" className="mb-2 block text-sm text-slate-300">Message</label>
+              <textarea
+                id="pre-arrival-body"
+                value={form.preArrivalEmailBody}
+                maxLength={10000}
+                rows={12}
+                onChange={(event) => setForm({ ...form, preArrivalEmailBody: event.target.value })}
+                className="w-full resize-y rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 font-mono text-sm leading-relaxed text-white outline-none focus:border-emerald-500"
+              />
+              <p className="mt-1 text-right text-xs text-slate-500">{form.preArrivalEmailBody.length}/10,000</p>
+            </div>
+          </section>
+
+          <section className="space-y-4 rounded-2xl border border-slate-800 bg-slate-950/70 p-4">
+            <div>
+              <h3 className="text-base font-semibold text-white">Thank-you email (sent automatically on check-out)</h3>
+              <p className="mt-1 text-xs leading-relaxed text-slate-400">
+                Placeholders: {'{{guestName}}'}, {'{{reservationNumber}}'}, {'{{roomLabel}}'}, {'{{rooms}}'}, {'{{checkIn}}'}, {'{{checkOut}}'}, {'{{reviewUrl}}'}, {'{{resortAddress}}'}, {'{{contactPhone}}'}.
+              </p>
+            </div>
+            <div>
+              <label htmlFor="thank-you-subject" className="mb-2 block text-sm text-slate-300">Subject</label>
+              <input
+                id="thank-you-subject"
+                value={form.thankYouEmailSubject}
+                maxLength={200}
+                onChange={(event) => setForm({ ...form, thankYouEmailSubject: event.target.value })}
+                className="w-full rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-white outline-none focus:border-emerald-500"
+              />
+            </div>
+            <div>
+              <label htmlFor="thank-you-body" className="mb-2 block text-sm text-slate-300">Message</label>
+              <textarea
+                id="thank-you-body"
+                value={form.thankYouEmailBody}
+                maxLength={10000}
+                rows={12}
+                onChange={(event) => setForm({ ...form, thankYouEmailBody: event.target.value })}
+                className="w-full resize-y rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 font-mono text-sm leading-relaxed text-white outline-none focus:border-emerald-500"
+              />
+              <p className="mt-1 text-right text-xs text-slate-500">{form.thankYouEmailBody.length}/10,000</p>
+            </div>
+          </section>
+
+          <section className="space-y-4 rounded-2xl border border-slate-800 bg-slate-950/70 p-4">
+            <div>
+              <h3 className="text-base font-semibold text-white">Resort contact details</h3>
+              <p className="mt-1 text-xs leading-relaxed text-slate-400">Used by the email placeholders {'{{resortAddress}}'}, {'{{contactPhone}}'}, {'{{reviewUrl}}'}, {'{{cancellationPolicy}}'}.</p>
+            </div>
+            <div className="grid gap-4 md:grid-cols-2">
+              <div>
+                <label htmlFor="resort-address" className="mb-2 block text-sm text-slate-300">Resort address</label>
+                <input
+                  id="resort-address"
+                  value={form.resortAddress}
+                  maxLength={500}
+                  onChange={(event) => setForm({ ...form, resortAddress: event.target.value })}
+                  className="w-full rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-white outline-none focus:border-emerald-500"
+                />
+              </div>
+              <div>
+                <label htmlFor="contact-phone" className="mb-2 block text-sm text-slate-300">Contact phone</label>
+                <input
+                  id="contact-phone"
+                  value={form.contactPhone}
+                  maxLength={100}
+                  onChange={(event) => setForm({ ...form, contactPhone: event.target.value })}
+                  className="w-full rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-white outline-none focus:border-emerald-500"
+                />
+              </div>
+              <div>
+                <label htmlFor="review-url" className="mb-2 block text-sm text-slate-300">Review / feedback link</label>
+                <input
+                  id="review-url"
+                  value={form.reviewUrl}
+                  maxLength={500}
+                  onChange={(event) => setForm({ ...form, reviewUrl: event.target.value })}
+                  className="w-full rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-white outline-none focus:border-emerald-500"
+                />
+              </div>
+              <div>
+                <label htmlFor="cancellation-policy" className="mb-2 block text-sm text-slate-300">Cancellation policy</label>
+                <textarea
+                  id="cancellation-policy"
+                  value={form.cancellationPolicy}
+                  maxLength={2000}
+                  rows={3}
+                  onChange={(event) => setForm({ ...form, cancellationPolicy: event.target.value })}
+                  className="w-full resize-y rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-sm leading-relaxed text-white outline-none focus:border-emerald-500"
+                />
+              </div>
             </div>
           </section>
 

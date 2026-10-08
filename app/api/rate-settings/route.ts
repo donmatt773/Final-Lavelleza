@@ -1,6 +1,17 @@
 import { NextResponse } from 'next/server';
 import { connectDB } from '@/app/lib/db';
-import RateSettings, { DEFAULT_EMAIL_BODY, DEFAULT_EMAIL_SUBJECT } from '@/app/lib/RateSettings';
+import RateSettings, {
+  DEFAULT_CANCELLATION_POLICY,
+  DEFAULT_CONTACT_PHONE,
+  DEFAULT_EMAIL_BODY,
+  DEFAULT_EMAIL_SUBJECT,
+  DEFAULT_PRE_ARRIVAL_EMAIL_BODY,
+  DEFAULT_PRE_ARRIVAL_EMAIL_SUBJECT,
+  DEFAULT_RESORT_ADDRESS,
+  DEFAULT_REVIEW_URL,
+  DEFAULT_THANK_YOU_EMAIL_BODY,
+  DEFAULT_THANK_YOU_EMAIL_SUBJECT,
+} from '@/app/lib/RateSettings';
 import { requireOwner } from '@/app/lib/auth';
 import { diffAuditFields, writeAuditLog } from '@/app/lib/auditLogWriter';
 
@@ -17,6 +28,14 @@ const DEFAULT_RATE_SETTINGS = {
   afterCutoffRateType: 'WHOLE_DAY',
   emailSubject: DEFAULT_EMAIL_SUBJECT,
   emailBody: DEFAULT_EMAIL_BODY,
+  preArrivalEmailSubject: DEFAULT_PRE_ARRIVAL_EMAIL_SUBJECT,
+  preArrivalEmailBody: DEFAULT_PRE_ARRIVAL_EMAIL_BODY,
+  thankYouEmailSubject: DEFAULT_THANK_YOU_EMAIL_SUBJECT,
+  thankYouEmailBody: DEFAULT_THANK_YOU_EMAIL_BODY,
+  resortAddress: DEFAULT_RESORT_ADDRESS,
+  contactPhone: DEFAULT_CONTACT_PHONE,
+  reviewUrl: DEFAULT_REVIEW_URL,
+  cancellationPolicy: DEFAULT_CANCELLATION_POLICY,
 };
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -87,6 +106,68 @@ function validatePayload(body: unknown) {
     errors.push('Email message must contain text and be no longer than 10,000 characters.');
   }
 
+  if (body.preArrivalEmailSubject !== undefined && (
+    typeof body.preArrivalEmailSubject !== 'string'
+    || !body.preArrivalEmailSubject.trim()
+    || body.preArrivalEmailSubject.trim().length > 200
+    || /[\r\n]/.test(body.preArrivalEmailSubject)
+  )) {
+    errors.push('Pre-arrival email subject must be a single line between 1 and 200 characters.');
+  }
+
+  if (body.preArrivalEmailBody !== undefined && (
+    typeof body.preArrivalEmailBody !== 'string'
+    || !body.preArrivalEmailBody.trim()
+    || body.preArrivalEmailBody.length > 10000
+  )) {
+    errors.push('Pre-arrival email message must contain text and be no longer than 10,000 characters.');
+  }
+
+  if (body.thankYouEmailSubject !== undefined && (
+    typeof body.thankYouEmailSubject !== 'string'
+    || !body.thankYouEmailSubject.trim()
+    || body.thankYouEmailSubject.trim().length > 200
+    || /[\r\n]/.test(body.thankYouEmailSubject)
+  )) {
+    errors.push('Thank-you email subject must be a single line between 1 and 200 characters.');
+  }
+
+  if (body.thankYouEmailBody !== undefined && (
+    typeof body.thankYouEmailBody !== 'string'
+    || !body.thankYouEmailBody.trim()
+    || body.thankYouEmailBody.length > 10000
+  )) {
+    errors.push('Thank-you email message must contain text and be no longer than 10,000 characters.');
+  }
+
+  if (body.resortAddress !== undefined && (
+    typeof body.resortAddress !== 'string'
+    || body.resortAddress.length > 500
+  )) {
+    errors.push('Resort address must be text no longer than 500 characters.');
+  }
+
+  if (body.contactPhone !== undefined && (
+    typeof body.contactPhone !== 'string'
+    || body.contactPhone.length > 100
+  )) {
+    errors.push('Contact phone must be text no longer than 100 characters.');
+  }
+
+  if (body.reviewUrl !== undefined && (
+    typeof body.reviewUrl !== 'string'
+    || body.reviewUrl.length > 500
+  )) {
+    errors.push('Review link must be text no longer than 500 characters.');
+  }
+
+  if (body.cancellationPolicy !== undefined && (
+    typeof body.cancellationPolicy !== 'string'
+    || body.cancellationPolicy.length > 2000
+  )) {
+    errors.push('Cancellation policy must be text no longer than 2,000 characters.');
+  }
+
   return errors;
 }
 
@@ -136,6 +217,14 @@ export async function PUT(request: Request) {
   halfDayCutoffTime: string;
   emailSubject?: string;
   emailBody?: string;
+  preArrivalEmailSubject?: string;
+  preArrivalEmailBody?: string;
+  thankYouEmailSubject?: string;
+  thankYouEmailBody?: string;
+  resortAddress?: string;
+  contactPhone?: string;
+  reviewUrl?: string;
+  cancellationPolicy?: string;
 };
 
     const existing = await RateSettings.findOne({ key: 'default' }).lean();
@@ -153,6 +242,14 @@ export async function PUT(request: Request) {
       afterCutoffRateType: 'WHOLE_DAY',
       emailSubject: input.emailSubject?.trim() || existing?.emailSubject || DEFAULT_EMAIL_SUBJECT,
       emailBody: input.emailBody?.trim() || existing?.emailBody || DEFAULT_EMAIL_BODY,
+      preArrivalEmailSubject: input.preArrivalEmailSubject?.trim() || existing?.preArrivalEmailSubject || DEFAULT_PRE_ARRIVAL_EMAIL_SUBJECT,
+      preArrivalEmailBody: input.preArrivalEmailBody?.trim() || existing?.preArrivalEmailBody || DEFAULT_PRE_ARRIVAL_EMAIL_BODY,
+      thankYouEmailSubject: input.thankYouEmailSubject?.trim() || existing?.thankYouEmailSubject || DEFAULT_THANK_YOU_EMAIL_SUBJECT,
+      thankYouEmailBody: input.thankYouEmailBody?.trim() || existing?.thankYouEmailBody || DEFAULT_THANK_YOU_EMAIL_BODY,
+      resortAddress: input.resortAddress?.trim() || existing?.resortAddress || DEFAULT_RESORT_ADDRESS,
+      contactPhone: input.contactPhone?.trim() ?? existing?.contactPhone ?? DEFAULT_CONTACT_PHONE,
+      reviewUrl: input.reviewUrl?.trim() ?? existing?.reviewUrl ?? DEFAULT_REVIEW_URL,
+      cancellationPolicy: input.cancellationPolicy?.trim() ?? existing?.cancellationPolicy ?? DEFAULT_CANCELLATION_POLICY,
     };
 
     const previous = await RateSettings.findOne({ key: 'default' }).lean();
