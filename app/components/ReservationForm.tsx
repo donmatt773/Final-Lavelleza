@@ -357,7 +357,7 @@ export default function ReservationForm({ rooms, initialSelection, mode = 'publi
     const errors: string[] = [];
 
     if (!form.guestName.trim()) errors.push('Guest full name is required.');
-    if (!form.email.trim()) errors.push('Email address is required.');
+    if (form.email.trim() && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email.trim())) errors.push('Email address must be valid.');
     if (!form.phone.trim()) errors.push('Mobile number is required.');
     if (form.rooms.length === 0) errors.push('Select at least one room.');
     if (!form.checkIn) errors.push('Check-in date is required.');
@@ -760,9 +760,8 @@ export default function ReservationForm({ rooms, initialSelection, mode = 'publi
             type="email"
             value={form.email}
             onChange={(event) => updateField('email', event.target.value)}
-            placeholder="Email Address"
+            placeholder="Email Address (optional)"
             className="w-full rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-white outline-none focus:border-emerald-500"
-            required
           />
           <input
             value={form.phone}

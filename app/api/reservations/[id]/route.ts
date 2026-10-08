@@ -162,9 +162,7 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
 
     if (body.email !== undefined) {
       const email = String(body.email || '').trim().toLowerCase();
-      if (!email) {
-        errors.push('email is required.');
-      } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
         errors.push('email must be a valid email address.');
       } else {
         updatePayload.email = email;

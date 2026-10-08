@@ -270,9 +270,7 @@ export async function POST(request: Request) {
     if (!guestName) errors.push('Guest name is required.');
 
     const email = typeof body.email === 'string' ? body.email.trim().toLowerCase() : '';
-    if (!email) {
-      errors.push('Email is required.');
-    } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+    if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
       errors.push('Email must be a valid email address.');
     }
 

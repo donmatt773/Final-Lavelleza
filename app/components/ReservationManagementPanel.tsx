@@ -1394,7 +1394,7 @@ export default function ReservationManagementPanel({ active, canManageGmail = fa
             </button>
 
             {notificationsOpen ? (
-              <div className="absolute right-0 top-12 z-40 w-80 rounded-xl border border-slate-700 bg-slate-900 p-2 shadow-2xl shadow-black/40">
+              <div className="fixed inset-x-4 top-24 z-40 max-h-[75vh] overflow-y-auto rounded-xl border border-slate-700 bg-slate-900 p-2 shadow-2xl shadow-black/40 sm:absolute sm:inset-x-auto sm:right-0 sm:top-12 sm:max-h-none sm:w-80 sm:overflow-visible">
                 <div className="flex items-center justify-between px-2 py-2">
                   <p className="text-sm font-semibold text-white">Reservation notifications</p>
                   <span className="text-xs text-slate-400">{unseenReservations.length + unseenCheckoutReminders.length} unseen</span>

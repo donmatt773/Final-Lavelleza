@@ -88,7 +88,7 @@ const reservationSchema = new Schema<IReservation>(
   {
     reservationNumber: { type: String, required: true, unique: true, trim: true, uppercase: true },
     guestName: { type: String, required: true, trim: true },
-    email: { type: String, required: true, trim: true, lowercase: true },
+    email: { type: String, trim: true, lowercase: true, default: '' },
     phone: { type: String, required: true, trim: true },
     address: { type: String, trim: true },
     room: { type: Schema.Types.ObjectId, ref: 'Room', required: true },
