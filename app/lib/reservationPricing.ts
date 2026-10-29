@@ -213,8 +213,7 @@ export async function calculateReservationPricing(input: PricingInput): Promise<
 
       if (isWithinDateRange) {
         packageRoomId = roomDetails.find((room) => isPromoApplicableToRoom(promoDoc!, room.roomId).includedMatch)?.roomId || null;
-        const packageRoomNights = roomDetails.find((room) => room.roomId === packageRoomId)?.nights || nights;
-        if (packageRoomId) promoPackagePrice = normalizeMoney(Number(promoDoc.packagePrice || 0) * packageRoomNights);
+        if (packageRoomId) promoPackagePrice = normalizeMoney(Number(promoDoc.packagePrice || 0));
       }
     }
   }

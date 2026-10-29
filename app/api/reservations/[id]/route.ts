@@ -368,8 +368,14 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
       for (const assignment of candidateRoomAssignments) {
         const conflictingReservation = await findConflictingReservation({ roomId: assignment.roomId, checkIn: assignment.checkIn, checkOut: assignment.checkOut, excludeReservationId: id });
         if (conflictingReservation) {
-          errors.push(`Date conflict: a selected room is blocked by reservation ${String(conflictingReservation.reservationNumber)}.`);
-          break;
+          return NextResponse.json(
+            {
+              success: false,
+              code: 'ROOM_OCCUPIED',
+              message: `This update cannot be saved because the selected room is occupied for these dates by reservation ${String(conflictingReservation.reservationNumber)}.`,
+            },
+            { status: 409 }
+          );
         }
       }
     }

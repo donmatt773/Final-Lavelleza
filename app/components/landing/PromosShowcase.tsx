@@ -9,6 +9,34 @@ import type { FeaturedPromo } from '@/app/lib/landingTypes';
 
 const PAGE_SIZE = 4;
 
+function formatLocalDate(date: Date) {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+}
+
+function addDays(value: string, days: number) {
+  const date = new Date(`${value}T00:00:00`);
+  date.setDate(date.getDate() + days);
+  return formatLocalDate(date);
+}
+
+function getSuggestedStayDates(promo: FeaturedPromo) {
+  const today = formatLocalDate(new Date());
+  let checkIn = promo.startDate && promo.startDate > today ? promo.startDate : today;
+  let checkOut = addDays(checkIn, 1);
+
+  if (promo.endDate && checkOut > promo.endDate) {
+    const lastAvailableCheckIn = addDays(promo.endDate, -1);
+    if (lastAvailableCheckIn < today || (promo.startDate && lastAvailableCheckIn < promo.startDate)) return null;
+    checkIn = lastAvailableCheckIn;
+    checkOut = promo.endDate;
+  }
+
+  return { checkIn, checkOut };
+}
+
 type Props = {
   promos: FeaturedPromo[];
 };
@@ -95,8 +123,11 @@ function PromoDetailModal({ promo, open, onClose }: PromoDetailModalProps) {
               const params = new URLSearchParams({ promo: promo._id });
               const roomId = promo.includedRoomIds?.[0];
               if (roomId) params.set('room', roomId);
-              if (promo.startDate) params.set('checkIn', promo.startDate);
-              if (promo.endDate) params.set('checkOut', promo.endDate);
+              const stayDates = getSuggestedStayDates(promo);
+              if (stayDates) {
+                params.set('checkIn', stayDates.checkIn);
+                params.set('checkOut', stayDates.checkOut);
+              }
               return `/reservation?${params.toString()}`;
             })()}
             onClick={onClose}

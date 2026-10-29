@@ -178,6 +178,7 @@ export default function ReservationForm({ rooms, initialSelection, mode = 'publi
     };
   });
   const [submitting, setSubmitting] = useState(false);
+  const [showConfirmation, setShowConfirmation] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [validationErrors, setValidationErrors] = useState<string[]>([]);
   const [success, setSuccess] = useState<{ reservationNumber: string; guestName: string } | null>(null);
@@ -395,15 +396,7 @@ export default function ReservationForm({ rooms, initialSelection, mode = 'publi
     return errors;
   };
 
-  const handleSubmit = async (event: React.FormEvent) => {
-    event.preventDefault();
-    setError(null);
-    setWalkInSuccessMessage(null);
-
-    const clientErrors = validate();
-    setValidationErrors(clientErrors);
-    if (clientErrors.length > 0) return;
-
+  const submitReservation = async () => {
     setSubmitting(true);
     try {
       const response = await fetch('/api/reservations', {
@@ -457,11 +450,33 @@ export default function ReservationForm({ rooms, initialSelection, mode = 'publi
       setForm(createInitialForm());
       setValidationErrors([]);
       setPricingSummary(null);
+      setShowConfirmation(false);
     } catch (submitError) {
       setError(submitError instanceof Error ? submitError.message : 'Unable to submit reservation request.');
     } finally {
       setSubmitting(false);
     }
+  };
+
+  const handleSubmit = async (event: React.FormEvent) => {
+    event.preventDefault();
+    setError(null);
+    setWalkInSuccessMessage(null);
+
+    const clientErrors = validate();
+    setValidationErrors(clientErrors);
+    if (clientErrors.length > 0) return;
+
+    if (!isWalkInMode) {
+      if (pricingLoading || !pricingSummary) {
+        setError('Please wait for the reservation price to finish calculating before continuing.');
+        return;
+      }
+      setShowConfirmation(true);
+      return;
+    }
+
+    await submitReservation();
   };
 
   useEffect(() => {
@@ -1083,6 +1098,133 @@ export default function ReservationForm({ rooms, initialSelection, mode = 'publi
         </p>
 
       </form>
+
+      {showConfirmation && pricingSummary ? (
+        <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/70 p-4">
+          <div
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="reservation-confirmation-title"
+            className="max-h-[90vh] w-full max-w-2xl overflow-y-auto rounded-2xl border p-5 shadow-2xl sm:p-6"
+            style={{ backgroundColor: theme.sand, borderColor: `${theme.ink}26` }}
+          >
+            <p className="text-xs font-semibold uppercase tracking-[0.2em]" style={{ color: theme.coral }}>Review your reservation</p>
+            <h3 id="reservation-confirmation-title" className="mt-2 text-xl font-semibold" style={{ color: theme.navy }}>
+              Confirm before sending
+            </h3>
+            <p className="mt-1 text-sm" style={{ color: `${theme.ink}99` }}>
+              Check your stay details and total. Your request will be sent to our team for review.
+            </p>
+
+            <div className="mt-5 grid gap-4 sm:grid-cols-2">
+              <div className="rounded-xl border p-4" style={{ borderColor: `${theme.ink}1A` }}>
+                <h4 className="text-sm font-semibold" style={{ color: theme.navy }}>Guest</h4>
+                <p className="mt-2 text-sm" style={{ color: theme.ink }}>{form.guestName.trim()}</p>
+                <p className="mt-1 text-sm" style={{ color: `${theme.ink}99` }}>{form.phone.trim()}</p>
+                {form.email.trim() ? <p className="mt-1 text-sm" style={{ color: `${theme.ink}99` }}>{form.email.trim()}</p> : null}
+              </div>
+              <div className="rounded-xl border p-4" style={{ borderColor: `${theme.ink}1A` }}>
+                <h4 className="text-sm font-semibold" style={{ color: theme.navy }}>Stay</h4>
+                <p className="mt-2 text-sm" style={{ color: theme.ink }}>
+                  {new Date(`${form.checkIn}T00:00:00`).toLocaleDateString('en-PH', { dateStyle: 'medium' })}
+                  {' – '}
+                  {new Date(`${form.checkOut}T00:00:00`).toLocaleDateString('en-PH', { dateStyle: 'medium' })}
+                </p>
+                {selectedRoomDetails.map((room) => {
+                  const guests = form.roomGuests[room._id];
+                  return (
+                    <p key={room._id} className="mt-1 text-sm" style={{ color: `${theme.ink}99` }}>
+                      {room.name} · {Number(guests?.adults || 0)} adult{Number(guests?.adults || 0) === 1 ? '' : 's'}
+                      {Number(guests?.children || 0) > 0 ? `, ${Number(guests.children)} child${Number(guests.children) === 1 ? '' : 'ren'}` : ''}
+                    </p>
+                  );
+                })}
+              </div>
+            </div>
+
+            {selectedPromoDetails ? (
+              <div className="mt-4 rounded-xl border p-4" style={{ borderColor: `${theme.ink}1A` }}>
+                <h4 className="text-sm font-semibold" style={{ color: theme.navy }}>Package: {selectedPromoDetails.name}</h4>
+                <p className="mt-1 text-xs" style={{ color: `${theme.ink}99` }}>{selectedPromoDetails.code}</p>
+                {selectedPromoDetails.inclusions?.length ? (
+                  <ul className="mt-2 list-disc space-y-1 pl-5 text-sm" style={{ color: `${theme.ink}CC` }}>
+                    {selectedPromoDetails.inclusions.map((inclusion, index) => (
+                      <li key={inclusion._id || `${selectedPromoDetails._id}-confirmation-${index}`}>
+                        {(inclusion.quantity && inclusion.quantity > 1 ? `${inclusion.quantity}x ` : '') + (inclusion.name || 'Inclusion')}
+                        {inclusion.description ? ` - ${inclusion.description}` : ''}
+                      </li>
+                    ))}
+                  </ul>
+                ) : null}
+              </div>
+            ) : null}
+
+            <div className="mt-4 rounded-xl border p-4" style={{ borderColor: `${theme.royal}33`, backgroundColor: `${theme.royal}0D` }}>
+              <h4 className="text-sm font-semibold" style={{ color: theme.navy }}>Price summary</h4>
+              <div className="mt-3 space-y-2 text-sm" style={{ color: `${theme.ink}CC` }}>
+                {pricingSummary.promoPackagePrice > 0 ? (
+                  <p className="flex justify-between gap-4"><span>Package price</span><span>{formatPeso(pricingSummary.promoPackagePrice)}</span></p>
+                ) : (
+                  <p className="flex justify-between gap-4"><span>Room rate ({pricingSummary.numberOfNights} night{pricingSummary.numberOfNights === 1 ? '' : 's'})</span><span>{formatPeso(pricingSummary.roomRate)}</span></p>
+                )}
+                <p className="flex justify-between gap-4"><span>Extra person fee</span><span>{formatPeso(pricingSummary.extraPersonFee)}</span></p>
+                <p className="flex justify-between gap-4"><span>Extra bed fee</span><span>{formatPeso(pricingSummary.extraBedFee)}</span></p>
+                <p className="flex justify-between gap-4"><span>Add-ons</span><span>{formatPeso(pricingSummary.addOnTotal)}</span></p>
+                {pricingSummary.promoPackagePrice === 0 ? (
+                  <p className="flex justify-between gap-4"><span>Promo discount</span><span>− {formatPeso(pricingSummary.promoDiscount)}</span></p>
+                ) : null}
+                {pricingSummary.additionalRoomDiscount > 0 ? (
+                  <p className="flex justify-between gap-4"><span>Additional room discount</span><span>− {formatPeso(pricingSummary.additionalRoomDiscount)}</span></p>
+                ) : null}
+                <p className="flex justify-between gap-4 border-t pt-2 font-semibold" style={{ borderColor: `${theme.ink}1A`, color: theme.navy }}>
+                  <span>Grand total</span><span>{formatPeso(pricingSummary.grandTotal)}</span>
+                </p>
+              </div>
+              {pricingSummary.addOns.length > 0 ? (
+                <ul className="mt-3 space-y-1 text-xs" style={{ color: `${theme.ink}99` }}>
+                  {pricingSummary.addOns.map((addOn) => <li key={addOn.addOnId}>{addOn.quantity}x {addOn.name} · {formatPeso(addOn.totalPrice)}</li>)}
+                </ul>
+              ) : null}
+              {!isWalkInMode ? (
+                <p className="mt-3 text-xs" style={{ color: `${theme.ink}99` }}>
+                  Payment method: {form.paymentMethod === 'GCASH' ? 'GCash' : 'Cash on arrival'}
+                  {form.paymentMethod === 'GCASH' && form.gcashAmountPaid ? ` · Amount paid: ${formatPeso(Number(form.gcashAmountPaid))}` : ''}
+                </p>
+              ) : null}
+            </div>
+
+            {form.specialRequests.trim() ? (
+              <div className="mt-4 rounded-xl border p-4" style={{ borderColor: `${theme.ink}1A` }}>
+                <h4 className="text-sm font-semibold" style={{ color: theme.navy }}>Special requests</h4>
+                <p className="mt-1 whitespace-pre-wrap text-sm" style={{ color: `${theme.ink}CC` }}>{form.specialRequests.trim()}</p>
+              </div>
+            ) : null}
+
+            {error ? <p role="alert" className="mt-4 rounded-lg bg-rose-100 px-3 py-2 text-sm text-rose-800">{error}</p> : null}
+
+            <div className="mt-5 flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
+              <button
+                type="button"
+                onClick={() => setShowConfirmation(false)}
+                disabled={submitting}
+                className="rounded-xl border px-4 py-3 text-sm font-semibold disabled:opacity-50"
+                style={{ borderColor: `${theme.ink}33`, color: theme.navy }}
+              >
+                Go back and edit
+              </button>
+              <button
+                type="button"
+                onClick={() => void submitReservation()}
+                disabled={submitting}
+                className="rounded-full px-6 py-3.5 text-sm font-semibold shadow-lg transition hover:-translate-y-0.5 hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-60 disabled:hover:translate-y-0"
+                style={{ backgroundColor: theme.sunset, color: theme.navy }}
+              >
+                {submitting ? 'Sending request...' : 'Confirm & send request'}
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
 
       {selectionPicker ? (
         <div

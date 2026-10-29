@@ -8,6 +8,7 @@ import { computeReservationPaymentRollup, generatePaymentNumber, generateReceipt
 import { triggerReservationUpdate } from '@/app/lib/pusher-server';
 import { diffAuditFields, writeAuditLog } from '@/app/lib/auditLogWriter';
 import { sendPaymentConfirmationEmail } from '@/app/lib/paymentConfirmationEmail';
+import { findConflictingReservation } from '@/app/lib/reservationAvailability';
 
 const VALID_PAYMENT_METHODS = ['CASH_ON_ARRIVAL', 'GCASH'] as const;
 const VALID_PAYMENT_TYPES = ['RESERVATION_DEPOSIT', 'PARTIAL_PAYMENT', 'FULL_PAYMENT', 'REFUND'] as const;
@@ -25,6 +26,45 @@ function normalizeDateInput(value: unknown, field: string, errors: string[]) {
     return null;
   }
   return date;
+}
+
+type ReservationRoomDates = {
+  room: string | mongoose.Types.ObjectId;
+  roomAssignments?: Array<{ room: string | mongoose.Types.ObjectId }>;
+  roomCheckOuts?: Array<{ room: string | mongoose.Types.ObjectId; checkOut: Date }>;
+  checkIn: Date;
+  checkOut: Date;
+};
+
+async function findPaymentRoomConflict(reservation: ReservationRoomDates, reservationId: string) {
+  const roomIds = reservation.roomAssignments?.length
+    ? reservation.roomAssignments.map((assignment) => String(assignment.room))
+    : [String(reservation.room)];
+
+  for (const roomId of roomIds) {
+    const roomCheckOut = reservation.roomCheckOuts?.find((assignment) => String(assignment.room) === roomId)?.checkOut
+      || reservation.checkOut;
+    const conflict = await findConflictingReservation({
+      roomId,
+      checkIn: reservation.checkIn,
+      checkOut: roomCheckOut,
+      excludeReservationId: reservationId,
+    });
+    if (conflict) return { roomId, reservation: conflict };
+  }
+
+  return null;
+}
+
+function roomOccupiedResponse(reservationNumber: string) {
+  return NextResponse.json(
+    {
+      success: false,
+      code: 'ROOM_OCCUPIED',
+      message: `Payment cannot be recorded or verified because a room is occupied for these dates by reservation ${reservationNumber}. Resolve the room conflict before proceeding.`,
+    },
+    { status: 409 }
+  );
 }
 
 export async function GET(request: Request, { params }: { params: Promise<{ id: string }> }) {
@@ -79,7 +119,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     }
 
     const reservation = await Reservation.findById(id)
-      .select('reservationNumber guestName pricingSummary.grandTotal paymentStatus')
+      .select('reservationNumber guestName pricingSummary.grandTotal paymentStatus reservationStatus room roomAssignments.room roomCheckOuts.room roomCheckOuts.checkOut checkIn checkOut')
       .lean();
 
     if (!reservation) {
@@ -177,6 +217,11 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
 
     if (paymentType === 'REFUND') {
       paymentStatus = 'REFUNDED';
+    }
+
+    if (paymentType !== 'REFUND') {
+      const conflict = await findPaymentRoomConflict(reservation, id);
+      if (conflict) return roomOccupiedResponse(String(conflict.reservation.reservationNumber));
     }
 
     const projectedPayments = [
@@ -380,6 +425,21 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
       return NextResponse.json({ success: false, message: 'Payment not found for this reservation.' }, { status: 404 });
     }
 
+    const reservation = await Reservation.findById(id)
+      .select('reservationNumber guestName email reservationStatus room roomAssignments.room roomCheckOuts.room roomCheckOuts.checkOut checkIn checkOut pricingSummary.grandTotal')
+      .lean();
+    if (!reservation) {
+      return NextResponse.json({ success: false, message: 'Reservation not found.' }, { status: 404 });
+    }
+
+    const becomingRecognized = (paymentStatus === 'PAID' || paymentStatus === 'PARTIALLY_PAID')
+      && payment.paymentStatus !== paymentStatus
+      && payment.paymentType !== 'REFUND';
+    if (becomingRecognized) {
+      const conflict = await findPaymentRoomConflict(reservation, id);
+      if (conflict) return roomOccupiedResponse(String(conflict.reservation.reservationNumber));
+    }
+
     const updatePayload: Record<string, unknown> = {
       paymentStatus,
     };
@@ -394,7 +454,6 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
 
     const updated = await Payment.findByIdAndUpdate(paymentId, updatePayload, { new: true }).lean();
 
-    const reservation = await Reservation.findById(id).select('reservationNumber guestName email reservationStatus pricingSummary.grandTotal').lean();
     const payments = await Payment.find({ reservation: id })
       .select('amountPaid paymentType paymentStatus paymentMethod')
       .lean();

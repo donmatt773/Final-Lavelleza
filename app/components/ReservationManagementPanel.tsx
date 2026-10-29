@@ -365,6 +365,7 @@ export default function ReservationManagementPanel({ active, canManageGmail = fa
   const [processingId, setProcessingId] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
   const [messageType, setMessageType] = useState<'success' | 'error' | 'info'>('info');
+  const [roomConflictWarning, setRoomConflictWarning] = useState<string | null>(null);
   const [editingReservation, setEditingReservation] = useState<ReservationRecord | null>(null);
   const [extendingReservation, setExtendingReservation] = useState<ReservationRecord | null>(null);
   const [extensionCheckOut, setExtensionCheckOut] = useState('');
@@ -917,6 +918,10 @@ export default function ReservationManagementPanel({ active, canManageGmail = fa
 
       const data = await response.json().catch(() => null);
       if (!response.ok) {
+        if (data?.code === 'ROOM_OCCUPIED' && typeof data?.message === 'string') {
+          setRoomConflictWarning(data.message);
+          return false;
+        }
         const detailErrors = Array.isArray(data?.errors)
           ? data.errors.map((item: unknown) => String(item)).filter(Boolean)
           : [];
@@ -954,9 +959,11 @@ export default function ReservationManagementPanel({ active, canManageGmail = fa
       );
       setMessage('Reservation updated successfully.');
       setMessageType('success');
+      return true;
     } catch (error) {
       setMessage(error instanceof Error ? error.message : 'Unable to update reservation.');
       setMessageType('error');
+      return false;
     } finally {
       setProcessingId(null);
     }
@@ -971,7 +978,7 @@ export default function ReservationManagementPanel({ active, canManageGmail = fa
       return;
     }
 
-    await patchReservation(editingReservation._id, {
+    const updated = await patchReservation(editingReservation._id, {
       guestName: editForm.guestName,
       email: editForm.email,
       phone: editForm.phone,
@@ -988,10 +995,16 @@ export default function ReservationManagementPanel({ active, canManageGmail = fa
       })),
       specialRequests: editForm.specialRequests,
     });
-    setEditingReservation(null);
+    if (updated) setEditingReservation(null);
   };
 
   const refreshReservationPaymentStatus = (reservationId: string, status: ReservationPaymentStatus, bookingStatus?: ReservationStatus) => {
+    if (editingReservation?._id === reservationId && bookingStatus && editingReservation.reservationStatus !== bookingStatus) {
+      setEditForm((current) => current.reservationStatus === editingReservation.reservationStatus
+        ? { ...current, reservationStatus: bookingStatus }
+        : current);
+    }
+
     setReservations((current) =>
       current.map((reservation) =>
         reservation._id === reservationId
@@ -1073,6 +1086,10 @@ export default function ReservationManagementPanel({ active, canManageGmail = fa
 
       const data = await response.json().catch(() => null);
       if (!response.ok || !data?.success) {
+        if (data?.code === 'ROOM_OCCUPIED' && typeof data?.message === 'string') {
+          setRoomConflictWarning(data.message);
+          return;
+        }
         const errors = Array.isArray(data?.errors) ? ` ${data.errors.join(' ')}` : '';
         throw new Error(`${typeof data?.message === 'string' ? data.message : 'Unable to record payment.'}${errors}`.trim());
       }
@@ -1175,6 +1192,10 @@ export default function ReservationManagementPanel({ active, canManageGmail = fa
 
       const data = await response.json().catch(() => null);
       if (!response.ok || !data?.success) {
+        if (data?.code === 'ROOM_OCCUPIED' && typeof data?.message === 'string') {
+          setRoomConflictWarning(data.message);
+          return;
+        }
         throw new Error(typeof data?.message === 'string' ? data.message : 'Unable to update payment status.');
       }
 
@@ -1608,7 +1629,10 @@ export default function ReservationManagementPanel({ active, canManageGmail = fa
       </div>
 
       {message ? (
-        <div className={`mb-4 rounded-lg border px-3 py-2 text-sm ${messageType === 'success' ? 'border-emerald-500/20 bg-emerald-500/10 text-emerald-300' : messageType === 'error' ? 'border-rose-500/20 bg-rose-500/10 text-rose-300' : 'border-sky-500/20 bg-sky-500/10 text-sky-300'}`}>
+        <div
+          role={messageType === 'error' ? 'alert' : 'status'}
+          className={`mb-4 rounded-lg border px-3 py-2 text-sm ${messageType === 'success' ? 'border-emerald-500/20 bg-emerald-500/10 text-emerald-300' : messageType === 'error' ? 'border-rose-500/20 bg-rose-500/10 text-rose-300' : 'border-sky-500/20 bg-sky-500/10 text-sky-300'}`}
+        >
           {message}
         </div>
       ) : null}
@@ -2357,6 +2381,33 @@ export default function ReservationManagementPanel({ active, canManageGmail = fa
               </button>
             </div>
             </fieldset>
+          </div>
+        </div>
+      ) : null}
+
+      {roomConflictWarning ? (
+        <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/70 p-4">
+          <div
+            role="alertdialog"
+            aria-modal="true"
+            aria-labelledby="room-conflict-title"
+            aria-describedby="room-conflict-description"
+            className="w-full max-w-md rounded-2xl border border-amber-700/50 bg-slate-900 p-5 shadow-2xl"
+          >
+            <p className="text-xs font-semibold uppercase tracking-[0.2em] text-amber-300">Reservation blocked</p>
+            <h3 id="room-conflict-title" className="mt-2 text-xl font-semibold text-white">Room is occupied</h3>
+            <p id="room-conflict-description" className="mt-3 text-sm text-slate-300">{roomConflictWarning}</p>
+            <p className="mt-2 text-sm text-slate-400">No payment or reservation changes were made.</p>
+            <div className="mt-5 flex justify-end">
+              <button
+                type="button"
+                autoFocus
+                onClick={() => setRoomConflictWarning(null)}
+                className="rounded-lg bg-amber-600 px-4 py-2 text-sm font-semibold text-slate-950 hover:bg-amber-500"
+              >
+                Close warning
+              </button>
+            </div>
           </div>
         </div>
       ) : null}
