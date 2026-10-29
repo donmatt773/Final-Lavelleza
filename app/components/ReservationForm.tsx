@@ -3,6 +3,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import ReservationSuccess from '@/app/components/ReservationSuccess';
 import { theme } from '@/app/lib/landingTheme';
+import { uploadPaymentReceipt } from '@/app/lib/paymentReceiptClient';
 
 type RoomOption = {
   _id: string;
@@ -85,7 +86,7 @@ type Props = {
     checkOut?: string;
   };
   mode?: 'public' | 'walk-in';
-  onSuccess?: (reservationNumber: string) => void;
+  onSuccess?: (reservationNumber: string, paymentMessage?: string) => void;
   onCancel?: () => void;
 };
 
@@ -117,6 +118,7 @@ type FormState = {
   adults: string;
   children: string;
   paymentMethod: 'CASH_ON_ARRIVAL' | 'GCASH';
+  recordWalkInPayment: boolean;
   gcashAmountPaid: string;
   gcashReferenceNumber: string;
   gcashProofOfPaymentUrl: string;
@@ -149,6 +151,7 @@ function createInitialForm(): FormState {
     adults: '1',
     children: '0',
     paymentMethod: 'CASH_ON_ARRIVAL',
+    recordWalkInPayment: false,
     gcashAmountPaid: '',
     gcashReferenceNumber: '',
     gcashProofOfPaymentUrl: '',
@@ -179,6 +182,9 @@ export default function ReservationForm({ rooms, initialSelection, mode = 'publi
   });
   const [submitting, setSubmitting] = useState(false);
   const [showConfirmation, setShowConfirmation] = useState(false);
+  const [roomConflictWarning, setRoomConflictWarning] = useState<string | null>(null);
+  const [walkInReceiptUploading, setWalkInReceiptUploading] = useState(false);
+  const [walkInReceiptMessage, setWalkInReceiptMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [validationErrors, setValidationErrors] = useState<string[]>([]);
   const [success, setSuccess] = useState<{ reservationNumber: string; guestName: string } | null>(null);
@@ -370,7 +376,7 @@ export default function ReservationForm({ rooms, initialSelection, mode = 'publi
       if (!Number.isFinite(Number(guests?.children)) || Number(guests?.children) < 0) errors.push('Children for each room cannot be negative.');
     });
 
-    if (!isWalkInMode && form.paymentMethod === 'GCASH') {
+    if ((!isWalkInMode || form.recordWalkInPayment) && form.paymentMethod === 'GCASH') {
       const gcashAmount = Number(form.gcashAmountPaid);
       if (!Number.isFinite(gcashAmount) || gcashAmount <= 0) {
         errors.push('GCash amount paid must be greater than zero.');
@@ -382,6 +388,17 @@ export default function ReservationForm({ rooms, initialSelection, mode = 'publi
 
       if (!form.gcashReferenceNumber.trim()) {
         errors.push('GCash reference number is required.');
+      }
+
+      if (isWalkInMode && !form.gcashProofOfPaymentUrl.trim()) {
+        errors.push('Upload the GCash receipt image before recording this walk-in payment.');
+      }
+    }
+
+    if (isWalkInMode && form.recordWalkInPayment && form.paymentMethod === 'CASH_ON_ARRIVAL') {
+      const amountPaid = Number(form.gcashAmountPaid);
+      if (!Number.isFinite(amountPaid) || amountPaid <= 0) {
+        errors.push('Initial cash payment must be greater than zero.');
       }
     }
 
@@ -422,6 +439,13 @@ export default function ReservationForm({ rooms, initialSelection, mode = 'publi
           addOns: Object.entries(form.addOns).filter(([, quantity]) => quantity > 0).map(([addOnId, quantity]) => ({ addOnId, quantity })),
           reservationSource: isWalkInMode ? 'WALK_IN' : 'ONLINE',
           reservationStatus: isWalkInMode ? walkInStatus : 'PENDING',
+          recordInitialPayment: isWalkInMode ? form.recordWalkInPayment : undefined,
+          initialPayment: isWalkInMode && form.recordWalkInPayment ? {
+            paymentMethod: form.paymentMethod,
+            amountPaid: Number(form.gcashAmountPaid),
+            referenceNumber: form.paymentMethod === 'GCASH' ? form.gcashReferenceNumber.trim() : undefined,
+            proofOfPaymentUrl: form.paymentMethod === 'GCASH' ? form.gcashProofOfPaymentUrl.trim() : undefined,
+          } : undefined,
           paymentMethod: isWalkInMode ? undefined : form.paymentMethod,
           gcashAmountPaid: !isWalkInMode && form.paymentMethod === 'GCASH' ? Number(form.gcashAmountPaid) : undefined,
           gcashReferenceNumber: !isWalkInMode && form.paymentMethod === 'GCASH' ? form.gcashReferenceNumber.trim() : undefined,
@@ -431,6 +455,10 @@ export default function ReservationForm({ rooms, initialSelection, mode = 'publi
 
       const data = await response.json().catch(() => null);
       if (!response.ok) {
+        if (isWalkInMode && data?.code === 'ROOM_OCCUPIED' && typeof data?.message === 'string') {
+          setRoomConflictWarning(data.message);
+          return;
+        }
         setValidationErrors(Array.isArray(data?.errors) ? data.errors.map((item: unknown) => String(item)) : []);
         throw new Error(typeof data?.message === 'string' ? data.message : 'Unable to submit reservation request.');
       }
@@ -438,8 +466,11 @@ export default function ReservationForm({ rooms, initialSelection, mode = 'publi
       const reservationNumber = String(data?.reservation?.reservationNumber || 'N/A');
 
       if (isWalkInMode) {
-        setWalkInSuccessMessage(`Walk-in booking created successfully. Reservation No.: ${reservationNumber}`);
-        onSuccess?.(reservationNumber);
+        const paymentMessage = form.recordWalkInPayment
+          ? `${form.paymentMethod === 'GCASH' ? 'GCash payment recorded and awaiting verification' : `Payment of ${formatPeso(Number(form.gcashAmountPaid))} recorded`} (${String(data?.reservation?.paymentStatus || 'UNPAID').replace(/_/g, ' ').toLowerCase()}).`
+          : undefined;
+        setWalkInSuccessMessage(`Walk-in booking created successfully. Reservation No.: ${reservationNumber}${paymentMessage ? ` ${paymentMessage}` : ''}`);
+        onSuccess?.(reservationNumber, paymentMessage);
       } else {
         setSuccess({
           reservationNumber,
@@ -451,6 +482,7 @@ export default function ReservationForm({ rooms, initialSelection, mode = 'publi
       setValidationErrors([]);
       setPricingSummary(null);
       setShowConfirmation(false);
+      setWalkInReceiptMessage(null);
     } catch (submitError) {
       setError(submitError instanceof Error ? submitError.message : 'Unable to submit reservation request.');
     } finally {
@@ -477,6 +509,25 @@ export default function ReservationForm({ rooms, initialSelection, mode = 'publi
     }
 
     await submitReservation();
+  };
+
+  const handleWalkInReceiptSelected = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    event.target.value = '';
+    if (!file) return;
+
+    setWalkInReceiptUploading(true);
+    setWalkInReceiptMessage('Uploading GCash receipt...');
+    updateField('gcashProofOfPaymentUrl', '');
+    try {
+      const proofOfPaymentUrl = await uploadPaymentReceipt(file);
+      updateField('gcashProofOfPaymentUrl', proofOfPaymentUrl);
+      setWalkInReceiptMessage('Receipt uploaded.');
+    } catch (uploadError) {
+      setWalkInReceiptMessage(uploadError instanceof Error ? uploadError.message : 'Unable to upload the GCash receipt.');
+    } finally {
+      setWalkInReceiptUploading(false);
+    }
   };
 
   useEffect(() => {
@@ -939,7 +990,7 @@ export default function ReservationForm({ rooms, initialSelection, mode = 'publi
             )}
           </div>
           {isWalkInMode ? (
-            <div>
+            <div className="space-y-3">
               <label className="mb-1 block text-xs uppercase tracking-wider text-slate-400">Reservation Status</label>
               <select
                 value={walkInStatus}
@@ -949,6 +1000,75 @@ export default function ReservationForm({ rooms, initialSelection, mode = 'publi
                 <option value="CONFIRMED">CONFIRMED</option>
                 <option value="CHECKED_IN">CHECKED_IN</option>
               </select>
+              <div className="rounded-xl border border-slate-800 bg-slate-950/70 p-4">
+                <label className="flex items-start gap-3 text-sm text-slate-200">
+                  <input
+                    type="checkbox"
+                    checked={form.recordWalkInPayment}
+                    onChange={(event) => setForm((current) => ({ ...current, recordWalkInPayment: event.target.checked }))}
+                    className="mt-0.5 h-4 w-4 accent-emerald-500"
+                  />
+                  <span>
+                    <span className="block font-semibold text-white">Record an initial payment</span>
+                    <span className="mt-1 block text-xs text-slate-400">Optional. Leave unchecked if payment will be recorded later.</span>
+                  </span>
+                </label>
+
+                {form.recordWalkInPayment ? (
+                  <div className="mt-4 grid gap-3 md:grid-cols-2">
+                    <label className="text-xs uppercase tracking-wider text-slate-400">
+                      Payment Method
+                      <select
+                        value={form.paymentMethod}
+                        onChange={(event) => updateField('paymentMethod', event.target.value === 'GCASH' ? 'GCASH' : 'CASH_ON_ARRIVAL')}
+                        className="mt-1 w-full rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-sm normal-case text-white outline-none focus:border-emerald-500"
+                      >
+                        <option value="CASH_ON_ARRIVAL">Cash</option>
+                        <option value="GCASH">GCash</option>
+                      </select>
+                    </label>
+                    <label className="text-xs uppercase tracking-wider text-slate-400">
+                      Amount Received
+                      <input
+                        type="number"
+                        min={0.01}
+                        step="0.01"
+                        value={form.gcashAmountPaid}
+                        onChange={(event) => updateField('gcashAmountPaid', event.target.value)}
+                        placeholder="0.00"
+                        className="mt-1 w-full rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-sm normal-case text-white outline-none focus:border-emerald-500"
+                        required
+                      />
+                    </label>
+                    {form.paymentMethod === 'GCASH' ? (
+                      <>
+                        <label className="text-xs uppercase tracking-wider text-slate-400">
+                          GCash Reference Number
+                          <input
+                            value={form.gcashReferenceNumber}
+                            onChange={(event) => updateField('gcashReferenceNumber', event.target.value)}
+                            placeholder="Enter transaction reference"
+                            className="mt-1 w-full rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-sm normal-case text-white outline-none focus:border-emerald-500"
+                            required
+                          />
+                        </label>
+                        <label className="text-xs uppercase tracking-wider text-slate-400">
+                          GCash Receipt Image
+                          <input
+                            type="file"
+                            accept="image/jpeg,image/png,image/webp"
+                            onChange={(event) => void handleWalkInReceiptSelected(event)}
+                            disabled={walkInReceiptUploading}
+                            className="mt-1 block w-full text-xs normal-case text-slate-300 file:mr-3 file:rounded-lg file:border-0 file:bg-slate-700 file:px-3 file:py-2 file:text-xs file:font-semibold file:text-white hover:file:bg-slate-600 disabled:opacity-50"
+                            required={!form.gcashProofOfPaymentUrl}
+                          />
+                          {walkInReceiptMessage ? <span className="mt-1 block normal-case text-slate-400" role="status">{walkInReceiptMessage}</span> : null}
+                        </label>
+                      </>
+                    ) : null}
+                  </div>
+                ) : null}
+              </div>
             </div>
           ) : null}
 
@@ -1083,10 +1203,10 @@ export default function ReservationForm({ rooms, initialSelection, mode = 'publi
 
         <button
           type="submit"
-          disabled={submitting || rooms.length === 0 || form.rooms.length === 0}
+          disabled={submitting || walkInReceiptUploading || rooms.length === 0 || form.rooms.length === 0}
           className="w-full rounded-xl bg-emerald-600 px-4 py-3 text-sm font-semibold text-white shadow-lg shadow-emerald-950/30 transition hover:bg-emerald-500 disabled:cursor-not-allowed disabled:bg-emerald-800"
         >
-          {submitting ? (isWalkInMode ? 'Creating Walk-In Booking...' : 'Submitting Request...') : (isWalkInMode ? 'Create Walk-In Booking' : 'Submit Reservation Request')}
+          {walkInReceiptUploading ? 'Uploading GCash Receipt...' : submitting ? (isWalkInMode ? 'Creating Walk-In Booking...' : 'Submitting Request...') : (isWalkInMode ? 'Create Walk-In Booking' : 'Submit Reservation Request')}
         </button>
 
         {rooms.length === 0 ? (
@@ -1100,12 +1220,12 @@ export default function ReservationForm({ rooms, initialSelection, mode = 'publi
       </form>
 
       {showConfirmation && pricingSummary ? (
-        <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/70 p-4">
+        <div className="fixed inset-0 z-[70] flex items-center justify-center overflow-y-auto overscroll-contain bg-black/70 p-3 sm:p-4">
           <div
             role="dialog"
             aria-modal="true"
             aria-labelledby="reservation-confirmation-title"
-            className="max-h-[90vh] w-full max-w-2xl overflow-y-auto rounded-2xl border p-5 shadow-2xl sm:p-6"
+            className="my-auto max-h-[calc(100dvh-1.5rem)] w-full max-w-2xl overflow-y-auto rounded-2xl border p-4 shadow-2xl sm:max-h-[90vh] sm:p-6"
             style={{ backgroundColor: theme.sand, borderColor: `${theme.ink}26` }}
           >
             <p className="text-xs font-semibold uppercase tracking-[0.2em]" style={{ color: theme.coral }}>Review your reservation</p>
@@ -1207,7 +1327,7 @@ export default function ReservationForm({ rooms, initialSelection, mode = 'publi
                 type="button"
                 onClick={() => setShowConfirmation(false)}
                 disabled={submitting}
-                className="rounded-xl border px-4 py-3 text-sm font-semibold disabled:opacity-50"
+                className="min-h-11 rounded-xl border px-4 py-3 text-sm font-semibold disabled:opacity-50"
                 style={{ borderColor: `${theme.ink}33`, color: theme.navy }}
               >
                 Go back and edit
@@ -1216,10 +1336,39 @@ export default function ReservationForm({ rooms, initialSelection, mode = 'publi
                 type="button"
                 onClick={() => void submitReservation()}
                 disabled={submitting}
-                className="rounded-full px-6 py-3.5 text-sm font-semibold shadow-lg transition hover:-translate-y-0.5 hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-60 disabled:hover:translate-y-0"
+                className="min-h-11 rounded-full px-6 py-3.5 text-sm font-semibold shadow-lg transition hover:-translate-y-0.5 hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-60 disabled:hover:translate-y-0"
                 style={{ backgroundColor: theme.sunset, color: theme.navy }}
               >
                 {submitting ? 'Sending request...' : 'Confirm & send request'}
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
+
+      {roomConflictWarning ? (
+        <div className="fixed inset-0 z-[80] flex items-center justify-center overflow-y-auto overscroll-contain bg-black/70 p-3 sm:p-4">
+          <div
+            role="alertdialog"
+            aria-modal="true"
+            aria-labelledby="walk-in-room-conflict-title"
+            aria-describedby="walk-in-room-conflict-description"
+            className="my-auto max-h-[calc(100dvh-1.5rem)] w-full max-w-md overflow-y-auto rounded-2xl border p-4 shadow-2xl sm:p-5"
+            style={{ backgroundColor: theme.sand, borderColor: `${theme.coral}66`, boxShadow: `0 24px 60px ${theme.navy}55` }}
+          >
+            <p className="text-xs font-semibold uppercase tracking-[0.2em]" style={{ color: theme.coral }}>Walk-in booking blocked</p>
+            <h3 id="walk-in-room-conflict-title" className="mt-2 text-xl font-semibold" style={{ color: theme.navy }}>Room is occupied</h3>
+            <p id="walk-in-room-conflict-description" className="mt-3 text-sm leading-6" style={{ color: theme.ink }}>{roomConflictWarning}</p>
+            <p className="mt-2 text-sm" style={{ color: `${theme.ink}99` }}>No booking was created. Change the room or dates and try again.</p>
+            <div className="mt-5 flex justify-end">
+              <button
+                type="button"
+                autoFocus
+                onClick={() => setRoomConflictWarning(null)}
+                className="min-h-11 rounded-full px-5 py-2.5 text-sm font-semibold shadow transition hover:-translate-y-0.5 hover:opacity-90"
+                style={{ backgroundColor: theme.sunset, color: theme.navy }}
+              >
+                Review booking
               </button>
             </div>
           </div>

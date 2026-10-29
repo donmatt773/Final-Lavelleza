@@ -8,7 +8,7 @@ import { getSessionFromRequest, requireOwnerOrStaff } from '@/app/lib/auth';
 import { findConflictingReservation, hasValidDateRange } from '@/app/lib/reservationAvailability';
 import { calculateReservationPricing } from '@/app/lib/reservationPricing';
 import { validateSelectedPromoEligibility } from '@/app/lib/promoEligibility';
-import { generatePaymentNumber } from '@/app/lib/paymentTracking';
+import { generatePaymentNumber, syncReservationPaymentStatus } from '@/app/lib/paymentTracking';
 import { triggerReservationUpdate } from '@/app/lib/pusher-server';
 import { AddOnAvailabilityError, AddOnInventoryBusyError, withAddOnInventoryLock } from '@/app/lib/addOnAvailability';
 import { writeAuditLog } from '@/app/lib/auditLogWriter';
@@ -246,9 +246,24 @@ export async function POST(request: Request) {
     const requestedPaymentMethod = typeof body.paymentMethod === 'string'
       ? body.paymentMethod.trim().toUpperCase()
       : 'CASH_ON_ARRIVAL';
+    const recordInitialPayment = isWalkInRequest && body.recordInitialPayment === true;
+    const initialPayment = isRecord(body.initialPayment) ? body.initialPayment : null;
+    const initialPaymentMethod = typeof initialPayment?.paymentMethod === 'string'
+      ? initialPayment.paymentMethod.trim().toUpperCase()
+      : '';
+    const initialPaymentAmount = Number(initialPayment?.amountPaid);
+    const initialPaymentReferenceNumber = typeof initialPayment?.referenceNumber === 'string'
+      ? initialPayment.referenceNumber.trim()
+      : '';
+    const initialPaymentProofOfPaymentUrl = typeof initialPayment?.proofOfPaymentUrl === 'string'
+      ? initialPayment.proofOfPaymentUrl.trim()
+      : '';
 
     if (isOnlineRequest && !VALID_PAYMENT_METHODS.includes(requestedPaymentMethod as (typeof VALID_PAYMENT_METHODS)[number])) {
       errors.push('paymentMethod must be CASH_ON_ARRIVAL or GCASH.');
+    }
+    if (isWalkInRequest && body.recordInitialPayment !== undefined && typeof body.recordInitialPayment !== 'boolean') {
+      errors.push('recordInitialPayment must be a boolean.');
     }
 
     const gcashReferenceNumber = typeof body.gcashReferenceNumber === 'string' ? body.gcashReferenceNumber.trim() : '';
@@ -333,6 +348,7 @@ export async function POST(request: Request) {
       : 'PENDING';
 
     const isOnlineGcash = isOnlineRequest && requestedPaymentMethod === 'GCASH';
+    const isWalkInGcash = recordInitialPayment && initialPaymentMethod === 'GCASH';
 
     if (isOnlineGcash) {
       if (!gcashReferenceNumber) {
@@ -341,6 +357,21 @@ export async function POST(request: Request) {
 
       if (!Number.isFinite(gcashAmountPaid) || gcashAmountPaid <= 0) {
         errors.push('GCash amount paid must be greater than zero.');
+      }
+    }
+
+    if (recordInitialPayment) {
+      if (!VALID_PAYMENT_METHODS.includes(initialPaymentMethod as (typeof VALID_PAYMENT_METHODS)[number])) {
+        errors.push('Initial payment method must be CASH_ON_ARRIVAL or GCASH.');
+      }
+      if (!Number.isFinite(initialPaymentAmount) || initialPaymentAmount <= 0) {
+        errors.push('Initial payment amount must be greater than zero.');
+      }
+      if (isWalkInGcash && !initialPaymentReferenceNumber) {
+        errors.push('GCash reference number is required for the initial payment.');
+      }
+      if (isWalkInGcash && !initialPaymentProofOfPaymentUrl) {
+        errors.push('A GCash receipt image is required for the initial payment.');
       }
     }
 
@@ -372,10 +403,21 @@ export async function POST(request: Request) {
 
     if (checkIn && checkOut && hasValidDateRange({ checkIn, checkOut })) {
       for (const selectedRoomId of selectedRoomIds) {
-        const conflictingReservation = await findConflictingReservation({ roomId: selectedRoomId, checkIn, checkOut });
+        const conflictingReservation = await findConflictingReservation({
+          roomId: selectedRoomId,
+          checkIn,
+          checkOut,
+          includePendingOnline: isWalkInRequest,
+        });
         if (conflictingReservation) {
           return NextResponse.json(
-            { success: false, message: `A selected room is unavailable for the requested dates due to reservation ${String(conflictingReservation.reservationNumber)}.` },
+            {
+              success: false,
+              code: 'ROOM_OCCUPIED',
+              message: isWalkInRequest
+                ? `This walk-in booking cannot be created because the selected room is occupied for these dates by reservation ${String(conflictingReservation.reservationNumber)}.`
+                : `A selected room is unavailable for the requested dates due to reservation ${String(conflictingReservation.reservationNumber)}.`,
+            },
             { status: 409 }
           );
         }
@@ -403,8 +445,14 @@ export async function POST(request: Request) {
       });
 
       const totalDue = Number(pricingSummary.grandTotal || 0);
-      if (isOnlineGcash && Number.isFinite(gcashAmountPaid) && gcashAmountPaid > totalDue) {
-        return { reservation: null, onlinePayment: null, error: { status: 400, message: 'GCash amount cannot exceed outstanding balance.' } };
+      if ((isOnlineGcash && gcashAmountPaid > totalDue) || (isWalkInGcash && initialPaymentAmount > totalDue)) {
+        return {
+          reservation: null,
+          onlinePayment: null,
+          walkInPayment: null,
+          paymentStatus: null,
+          error: { status: 400, message: 'GCash amount cannot exceed outstanding balance.' },
+        };
       }
 
       const reservation = await Reservation.create({
@@ -433,33 +481,60 @@ export async function POST(request: Request) {
       });
 
       let onlinePayment: { _id: unknown; paymentNumber: string } | null = null;
-      if (isOnlineGcash) {
+      let walkInPayment: { _id: unknown; paymentNumber: string; amountPaid: number; paymentMethod: string } | null = null;
+      let paymentStatus = reservation.paymentStatus;
+      if (isOnlineGcash || recordInitialPayment) {
         try {
           const paymentNumber = await generatePaymentNumber();
-          const paymentType = gcashAmountPaid >= totalDue ? 'FULL_PAYMENT' : 'RESERVATION_DEPOSIT';
+          const amountPaid = isOnlineGcash ? gcashAmountPaid : initialPaymentAmount;
+          const paymentMethod: (typeof VALID_PAYMENT_METHODS)[number] = isOnlineGcash
+            ? 'GCASH'
+            : initialPaymentMethod as (typeof VALID_PAYMENT_METHODS)[number];
+          const paymentType = amountPaid >= totalDue ? 'FULL_PAYMENT' : 'RESERVATION_DEPOSIT';
+          const recordedPaymentStatus = paymentMethod === 'GCASH'
+            ? 'PENDING_VERIFICATION'
+            : amountPaid >= totalDue
+              ? 'PAID'
+              : 'PARTIALLY_PAID';
 
           const payment = await Payment.create({
             paymentNumber,
             reservation: reservation._id,
             paymentDate: new Date(),
-            paymentMethod: 'GCASH',
-            referenceNumber: gcashReferenceNumber,
-            amountPaid: gcashAmountPaid,
-            balanceRemaining: totalDue,
+            paymentMethod,
+            referenceNumber: isOnlineGcash ? gcashReferenceNumber : initialPaymentReferenceNumber || undefined,
+            amountPaid,
+            balanceRemaining: paymentMethod === 'GCASH' ? totalDue : Math.max(totalDue - amountPaid, 0),
             paymentType,
-            paymentStatus: 'PENDING_VERIFICATION',
-            receivedBy: 'GUEST',
-            notes: 'Submitted by guest during online reservation.',
-            proofOfPaymentUrl: gcashProofOfPaymentUrl || undefined,
+            paymentStatus: recordedPaymentStatus,
+            receivedBy: isOnlineGcash ? 'GUEST' : actingStaffMember,
+            notes: isOnlineGcash ? 'Submitted by guest during online reservation.' : 'Recorded during walk-in booking.',
+            proofOfPaymentUrl: isOnlineGcash ? gcashProofOfPaymentUrl || undefined : initialPaymentProofOfPaymentUrl || undefined,
           });
-          onlinePayment = { _id: payment._id, paymentNumber: payment.paymentNumber };
+          if (isOnlineGcash) onlinePayment = { _id: payment._id, paymentNumber: payment.paymentNumber };
+          if (recordInitialPayment) {
+            walkInPayment = {
+              _id: payment._id,
+              paymentNumber: payment.paymentNumber,
+              amountPaid,
+              paymentMethod,
+            };
+          }
+          paymentStatus = (await syncReservationPaymentStatus(String(reservation._id))).rollup.reservationPaymentStatus;
         } catch {
+          await Payment.deleteMany({ reservation: reservation._id });
           await Reservation.findByIdAndDelete(reservation._id);
-          return { reservation: null, onlinePayment: null, error: { status: 500, message: 'Failed to record GCash payment. Please try again.' } };
+          return {
+            reservation: null,
+            onlinePayment: null,
+            walkInPayment: null,
+            paymentStatus: null,
+            error: { status: 500, message: 'Failed to record the initial payment. No reservation was created. Please try again.' },
+          };
         }
       }
 
-      return { reservation, onlinePayment, error: null };
+      return { reservation, onlinePayment, walkInPayment, paymentStatus, error: null };
     });
 
     if (reservationResult.error) {
@@ -490,11 +565,22 @@ export async function POST(request: Request) {
       });
     }
 
+    if (reservationResult.walkInPayment) {
+      await writeAuditLog(request, {
+        action: 'RECORD_PAYMENT',
+        entityType: 'PAYMENT',
+        entityId: String(reservationResult.walkInPayment._id),
+        entityLabel: reservationResult.walkInPayment.paymentNumber,
+        summary: `Recorded a ${reservationResult.walkInPayment.paymentMethod} payment during walk-in reservation ${reservation.reservationNumber}.`,
+        changedFields: ['paymentMethod', 'amountPaid', 'paymentStatus'],
+      });
+    }
+
     await triggerReservationUpdate(String(reservation._id), {
       type: 'reservation-created',
       reservationStatus: reservation.reservationStatus,
       reservationSource: reservation.reservationSource,
-      paymentStatus: reservation.paymentStatus,
+      paymentStatus: reservationResult.paymentStatus || reservation.paymentStatus,
     });
 
     return NextResponse.json(
@@ -505,8 +591,9 @@ export async function POST(request: Request) {
           _id: reservation._id,
           reservationNumber: reservation.reservationNumber,
           reservationStatus: reservation.reservationStatus,
-          paymentStatus: reservation.paymentStatus,
+          paymentStatus: reservationResult.paymentStatus || reservation.paymentStatus,
           pricingSummary: reservation.pricingSummary,
+          initialPaymentRecorded: isWalkInRequest && recordInitialPayment,
         },
       },
       { status: 201 }

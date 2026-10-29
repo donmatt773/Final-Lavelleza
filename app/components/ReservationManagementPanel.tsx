@@ -2386,13 +2386,13 @@ export default function ReservationManagementPanel({ active, canManageGmail = fa
       ) : null}
 
       {roomConflictWarning ? (
-        <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/70 p-4">
+        <div className="fixed inset-0 z-[70] flex items-center justify-center overflow-y-auto overscroll-contain bg-black/70 p-3 sm:p-4">
           <div
             role="alertdialog"
             aria-modal="true"
             aria-labelledby="room-conflict-title"
             aria-describedby="room-conflict-description"
-            className="w-full max-w-md rounded-2xl border border-amber-700/50 bg-slate-900 p-5 shadow-2xl"
+            className="my-auto max-h-[calc(100dvh-1.5rem)] w-full max-w-md overflow-y-auto rounded-2xl border border-amber-700/50 bg-slate-900 p-4 shadow-2xl sm:p-5"
           >
             <p className="text-xs font-semibold uppercase tracking-[0.2em] text-amber-300">Reservation blocked</p>
             <h3 id="room-conflict-title" className="mt-2 text-xl font-semibold text-white">Room is occupied</h3>
@@ -2403,7 +2403,7 @@ export default function ReservationManagementPanel({ active, canManageGmail = fa
                 type="button"
                 autoFocus
                 onClick={() => setRoomConflictWarning(null)}
-                className="rounded-lg bg-amber-600 px-4 py-2 text-sm font-semibold text-slate-950 hover:bg-amber-500"
+                className="min-h-11 rounded-lg bg-amber-600 px-4 py-2 text-sm font-semibold text-slate-950 hover:bg-amber-500"
               >
                 Close warning
               </button>
@@ -2513,9 +2513,9 @@ export default function ReservationManagementPanel({ active, canManageGmail = fa
                 rooms={walkInRooms}
                 mode="walk-in"
                 onCancel={() => setWalkInOpen(false)}
-                onSuccess={(reservationNumber) => {
+                onSuccess={(reservationNumber, paymentMessage) => {
                   setWalkInOpen(false);
-                  setMessage(`Walk-in booking ${reservationNumber} created successfully.`);
+                  setMessage(`Walk-in booking ${reservationNumber} created successfully.${paymentMessage ? ` ${paymentMessage}` : ''}`);
                   setMessageType('success');
                   setPage(1);
                   void loadReservations();

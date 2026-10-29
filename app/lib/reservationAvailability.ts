@@ -13,6 +13,7 @@ type OverlapQueryInput = {
   checkIn: Date;
   checkOut: Date;
   excludeReservationId?: string;
+  includePendingOnline?: boolean;
 };
 
 export type RoomAvailabilityLabel = 'AVAILABLE' | 'RESERVED_TODAY' | 'UPCOMING_RESERVATION';
@@ -34,10 +35,12 @@ export function hasValidDateRange(range: DateRange) {
     && range.checkOut > range.checkIn;
 }
 
-export async function findConflictingReservation({ roomId, checkIn, checkOut, excludeReservationId }: OverlapQueryInput) {
+export async function findConflictingReservation({ roomId, checkIn, checkOut, excludeReservationId, includePendingOnline = false }: OverlapQueryInput) {
   const query: Record<string, unknown> = {
     $or: [{ room: roomId }, { 'roomAssignments.room': roomId }],
-    reservationStatus: { $in: BLOCKING_RESERVATION_STATUSES },
+    reservationStatus: {
+      $in: includePendingOnline ? [...BLOCKING_RESERVATION_STATUSES, 'PENDING'] : BLOCKING_RESERVATION_STATUSES,
+    },
   };
 
   if (excludeReservationId && mongoose.Types.ObjectId.isValid(excludeReservationId)) {
@@ -45,10 +48,15 @@ export async function findConflictingReservation({ roomId, checkIn, checkOut, ex
   }
 
   const candidates = await Reservation.find(query)
-    .select('_id reservationNumber room roomAssignments.room roomCheckOuts checkIn checkOut reservationStatus')
+    .select('_id reservationNumber room roomAssignments.room roomCheckOuts checkIn checkOut reservationStatus reservationSource')
     .lean();
 
   return candidates.find((reservation) => {
+    const status = String(reservation.reservationStatus || '');
+    const blocksRoom = BLOCKING_RESERVATION_STATUSES.includes(status as (typeof BLOCKING_RESERVATION_STATUSES)[number])
+      || (includePendingOnline && status === 'PENDING' && reservation.reservationSource === 'ONLINE');
+    if (!blocksRoom) return false;
+
     const assignedRoomIds = Array.isArray(reservation.roomAssignments) && reservation.roomAssignments.length > 0
       ? reservation.roomAssignments.map((assignment) => String(assignment.room))
       : [String(reservation.room)];
