@@ -2022,7 +2022,7 @@ export default function ReservationManagementPanel({ active, canManageGmail = fa
             </div>
 
             {editingReservation.reservationStatus === 'CHECKED_OUT' ? (
-              <div className="mb-4 rounded-lg border border-amber-700/40 bg-amber-500/10 px-3 py-2 text-sm text-amber-200">
+              <div className="mb-4 rounded-lg border border-[#a85512]/40 bg-[#a85512]/10 px-3 py-2 text-sm text-[#a85512]">
                 This reservation is checked out and locked. Its details are read-only.
               </div>
             ) : null}
@@ -2126,6 +2126,8 @@ export default function ReservationManagementPanel({ active, canManageGmail = fa
               </div>
             ) : null}
 
+            </fieldset>
+
             <div className="mt-4 rounded-xl border border-slate-800 bg-slate-950/70 p-4">
               <div className="flex items-center justify-between gap-2">
                 <p className="text-xs font-semibold uppercase tracking-[0.2em] text-emerald-400">Payments</p>
@@ -2139,6 +2141,7 @@ export default function ReservationManagementPanel({ active, canManageGmail = fa
                 <p>Pending Verifications: <span className="text-sky-300">{Number(paymentSummary?.pendingCount || 0)}</span></p>
               </div>
 
+              {editingReservation.reservationStatus !== 'CHECKED_OUT' ? (
               <div className="mt-4 rounded-lg border border-slate-800 bg-slate-900/70 p-3">
                 <p className="text-xs font-semibold uppercase tracking-[0.15em] text-emerald-400">Record Payment</p>
                 <div className="mt-2 grid gap-2 md:grid-cols-2">
@@ -2248,6 +2251,7 @@ export default function ReservationManagementPanel({ active, canManageGmail = fa
                   </button>
                 </div>
               </div>
+              ) : null}
 
               <div className="mt-4 overflow-x-auto rounded-lg border border-slate-800">
                 <table data-mobile-expandable className="min-w-full divide-y divide-slate-800 text-left text-xs text-slate-300">
@@ -2259,8 +2263,6 @@ export default function ReservationManagementPanel({ active, canManageGmail = fa
                       <th className="px-2 py-2">Type</th>
                       <th className="px-2 py-2">Amount</th>
                       <th className="px-2 py-2">Status</th>
-                      <th className="px-2 py-2">Reference</th>
-                      <th className="px-2 py-2">Proof</th>
                       <th className="px-2 py-2">Receipt No.</th>
                       <th className="px-2 py-2">Issued By</th>
                       <th className="px-2 py-2">Actions</th>
@@ -2269,7 +2271,7 @@ export default function ReservationManagementPanel({ active, canManageGmail = fa
                   <tbody className="divide-y divide-slate-800">
                     {payments.length === 0 ? (
                       <tr>
-                        <td colSpan={11} className="px-2 py-4 text-center text-slate-500">No payment records yet.</td>
+                        <td colSpan={9} className="px-2 py-4 text-center text-slate-500">No payment records yet.</td>
                       </tr>
                     ) : (
                       payments.map((payment) => (
@@ -2280,13 +2282,11 @@ export default function ReservationManagementPanel({ active, canManageGmail = fa
                           <td data-mobile-label="Type" className="px-2 py-2">{payment.paymentType}</td>
                           <td data-mobile-label="Amount" className="px-2 py-2 text-emerald-300">{formatMoney(Number(payment.amountPaid || 0))}</td>
                           <td data-mobile-label="Status" className="px-2 py-2">{payment.paymentStatus}</td>
-                          <td data-mobile-label="Reference" className="px-2 py-2">{payment.referenceNumber || '—'}</td>
-                          <td data-mobile-label="Proof" className="px-2 py-2">{payment.proofOfPaymentUrl ? <a href={payment.proofOfPaymentUrl} target="_blank" rel="noreferrer" className="text-sky-300 underline hover:text-sky-200">View</a> : '—'}</td>
-                          <td data-mobile-label="Receipt No." className="px-2 py-2 text-emerald-200">{payment.receiptNumber || '—'}</td>
+                          <td data-mobile-label="Receipt No." className="px-2 py-2 text-[#a85512]">{payment.receiptNumber || '—'}</td>
                           <td data-mobile-label="Issued By" className="px-2 py-2">{payment.issuedBy || '—'}</td>
                           <td data-mobile-label="Actions" className="px-2 py-2">
                             <div className="flex flex-wrap gap-1">
-                              {payment.paymentMethod === 'GCASH' && payment.paymentStatus === 'PENDING_VERIFICATION' ? (
+                              {editingReservation.reservationStatus !== 'CHECKED_OUT' && payment.paymentMethod === 'GCASH' && payment.paymentStatus === 'PENDING_VERIFICATION' ? (
                                 <button
                                   type="button"
                                   disabled={paymentsSaving || paymentActionId === payment._id}
@@ -2300,7 +2300,7 @@ export default function ReservationManagementPanel({ active, canManageGmail = fa
                                   {paymentActionId === payment._id && paymentActionType === 'VERIFY' ? 'Verifying...' : 'Verify'}
                                 </button>
                               ) : null}
-                              {payment.paymentMethod === 'GCASH' && payment.paymentStatus === 'PENDING_VERIFICATION' ? (
+                              {editingReservation.reservationStatus !== 'CHECKED_OUT' && payment.paymentMethod === 'GCASH' && payment.paymentStatus === 'PENDING_VERIFICATION' ? (
                                 <button
                                   type="button"
                                   disabled={paymentsSaving || paymentActionId === payment._id}
@@ -2374,13 +2374,13 @@ export default function ReservationManagementPanel({ active, canManageGmail = fa
               </button>
               <button
                 type="button"
+                disabled={editingReservation.reservationStatus === 'CHECKED_OUT'}
                 onClick={() => { void handleSaveEdit(); }}
-                className="rounded-lg bg-emerald-600 px-4 py-2 text-sm font-semibold text-white hover:bg-emerald-500"
+                className="rounded-lg bg-emerald-600 px-4 py-2 text-sm font-semibold text-white hover:bg-emerald-500 disabled:cursor-not-allowed disabled:opacity-40"
               >
-                Save Changes
+                {editingReservation.reservationStatus === 'CHECKED_OUT' ? 'Read Only' : 'Save Changes'}
               </button>
             </div>
-            </fieldset>
           </div>
         </div>
       ) : null}
