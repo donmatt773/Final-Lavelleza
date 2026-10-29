@@ -86,7 +86,7 @@ export default function AllRoomsModal({ open, onClose, rooms }: Props) {
         </div>
 
         <div className="flex min-h-0 flex-1 flex-col overflow-y-auto md:flex-row">
-          <div className="relative flex min-h-[420px] flex-1 flex-col md:min-h-0 md:w-[58%]">
+          <div className="relative flex flex-none flex-col md:min-h-0 md:w-[58%] md:flex-1">
             <div className="relative min-h-64 flex-1" style={{ backgroundColor: `${theme.royal}1A` }}>
               {activeImage ? (
                 <Image
@@ -154,12 +154,12 @@ export default function AllRoomsModal({ open, onClose, rooms }: Props) {
             </div>
           </div>
 
-          <aside className="flex min-h-0 flex-col border-t md:w-[42%] md:border-l md:border-t-0" style={{ borderColor: `${theme.ink}1A` }}>
+          <aside className="flex flex-none flex-col border-t md:min-h-0 md:w-[42%] md:border-l md:border-t-0" style={{ borderColor: `${theme.ink}1A` }}>
             <div className="border-b px-5 py-4" style={{ borderColor: `${theme.ink}1A` }}>
               <p className="text-xs font-semibold uppercase tracking-[0.25em]" style={{ color: theme.royal }}>Choose a room</p>
               <p className="mt-1 text-sm" style={{ color: `${theme.ink}99` }}>Select a room to update the preview.</p>
             </div>
-            <div className="grid flex-1 gap-2 overflow-y-auto p-4 sm:grid-cols-2 md:grid-cols-1">
+            <div className="grid gap-2 p-4 sm:grid-cols-2 md:flex-1 md:grid-cols-1 md:overflow-y-auto">
               {rooms.map((room, index) => (
                 <button
                   key={room._id}
